@@ -1,3 +1,4 @@
+#include "graphics/view/TFT/TuiStyle.h"
 // -----------------------------------------------------------------------------
 // T-UI Notes — a self-contained notes app for the launcher.
 //
@@ -262,7 +263,8 @@ void buildConfirmPanel(void)
     confirmPanel = lv_obj_create(editScreen);
     lv_obj_set_size(confirmPanel, 250, 104);
     lv_obj_center(confirmPanel);
-    lv_obj_set_style_bg_color(confirmPanel, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(confirmPanel, lv_color_hex(Tui::Border),
+                              LV_PART_MAIN);
     lv_obj_set_style_border_color(confirmPanel, lv_color_hex(0x636366), LV_PART_MAIN);
     lv_obj_set_style_border_width(confirmPanel, 1, LV_PART_MAIN);
     lv_obj_set_style_radius(confirmPanel, 12, LV_PART_MAIN);
@@ -271,12 +273,12 @@ void buildConfirmPanel(void)
 
     lv_obj_t *q = lv_label_create(confirmPanel);
     lv_label_set_text(q, "Delete this note?");
-    lv_obj_set_style_text_color(q, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(q, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(q, LV_ALIGN_TOP_MID, 0, 2);
 
     lv_obj_t *sub = lv_label_create(confirmPanel);
     lv_label_set_text(sub, "This cannot be undone.");
-    lv_obj_set_style_text_color(sub, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(sub, lv_color_hex(Tui::Muted), LV_PART_MAIN);
     lv_obj_align(sub, LV_ALIGN_TOP_MID, 0, 26);
 
     lv_obj_t *cancel = barBtn(confirmPanel, "Cancel", 92, LV_ALIGN_BOTTOM_LEFT, 0, 0x48484a,
@@ -296,7 +298,8 @@ void buildListScreen(void)
 {
     listScreen = lv_obj_create(NULL);
     tui_statusbar_reserve(listScreen); // note item A4: the persistent top bar
-    lv_obj_set_style_bg_color(listScreen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(listScreen, lv_color_hex(Tui::Background),
+                              LV_PART_MAIN);
     lv_obj_clear_flag(listScreen, LV_OBJ_FLAG_SCROLLABLE);
 
     barBtn(listScreen, "Back", 56, LV_ALIGN_TOP_LEFT, 4, 0x2c2c2e, [](lv_event_t *) {
@@ -315,7 +318,7 @@ void buildListScreen(void)
     listPanel = lv_obj_create(listScreen);
     lv_obj_remove_style_all(listPanel);
     lv_obj_set_pos(listPanel, 0, 32);
-    lv_obj_set_size(listPanel, 320, 208);
+    lv_obj_set_size(listPanel, 320, 188);
     lv_obj_set_flex_flow(listPanel, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_all(listPanel, 6, LV_PART_MAIN);
     lv_obj_set_style_pad_row(listPanel, 6, LV_PART_MAIN);
@@ -330,19 +333,21 @@ void rebuildList(void)
 #if NOTES_HAVE_SD
     if (noteCount == 0) {
         lv_obj_t *empty = lv_label_create(listPanel);
-        lv_label_set_text(empty, "No notes yet - tap + New");
-        lv_obj_set_style_text_color(empty, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_label_set_text(empty, "No notes yet");
+        lv_obj_set_style_text_color(empty, lv_color_hex(Tui::Muted),
+                                    LV_PART_MAIN);
     }
 #else
     lv_obj_t *empty = lv_label_create(listPanel);
     lv_label_set_text(empty, "Notes needs the SD card");
-    lv_obj_set_style_text_color(empty, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(empty, lv_color_hex(Tui::Muted), LV_PART_MAIN);
 #endif
 
     for (int i = 0; i < noteCount; i++) {
         lv_obj_t *row = lv_btn_create(listPanel);
         lv_obj_set_size(row, LV_PCT(100), 36);
-        lv_obj_set_style_bg_color(row, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(row, lv_color_hex(Tui::Surface),
+                                  LV_PART_MAIN);
         lv_obj_set_style_radius(row, 10, LV_PART_MAIN);
         lv_obj_add_event_cb(
             row,
@@ -354,7 +359,7 @@ void rebuildList(void)
             LV_EVENT_CLICKED, (void *)(intptr_t)i);
         lv_obj_t *lbl = lv_label_create(row);
         lv_label_set_text(lbl, notePreview[i]);
-        lv_obj_set_style_text_color(lbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(lbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
         lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
         tui_one_line(lbl); // LONG_DOT needs a pinned height - see TuiLabel.h
         lv_obj_set_width(lbl, LV_PCT(100));
@@ -366,7 +371,8 @@ void buildEditScreen(void)
 {
     editScreen = lv_obj_create(NULL);
     tui_statusbar_reserve(editScreen); // note item A4: the persistent top bar
-    lv_obj_set_style_bg_color(editScreen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(editScreen, lv_color_hex(Tui::Background),
+                              LV_PART_MAIN);
     lv_obj_clear_flag(editScreen, LV_OBJ_FLAG_SCROLLABLE);
 
     // Back = save + return to wherever the note was opened from (list or Files)
@@ -387,12 +393,14 @@ void buildEditScreen(void)
     lv_textarea_set_one_line(titleArea, true);
     lv_obj_set_size(titleArea, 178, 26);
     lv_obj_align(titleArea, LV_ALIGN_TOP_MID, 0, 3);
-    lv_obj_set_style_bg_color(titleArea, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(titleArea, lv_color_hex(Tui::Surface),
+                              LV_PART_MAIN);
     lv_obj_set_style_text_color(titleArea, lv_color_hex(0xffd60a), LV_PART_MAIN);
     lv_obj_set_style_border_width(titleArea, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(titleArea, 6, LV_PART_MAIN);
     lv_obj_set_style_pad_all(titleArea, 3, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(titleArea, lv_color_hex(0xffffff), LV_PART_CURSOR);
+    lv_obj_set_style_bg_color(titleArea, lv_color_hex(Tui::Text),
+                              LV_PART_CURSOR);
     lv_obj_set_style_bg_opa(titleArea, LV_OPA_50, LV_PART_CURSOR);
     lv_obj_set_style_anim_duration(titleArea, 0, LV_PART_CURSOR);
     // ⛔ AND DELETE THE ANIMATION THAT ALREADY EXISTS. lv_textarea_create() starts a
@@ -415,22 +423,28 @@ void buildEditScreen(void)
     // Kept for view-only files, which have no editable title (see notes_open_file).
     editHint = lv_label_create(editScreen);
     lv_label_set_text(editHint, "");
-    lv_obj_set_style_text_color(editHint, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(editHint, lv_color_hex(Tui::Muted),
+                                LV_PART_MAIN);
     lv_obj_align(editHint, LV_ALIGN_TOP_MID, 0, 9);
     lv_obj_add_flag(editHint, LV_OBJ_FLAG_HIDDEN);
 
     // only shown for notes opened from the list; Files has its own Trash button.
     // Deleting is permanent, so it asks first (Jake, 2026-09-18).
     deleteBtn = barBtn(editScreen, "Delete", 64, LV_ALIGN_TOP_RIGHT, -4, 0xff453a,
-                       [](lv_event_t *) { lv_obj_clear_flag(confirmPanel, LV_OBJ_FLAG_HIDDEN); });
+                       [](lv_event_t *) {
+                           lv_obj_move_foreground(confirmPanel);
+                           lv_obj_clear_flag(confirmPanel, LV_OBJ_FLAG_HIDDEN);
+                       });
 
     buildConfirmPanel();
 
     editArea = lv_textarea_create(editScreen);
     lv_obj_set_pos(editArea, 0, 32);
-    lv_obj_set_size(editArea, 320, 208);
-    lv_obj_set_style_bg_color(editArea, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
-    lv_obj_set_style_text_color(editArea, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_size(editArea, 320, 188);
+    lv_obj_set_style_bg_color(editArea, lv_color_hex(Tui::Surface),
+                              LV_PART_MAIN);
+    lv_obj_set_style_text_color(editArea, lv_color_hex(Tui::Text),
+                                LV_PART_MAIN);
     lv_obj_set_style_border_width(editArea, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(editArea, 0, LV_PART_MAIN);
     // Visible caret. A blinking thin line proved unreliable — it only repainted
@@ -438,12 +452,13 @@ void buildEditScreen(void)
     // non-blinking, semi-transparent white block over the character position: it's
     // clearly visible and doesn't depend on the blink timer firing a repaint.
     // (anim_duration 0 => LVGL keeps the cursor shown solid whenever focused.)
-    lv_obj_set_style_bg_color(editArea, lv_color_hex(0xffffff), LV_PART_CURSOR);
+    lv_obj_set_style_bg_color(editArea, lv_color_hex(Tui::Text),
+                              LV_PART_CURSOR);
     lv_obj_set_style_bg_opa(editArea, LV_OPA_50, LV_PART_CURSOR);
     lv_obj_set_style_anim_duration(editArea, 0, LV_PART_CURSOR);
     lv_anim_delete(editArea, nullptr);
     lv_textarea_set_max_length(editArea, kMaxNoteBytes);
-    lv_textarea_set_placeholder_text(editArea, "Start typing on the keyboard...");
+    lv_textarea_set_placeholder_text(editArea, "Note");
     if (lv_group_get_default())
         lv_group_add_obj(lv_group_get_default(), editArea);
     lv_obj_add_event_cb(

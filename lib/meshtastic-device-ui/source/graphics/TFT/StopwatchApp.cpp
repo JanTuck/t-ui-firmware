@@ -1,3 +1,4 @@
+#include "graphics/view/TFT/TuiStyle.h"
 // -----------------------------------------------------------------------------
 // T-UI Stopwatch & Timer — a self-contained clock app for the launcher.
 //
@@ -84,14 +85,14 @@ void paint(void)
         bool on = false;
         tdeck_alarm_get(&h, &m, &on);
         snprintf(buf, sizeof(buf), "%02d:%02d", h, m);
-        lv_label_set_text(timeLbl, buf);
+        Tui::setText(timeLbl, buf);
         return;
     }
     if (mode == MODE_STOPWATCH)
         snprintf(buf, sizeof(buf), "%02u:%02u.%u", (unsigned)mins, (unsigned)secs, (unsigned)tenths);
     else
         snprintf(buf, sizeof(buf), "%02u:%02u", (unsigned)mins, (unsigned)secs); // timer: no tenths
-    lv_label_set_text(timeLbl, buf);
+    Tui::setText(timeLbl, buf);
 }
 
 void setReadoutColor(uint32_t c) { lv_obj_set_style_text_color(timeLbl, lv_color_hex(c), LV_PART_MAIN); }
@@ -112,10 +113,18 @@ void showAdjust(bool show)
 void refreshModeButtons(void)
 {
     // brighter fill = selected mode
-    lv_obj_set_style_bg_color(swModeBtn, lv_color_hex(mode == MODE_STOPWATCH ? 0x0a84ff : 0x2c2c2e), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(tmModeBtn, lv_color_hex(mode == MODE_TIMER ? 0x0a84ff : 0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(
+        swModeBtn,
+        lv_color_hex(mode == MODE_STOPWATCH ? 0x294c54 : Tui::Surface),
+        LV_PART_MAIN);
+    lv_obj_set_style_bg_color(
+        tmModeBtn, lv_color_hex(mode == MODE_TIMER ? 0x294c54 : Tui::Surface),
+        LV_PART_MAIN);
     if (alModeBtn)
-        lv_obj_set_style_bg_color(alModeBtn, lv_color_hex(mode == MODE_ALARM ? 0x0a84ff : 0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(
+            alModeBtn,
+            lv_color_hex(mode == MODE_ALARM ? 0x294c54 : Tui::Surface),
+            LV_PART_MAIN);
 }
 
 void stopAndReset(void)
@@ -125,8 +134,8 @@ void stopAndReset(void)
     startMs = millis();
     timerDone = false;
     setReadoutColor(0xffffff);
-    lv_label_set_text(startBtnLbl, "Start");
-    lv_label_set_text(hintLbl, "");
+    Tui::setText(startBtnLbl, "Start");
+    Tui::setText(hintLbl, "");
     paint();
 }
 
@@ -138,9 +147,9 @@ void refreshAlarmUi(void)
     int h = 7, m = 0;
     bool on = false;
     tdeck_alarm_get(&h, &m, &on);
-    lv_label_set_text(startBtnLbl, tdeck_alarm_ringing() ? "Dismiss" : (on ? "On" : "Off"));
+    Tui::setText(startBtnLbl, tdeck_alarm_ringing() ? "Dismiss" : (on ? "On" : "Off"));
     setReadoutColor(on ? 0x30d158 : 0xffffff); // green = armed, so the state is readable at a glance
-    lv_label_set_text(hintLbl, tdeck_alarm_ringing() ? "Alarm!" : (on ? "" : "Alarm is off"));
+    Tui::setText(hintLbl, tdeck_alarm_ringing() ? "Alarm!" : (on ? "" : "Alarm is off"));
     paint();
 }
 
@@ -181,12 +190,12 @@ void onStartStop(lv_event_t *)
     if (running) {
         accumMs += millis() - startMs; // freeze
         running = false;
-        lv_label_set_text(startBtnLbl, "Start");
+        Tui::setText(startBtnLbl, "Start");
     } else {
         startMs = millis();
         running = true;
-        lv_label_set_text(startBtnLbl, "Stop");
-        lv_label_set_text(hintLbl, "");
+        Tui::setText(startBtnLbl, "Stop");
+        Tui::setText(hintLbl, "");
     }
     showAdjust(mode == MODE_TIMER && !running);
     paint();
@@ -260,8 +269,8 @@ void step(lv_timer_t *)
     if (mode == MODE_TIMER && rawElapsed() >= timerSetMs) {
         running = false;
         timerDone = true;
-        lv_label_set_text(startBtnLbl, "Start");
-        lv_label_set_text(hintLbl, "Time's up!  tap Reset");
+        Tui::setText(startBtnLbl, "Start");
+        Tui::setText(hintLbl, "Time's up!  tap Reset");
         timerDoneAtMs = millis();
         lastBeepMs = millis();
         loudBeep(true); // strong, LOUD tone the moment it hits zero
@@ -274,12 +283,14 @@ void step(lv_timer_t *)
 lv_obj_t *makeButton(lv_obj_t *parent, const char *text, uint32_t color, lv_event_cb_t cb, lv_obj_t **outLbl)
 {
     lv_obj_t *btn = lv_btn_create(parent);
+    Tui::styleTile(btn);
     lv_obj_set_style_bg_color(btn, lv_color_hex(color), LV_PART_MAIN);
     lv_obj_set_style_radius(btn, 12, LV_PART_MAIN);
     lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_set_style_shadow_width(btn, 0, LV_PART_MAIN);
     lv_obj_t *lbl = lv_label_create(btn);
-    lv_label_set_text(lbl, text);
-    lv_obj_set_style_text_color(lbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    Tui::setText(lbl, text);
+    lv_obj_set_style_text_color(lbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_set_style_text_font(lbl, &ui_font_montserrat_20, LV_PART_MAIN);
     lv_obj_center(lbl);
     if (outLbl)
@@ -291,32 +302,43 @@ void buildScreen(void)
 {
     screen = lv_obj_create(NULL);
     tui_statusbar_reserve(screen); // note item A4: the persistent top bar
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(screen, lv_color_hex(Tui::Background),
+                              LV_PART_MAIN);
     lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
 
     // mode selector (top): Stopwatch | Timer
     // Three modes across the top now, so 150 no longer fits: 6 + 100 + 4 + 100 + 4 + 100 + 6
     // is exactly the 320 available.
-    swModeBtn = makeButton(screen, "Watch", 0x0a84ff, [](lv_event_t *) { setMode(MODE_STOPWATCH); }, nullptr);
+    swModeBtn = makeButton(
+        screen, "Watch", 0x294c54,
+        [](lv_event_t *) { setMode(MODE_STOPWATCH); }, nullptr);
     lv_obj_set_size(swModeBtn, 100, 40);
     lv_obj_align(swModeBtn, LV_ALIGN_TOP_LEFT, 6, 6);
-    tmModeBtn = makeButton(screen, "Timer", 0x2c2c2e, [](lv_event_t *) { setMode(MODE_TIMER); }, nullptr);
+    tmModeBtn = makeButton(
+        screen, "Timer", Tui::Surface,
+        [](lv_event_t *) { setMode(MODE_TIMER); }, nullptr);
     lv_obj_set_size(tmModeBtn, 100, 40);
     lv_obj_align(tmModeBtn, LV_ALIGN_TOP_MID, 0, 6);
-    alModeBtn = makeButton(screen, "Alarm", 0x2c2c2e, [](lv_event_t *) { setMode(MODE_ALARM); }, nullptr);
+    alModeBtn = makeButton(
+        screen, "Alarm", Tui::Surface,
+        [](lv_event_t *) { setMode(MODE_ALARM); }, nullptr);
     lv_obj_set_size(alModeBtn, 100, 40);
     lv_obj_align(alModeBtn, LV_ALIGN_TOP_RIGHT, -6, 6);
 
     // big readout, with − / + adjust buttons flanking it (timer mode only)
     timeLbl = lv_label_create(screen);
-    lv_obj_set_style_text_color(timeLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(timeLbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_set_style_text_font(timeLbl, &lv_font_montserrat_40, LV_PART_MAIN);
     lv_obj_align(timeLbl, LV_ALIGN_CENTER, 0, -18);
 
-    minusBtn = makeButton(screen, "-", 0x3a3a3c, [](lv_event_t *) { adjustTimer(-60000); }, nullptr);
+    minusBtn = makeButton(
+        screen, "-", Tui::Surface, [](lv_event_t *) { adjustTimer(-60000); },
+        nullptr);
     lv_obj_set_size(minusBtn, 48, 48);
     lv_obj_align(minusBtn, LV_ALIGN_LEFT_MID, 8, -18);
-    plusBtn = makeButton(screen, "+", 0x3a3a3c, [](lv_event_t *) { adjustTimer(60000); }, nullptr);
+    plusBtn = makeButton(
+        screen, "+", Tui::Surface, [](lv_event_t *) { adjustTimer(60000); },
+        nullptr);
     lv_obj_set_size(plusBtn, 48, 48);
     lv_obj_align(plusBtn, LV_ALIGN_RIGHT_MID, -8, -18);
 
@@ -327,7 +349,8 @@ void buildScreen(void)
     lv_obj_t *startBtn = makeButton(screen, "Start", 0x30d158, onStartStop, &startBtnLbl);
     lv_obj_set_size(startBtn, 130, 52);
     lv_obj_align(startBtn, LV_ALIGN_BOTTOM_LEFT, 16, -14);
-    lv_obj_t *resetBtn = makeButton(screen, "Reset", 0x3a3a3c, onReset, nullptr);
+    lv_obj_t *resetBtn =
+        makeButton(screen, "Reset", Tui::Surface, onReset, nullptr);
     resetBtnRef = resetBtn; // hidden in Alarm mode - there is no count to reset
     lv_obj_set_size(resetBtn, 130, 52);
     lv_obj_align(resetBtn, LV_ALIGN_BOTTOM_RIGHT, -16, -14);

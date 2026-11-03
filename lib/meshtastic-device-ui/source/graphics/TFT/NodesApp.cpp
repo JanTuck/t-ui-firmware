@@ -1,3 +1,4 @@
+#include "graphics/view/TFT/TuiStyle.h"
 // -----------------------------------------------------------------------------
 // T-UI Nodes & Favorites — two launcher apps over one list.
 //
@@ -175,7 +176,8 @@ void envelopeIcon(lv_obj_t *p)
     lv_obj_remove_style_all(body);
     lv_obj_set_size(body, 26, 18);
     lv_obj_center(body);
-    lv_obj_set_style_border_color(body, lv_color_hex(0x0a84ff), LV_PART_MAIN);
+    lv_obj_set_style_border_color(body, lv_color_hex(Tui::Accent),
+                                  LV_PART_MAIN);
     lv_obj_set_style_border_width(body, 2, LV_PART_MAIN);
     lv_obj_set_style_radius(body, 3, LV_PART_MAIN);
     lv_obj_clear_flag(body, LV_OBJ_FLAG_SCROLLABLE);
@@ -184,7 +186,7 @@ void envelopeIcon(lv_obj_t *p)
     static lv_point_precise_t flap[3] = {{2, 2}, {13, 11}, {24, 2}}; // the V of the envelope
     lv_obj_t *l = lv_line_create(body);
     lv_line_set_points(l, flap, 3);
-    lv_obj_set_style_line_color(l, lv_color_hex(0x0a84ff), LV_PART_MAIN);
+    lv_obj_set_style_line_color(l, lv_color_hex(Tui::Accent), LV_PART_MAIN);
     lv_obj_set_style_line_width(l, 2, LV_PART_MAIN);
 }
 
@@ -277,7 +279,7 @@ void buildSheet(void)
     sheet = lv_obj_create(lv_layer_top());
     lv_obj_set_size(sheet, 268, 228);
     lv_obj_center(sheet);
-    lv_obj_set_style_bg_color(sheet, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(sheet, lv_color_hex(Tui::Surface), LV_PART_MAIN);
     lv_obj_set_style_border_color(sheet, lv_color_hex(0x48484a), LV_PART_MAIN);
     lv_obj_set_style_border_width(sheet, 1, LV_PART_MAIN);
     lv_obj_set_style_radius(sheet, 12, LV_PART_MAIN);
@@ -285,7 +287,8 @@ void buildSheet(void)
     lv_obj_add_flag(sheet, LV_OBJ_FLAG_HIDDEN);
 
     sheetTitle = lv_label_create(sheet);
-    lv_obj_set_style_text_color(sheetTitle, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(sheetTitle, lv_color_hex(Tui::Text),
+                                LV_PART_MAIN);
     lv_obj_set_width(sheetTitle, 236);
     lv_label_set_long_mode(sheetTitle, LV_LABEL_LONG_DOT);
     tui_one_line(sheetTitle); // LONG_DOT needs a pinned height - see TuiLabel.h
@@ -348,7 +351,7 @@ lv_obj_t *actionBtn(lv_obj_t *parent, int x, int w, lv_event_cb_t cb, int idx)
     lv_obj_remove_style_all(b);
     lv_obj_set_size(b, w, 38);
     lv_obj_set_pos(b, x, 46);
-    lv_obj_set_style_bg_color(b, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(b, lv_color_hex(Tui::Border), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(b, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(b, 6, LV_PART_MAIN);
     lv_obj_clear_flag(b, LV_OBJ_FLAG_SCROLLABLE);
@@ -365,7 +368,7 @@ void addRow(lv_obj_t *parent, uint32_t num, int idx)
     // Twice the old height (Jake): the top half names the node, the bottom half carries three
     // full-width action buttons — far better touch targets than icons squeezed onto one line.
     lv_obj_set_size(row, lv_pct(100), 88);
-    lv_obj_set_style_bg_color(row, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(row, lv_color_hex(Tui::Surface), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(row, 8, LV_PART_MAIN);
     lv_obj_set_style_pad_all(row, 0, LV_PART_MAIN);
@@ -378,7 +381,7 @@ void addRow(lv_obj_t *parent, uint32_t num, int idx)
 
     lv_obj_t *name = lv_label_create(row);
     lv_label_set_text(name, tdeck_node_name(num));
-    lv_obj_set_style_text_color(name, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(name, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     tui_one_line(name); // LONG_DOT needs a pinned height - see TuiLabel.h
     lv_obj_set_width(name, unread ? 276 : 290);
@@ -450,7 +453,8 @@ void addRow(lv_obj_t *parent, uint32_t num, int idx)
         for (lv_point_precise_t *pts : {up, dn}) {
             lv_obj_t *l = lv_line_create(more);
             lv_line_set_points(l, pts, 2);
-            lv_obj_set_style_line_color(l, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+            lv_obj_set_style_line_color(l, lv_color_hex(Tui::Muted),
+                                        LV_PART_MAIN);
             lv_obj_set_style_line_width(l, 3, LV_PART_MAIN);
             lv_obj_align(l, LV_ALIGN_CENTER, 0, 0);
         }
@@ -500,14 +504,15 @@ void buildScreen(void)
     // the app closes it.
     lv_obj_add_event_cb(
         screen, [](lv_event_t *) { closeSheet(); }, LV_EVENT_SCREEN_UNLOADED, nullptr);
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(screen, lv_color_hex(Tui::Background),
+                              LV_PART_MAIN);
     lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *back = lv_obj_create(screen);
     lv_obj_remove_style_all(back);
     lv_obj_set_size(back, 56, 28);
     lv_obj_align(back, LV_ALIGN_TOP_LEFT, 4, 2);
-    lv_obj_set_style_bg_color(back, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(back, lv_color_hex(Tui::Border), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(back, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(back, 6, LV_PART_MAIN);
     lv_obj_add_flag(back, LV_OBJ_FLAG_CLICKABLE);
@@ -520,7 +525,7 @@ void buildScreen(void)
         LV_EVENT_CLICKED, nullptr);
     lv_obj_t *bl = lv_label_create(back);
     lv_label_set_text(bl, "Back");
-    lv_obj_set_style_text_color(bl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(bl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_center(bl);
 
     titleLbl = lv_label_create(screen);
@@ -538,7 +543,8 @@ void buildScreen(void)
 
     emptyLbl = lv_label_create(screen);
     lv_label_set_text(emptyLbl, "");
-    lv_obj_set_style_text_color(emptyLbl, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(emptyLbl, lv_color_hex(Tui::Muted),
+                                LV_PART_MAIN);
     lv_obj_align(emptyLbl, LV_ALIGN_CENTER, 0, 0);
     lv_obj_add_flag(emptyLbl, LV_OBJ_FLAG_HIDDEN);
 }

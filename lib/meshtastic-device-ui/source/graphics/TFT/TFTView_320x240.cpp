@@ -1,8 +1,5 @@
 #if HAS_TFT && defined(VIEW_320x240) || defined(VIEW_240x320)
 
-#include "graphics/view/TFT/TuiLabel.h" // tui_one_line: LONG_DOT needs a height
-#include "graphics/view/TFT/TuiStatusBar.h" // the persistent top bar (note item A4)
-#include "graphics/view/TFT/UnreadCounts.h" // unread, counted per conversation
 #include "graphics/view/TFT/TFTView_320x240.h"
 #include "Arduino.h"
 #include "graphics/common/BatteryLevel.h"
@@ -16,6 +13,10 @@
 #include "graphics/map/URLService.h"
 #include "graphics/view/TFT/LockWidgets.h" // the three lock-screen widgets
 #include "graphics/view/TFT/Themes.h"
+#include "graphics/view/TFT/TuiLabel.h" // tui_one_line: LONG_DOT needs a height
+#include "graphics/view/TFT/TuiStatusBar.h" // the persistent top bar (note item A4)
+#include "graphics/view/TFT/TuiStyle.h"
+#include "graphics/view/TFT/UnreadCounts.h" // unread, counted per conversation
 #include "images.h"
 #include "input/InputDriver.h"
 #include "lv_i18n.h"
@@ -28,10 +29,10 @@
 #include <cmath>
 #include <cstdio>
 #include <functional>
-#include <new> // std::nothrow, so a failed GUI allocation can't abort the boot
 #include <iomanip>
 #include <list>
 #include <locale>
+#include <new> // std::nothrow, so a failed GUI allocation can't abort the boot
 #include <random>
 #include <sstream>
 #include <time.h>
@@ -488,22 +489,27 @@ void TFTView_320x240::init(IClientBase *client)
     // ---- T-UI splash restyle (cosmetic only — the boot->launcher handoff logic is untouched) ----
     // Black screen, big "T-UI" title, "booting" below. The stock Meshtastic logo/URL are hidden,
     // not removed, so the reboot spinner and boot-message plumbing keep working.
-    lv_obj_set_style_bg_color(objects.boot_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(objects.boot_screen,
+                              lv_color_hex(Tui::Background), LV_PART_MAIN);
     lv_obj_add_flag(objects.boot_logo, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(objects.meshtastic_url, LV_OBJ_FLAG_HIDDEN);
     splash_title = lv_label_create(objects.boot_screen);
     lv_label_set_text(splash_title, "T-UI");
-    lv_obj_set_style_text_color(splash_title, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(splash_title, lv_color_hex(Tui::Text),
+                                LV_PART_MAIN);
     lv_obj_set_style_text_font(splash_title, &ui_font_montserrat_20, LV_PART_MAIN);
     lv_obj_set_style_text_letter_space(splash_title, 8, LV_PART_MAIN);
     lv_obj_align(splash_title, LV_ALIGN_CENTER, 0, -18);
     lv_obj_clear_flag(objects.firmware_label, LV_OBJ_FLAG_HIDDEN);
     lv_label_set_text(objects.firmware_label, "booting");
-    lv_obj_set_style_text_color(objects.firmware_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(objects.firmware_label,
+                                lv_color_hex(Tui::Muted), LV_PART_MAIN);
     lv_obj_align(objects.firmware_label, LV_ALIGN_CENTER, 0, 14);
     // reboot spinner arc: recolor for the black background
-    lv_obj_set_style_arc_color(objects.boot_logo_arc, lv_color_hex(0xffffff), LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(objects.boot_logo_arc, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_arc_color(objects.boot_logo_arc, lv_color_hex(Tui::Text),
+                               LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(objects.boot_logo_arc, lv_color_hex(Tui::Border),
+                               LV_PART_MAIN);
 
     time(&lastrun60);
     time(&lastrun10);
@@ -737,19 +743,6 @@ static const LauncherApp kApps[] = {
 };
 
 // --- simple per-app icons, drawn from lv_obj primitives (no image assets needed) ---
-// Mix an accent colour into a dark base. Each home-screen tile is tinted by its own app
-// colour, top more than bottom, which is what turns a grid of identical grey squares into
-// something you can find an app on without reading the labels. The percentages are low on
-// purpose - 16 and 4 - and were picked by rendering the grid on the PC and looking at it
-// (C:\tdsim, "home-old" and "home-new"). Anything stronger reads as six coloured boxes.
-uint32_t tintAccent(uint32_t base, uint32_t accent, int pct)
-{
-    const int r = (int)(((base >> 16) & 0xff) * (100 - pct) + ((accent >> 16) & 0xff) * pct) / 100;
-    const int g = (int)(((base >> 8) & 0xff) * (100 - pct) + ((accent >> 8) & 0xff) * pct) / 100;
-    const int b = (int)((base & 0xff) * (100 - pct) + (accent & 0xff) * pct) / 100;
-    return ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
-}
-
 lv_obj_t *icBox(lv_obj_t *p, int x, int y, int w, int h, uint32_t color, int radius)
 {
     lv_obj_t *o = lv_obj_create(p);
@@ -1282,7 +1275,8 @@ static void tdeckCollectFocusables(lv_obj_t *parent, lv_group_t *g, int depth = 
             lv_group_add_obj(g, c);
             // The focus ring. Local styles, so repeated rebuilds just overwrite.
             lv_obj_set_style_outline_width(c, 3, LV_PART_MAIN | LV_STATE_FOCUSED);
-            lv_obj_set_style_outline_color(c, lv_color_hex(0x0a84ff), LV_PART_MAIN | LV_STATE_FOCUSED);
+            lv_obj_set_style_outline_color(c, lv_color_hex(Tui::Accent),
+                                           LV_PART_MAIN | LV_STATE_FOCUSED);
             lv_obj_set_style_outline_opa(c, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_FOCUSED);
             lv_obj_set_style_outline_pad(c, 2, LV_PART_MAIN | LV_STATE_FOCUSED);
             // Lift the background a little as well. A thin ring alone is easy to lose against
@@ -1354,7 +1348,8 @@ void TFTView_320x240::createLauncher(void)
 
     launcher_screen = lv_obj_create(NULL);
     tdeck_launcher_scr = launcher_screen; // so tdeck_on_home_screen() can see it
-    lv_obj_set_style_bg_color(launcher_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(launcher_screen, lv_color_hex(Tui::Background),
+                              LV_PART_MAIN);
     lv_obj_clear_flag(launcher_screen, LV_OBJ_FLAG_SCROLLABLE);
 
     // ---- top status bar (~24px): mesh dot + label left, clock center, battery right ----
@@ -1373,10 +1368,12 @@ void TFTView_320x240::createLauncher(void)
         lv_obj_remove_style_all(bar);
         lv_obj_set_size(bar, 320, 22);
         lv_obj_align(bar, LV_ALIGN_TOP_LEFT, 0, 0);
-        lv_obj_set_style_bg_color(bar, lv_color_hex(0x0a0a0c), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(bar, lv_color_hex(Tui::Background),
+                                  LV_PART_MAIN);
         lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_BOTTOM, LV_PART_MAIN);
-        lv_obj_set_style_border_color(bar, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_border_color(bar, lv_color_hex(Tui::Border),
+                                      LV_PART_MAIN);
         lv_obj_set_style_border_width(bar, 1, LV_PART_MAIN);
         lv_obj_clear_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_clear_flag(bar, LV_OBJ_FLAG_CLICKABLE); // the labels on top of it stay tappable
@@ -1384,7 +1381,8 @@ void TFTView_320x240::createLauncher(void)
 
     launcher_mem_label = lv_label_create(launcher_screen);
     lv_label_set_text(launcher_mem_label, "T-Deck");
-    lv_obj_set_style_text_color(launcher_mem_label, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(launcher_mem_label, lv_color_hex(Tui::Text),
+                                LV_PART_MAIN);
     lv_obj_set_style_text_font(launcher_mem_label, &ui_font_montserrat_12, LV_PART_MAIN);
     // Dead centre, like the clock on every other screen. It used to be pushed 40px right to
     // clear the unread count; that count now lives in its own left-hand slot, so it does not
@@ -1403,6 +1401,8 @@ void TFTView_320x240::createLauncher(void)
             tdeck_diag_tick();      // record new memory low-water marks (persists worst to NVS)
             THIS->logDiagBoot();    // once SD is up, append a line if we restarted from a fault
             char buf[64];
+            uint32_t clockColor = Tui::Text;
+            static uint32_t lastClockColor = Tui::Text;
             // For the first ~20s after a fault, flash WHY we last restarted (red) so
             // it can't be missed; then settle into the live heap/PSRAM readout.
             if (tdeck_prev_reason_bad() && lv_tick_get() < 20000) {
@@ -1412,7 +1412,7 @@ void TFTView_320x240::createLauncher(void)
                 else
                     snprintf(buf, sizeof(buf), "last: %s  ps low %luk", tdeck_prev_reason_str(),
                              (unsigned long)(tdeck_prev_psram_low() / 1024));
-                lv_obj_set_style_text_color(THIS->launcher_mem_label, lv_color_hex(0xff453a), LV_PART_MAIN);
+                clockColor = 0xff453a;
             } else {
                 // Normal case: the clock. The device gets accurate time from the GPS satellites,
                 // and the time zone set in Settings makes localtime() local. Before any valid time
@@ -1436,9 +1436,14 @@ void TFTView_320x240::createLauncher(void)
                 } else {
                     strcpy(buf, "T-Deck");
                 }
-                lv_obj_set_style_text_color(THIS->launcher_mem_label, lv_color_hex(0xffffff), LV_PART_MAIN);
             }
-            lv_label_set_text(THIS->launcher_mem_label, buf);
+            if (clockColor != lastClockColor) {
+                lv_obj_set_style_text_color(THIS->launcher_mem_label,
+                                            lv_color_hex(clockColor),
+                                            LV_PART_MAIN);
+                lastClockColor = clockColor;
+            }
+            Tui::setText(THIS->launcher_mem_label, buf);
         },
         1000, NULL);
 
@@ -1454,10 +1459,11 @@ void TFTView_320x240::createLauncher(void)
     lv_obj_set_style_text_color(launcher_unread_label, lv_color_hex(0x30d158), LV_PART_MAIN);
     lv_obj_set_style_text_font(launcher_unread_label, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_obj_align(launcher_unread_label, LV_ALIGN_TOP_LEFT, 6, 4);
-    // "Notifications" when there is nothing, exactly as the shared bar reads, rather than an
-    // empty space that gives no hint there is anything to tap.
-    lv_label_set_text(launcher_unread_label, "Notifications");
-    lv_obj_set_style_text_color(launcher_unread_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    // "Alerts" when there is nothing, exactly as the shared bar reads, rather
+    // than an empty space that gives no hint there is anything to tap.
+    lv_label_set_text(launcher_unread_label, "Alerts");
+    lv_obj_set_style_text_color(launcher_unread_label, lv_color_hex(Tui::Muted),
+                                LV_PART_MAIN);
     // Jake: "then youd click the '1msg' it would take you to a notifications page". This is
     // that "1msg". The hit area is grown well past the text, because a 12px label is a
     // cruel tap target.
@@ -1471,7 +1477,8 @@ void TFTView_320x240::createLauncher(void)
     // radio is switched OFF, say so in words. Blank — and therefore invisible — the rest
     // of the time, which is nearly always.
     launcher_mesh_off_label = lv_label_create(launcher_screen);
-    lv_obj_set_style_text_color(launcher_mesh_off_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(launcher_mesh_off_label,
+                                lv_color_hex(Tui::Muted), LV_PART_MAIN);
     lv_obj_set_style_text_font(launcher_mesh_off_label, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_obj_align_to(launcher_mesh_off_label, launcher_unread_label, LV_ALIGN_OUT_RIGHT_MID, 0, 0);
     lv_label_set_text(launcher_mesh_off_label, meshEnabled ? "" : "mesh off");
@@ -1482,7 +1489,8 @@ void TFTView_320x240::createLauncher(void)
 
     // battery percentage (top-right); fed by updateMetrics()->updateLauncherBattery().
     launcher_battery_label = lv_label_create(launcher_screen);
-    lv_obj_set_style_text_color(launcher_battery_label, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(launcher_battery_label, lv_color_hex(Tui::Text),
+                                LV_PART_MAIN);
     // montserrat_12 and -6, matching the shared bar. It was the default font, which is bigger
     // than everything beside it and made Home look like it had been laid out by someone else.
     lv_obj_set_style_text_font(launcher_battery_label, &ui_font_montserrat_12, LV_PART_MAIN);
@@ -1561,7 +1569,7 @@ void TFTView_320x240::createLauncher(void)
                 }
             }
             // The persistent top bar. Cheap: it returns immediately unless the screen showing
-            // has asked for it, and lv_label_set_text skips unchanged strings.
+            // has asked for it, and unchanged text is filtered before calling LVGL.
             tui_statusbar_tick();
             // The PIN pad had no timeout of its own: wake the device, don't type the code, and
             // it sat there lit until the battery ran down. The main screen timeout does not cover
@@ -2054,41 +2062,9 @@ void TFTView_320x240::buildAppGrid(void)
             lv_obj_set_style_pad_hor(page, 12, LV_PART_MAIN);
         }
         lv_obj_t *tile = lv_btn_create(page);
+        Tui::styleTile(tile);
         lv_obj_set_size(tile, 88, 84);
         lv_obj_clear_flag(tile, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_style_radius(tile, 18, LV_PART_MAIN);
-        // A vertical gradient tinted with the app's own colour, and a lit top edge, so the
-        // tile reads as a surface with light falling on it rather than a flat grey square.
-        {
-            const uint32_t a = launchList[i].color;
-            // Lit from BELOW: dark at the top, lighter at the bottom.
-            //
-            // ⚠️ Jake asked for the Apple-style bottom-left angle, and it is not available.
-            // LVGL has LV_GRAD_DIR_LINEAR, but only behind LV_USE_DRAW_SW_COMPLEX_GRADIENTS,
-            // which is 0 here. Turning it on in the PC renderer, with a clean rebuild and the
-            // proper lv_grad_linear_init()/lv_grad_init_stops() helpers in both orders, drew
-            // nothing at all - the tiles came out transparent. Recorded so nobody repeats it.
-            //
-            // 8%, not the 16% first tried: "maybe just less vibrant". At 8 the tile is grey
-            // with a hint of the app in it; at 16 it was six coloured boxes.
-            lv_obj_set_style_bg_color(tile, lv_color_hex(tintAccent(0x131316, a, 4)), LV_PART_MAIN);
-            lv_obj_set_style_bg_grad_color(tile, lv_color_hex(tintAccent(0x2e2e34, a, 8)), LV_PART_MAIN);
-            lv_obj_set_style_bg_grad_dir(tile, LV_GRAD_DIR_VER, LV_PART_MAIN);
-            lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, LV_PART_MAIN);
-            lv_obj_set_style_border_side(tile, LV_BORDER_SIDE_TOP, LV_PART_MAIN);
-            lv_obj_set_style_border_color(tile, lv_color_hex(0x35353a), LV_PART_MAIN);
-            lv_obj_set_style_border_width(tile, 1, LV_PART_MAIN);
-            lv_obj_set_style_shadow_width(tile, 10, LV_PART_MAIN);
-            lv_obj_set_style_shadow_color(tile, lv_color_hex(0x000000), LV_PART_MAIN);
-            lv_obj_set_style_shadow_opa(tile, 110, LV_PART_MAIN);
-            lv_obj_set_style_shadow_offset_y(tile, 4, LV_PART_MAIN);
-            // Pressed: brighter and pushed down a couple of pixels, so a tap on a touchscreen
-            // this size gives you something back before the app has finished opening.
-            lv_obj_set_style_bg_color(tile, lv_color_hex(tintAccent(0x3a3a41, a, 14)),
-                                      LV_PART_MAIN | LV_STATE_PRESSED);
-            lv_obj_set_style_translate_y(tile, 2, LV_PART_MAIN | LV_STATE_PRESSED);
-            lv_obj_set_style_shadow_opa(tile, 40, LV_PART_MAIN | LV_STATE_PRESSED);
-        }
         lv_obj_add_event_cb(tile, tile_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
         lv_obj_add_event_cb(tile, tile_long_cb, LV_EVENT_LONG_PRESSED, NULL);
 
@@ -2106,7 +2082,10 @@ void TFTView_320x240::buildAppGrid(void)
 
         lv_obj_t *lbl = lv_label_create(tile);
         lv_label_set_text(lbl, launchList[i].name);
-        lv_obj_set_style_text_color(lbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_size(lbl, 80, 16);
+        lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
+        lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+        lv_obj_set_style_text_color(lbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
         lv_obj_set_style_text_font(lbl, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_obj_align(lbl, LV_ALIGN_BOTTOM_MID, 0, -6);
     }
@@ -2134,23 +2113,24 @@ void TFTView_320x240::buildAppGrid(void)
         lv_obj_add_event_cb(
             pager,
             [](lv_event_t *) {
-                if (!THIS->launcher_pager || !THIS->launcher_dots)
-                    return;
-                int32_t sx = lv_obj_get_scroll_x(THIS->launcher_pager);
-                int cur = (sx + 160) / 320;
-                uint32_t n = lv_obj_get_child_count(THIS->launcher_dots);
-                if (cur < 0)
-                    cur = 0;
-                if (cur > (int)n - 1)
-                    cur = (int)n - 1;
-                for (uint32_t k = 0; k < n; k++) {
-                    lv_obj_t *d = lv_obj_get_child(THIS->launcher_dots, k);
-                    const bool on = ((int)k == cur);
-                    lv_obj_set_style_bg_color(d, lv_color_hex(on ? 0xffffff : 0x48484a), LV_PART_MAIN);
-                    lv_obj_set_width(d, on ? 16 : 6); // the pill follows the page
-                }
+              if (!THIS->launcher_pager || !THIS->launcher_dots)
+                return;
+              int32_t sx = lv_obj_get_scroll_x(THIS->launcher_pager);
+              int cur = (sx + 160) / 320;
+              uint32_t n = lv_obj_get_child_count(THIS->launcher_dots);
+              if (cur < 0)
+                cur = 0;
+              if (cur > (int)n - 1)
+                cur = (int)n - 1;
+              for (uint32_t k = 0; k < n; k++) {
+                lv_obj_t *d = lv_obj_get_child(THIS->launcher_dots, k);
+                const bool on = ((int)k == cur);
+                lv_obj_set_style_bg_color(
+                    d, lv_color_hex(on ? 0xffffff : 0x48484a), LV_PART_MAIN);
+                lv_obj_set_width(d, on ? 16 : 6); // the pill follows the page
+              }
             },
-            LV_EVENT_SCROLL, NULL);
+            LV_EVENT_SCROLL_END, NULL);
     } else {
         launcher_dots = nullptr;
     }
@@ -2222,13 +2202,14 @@ void TFTView_320x240::openArrange(void)
     arrange_overlay = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(arrange_overlay);
     lv_obj_set_size(arrange_overlay, 320, 240);
-    lv_obj_set_style_bg_color(arrange_overlay, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(arrange_overlay, lv_color_hex(Tui::Background),
+                              LV_PART_MAIN);
     lv_obj_set_style_bg_opa(arrange_overlay, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(arrange_overlay, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *title = lv_label_create(arrange_overlay);
     lv_label_set_text(title, "Arrange apps");
-    lv_obj_set_style_text_color(title, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(title, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(title, LV_ALIGN_TOP_LEFT, 12, 10);
 
     lv_obj_t *doneBtn = lv_btn_create(arrange_overlay);
@@ -2252,14 +2233,16 @@ void TFTView_320x240::openArrange(void)
         lv_obj_t *row = lv_obj_create(list);
         lv_obj_remove_style_all(row);
         lv_obj_set_size(row, 302, 40);
-        lv_obj_set_style_bg_color(row, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(row, lv_color_hex(Tui::Surface),
+                                  LV_PART_MAIN);
         lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_set_style_radius(row, 8, LV_PART_MAIN);
         lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
 
         lv_obj_t *name = lv_label_create(row);
         lv_label_set_text(name, launchList[i].name);
-        lv_obj_set_style_text_color(name, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(name, lv_color_hex(Tui::Text),
+                                    LV_PART_MAIN);
         lv_obj_set_width(name, 180);
         lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
         tui_one_line(name); // LONG_DOT needs a pinned height - see TuiLabel.h
@@ -2354,7 +2337,8 @@ void TFTView_320x240::updateLauncherBattery(void)
         return;
     if (launcherBatPct < 0) { // no telemetry yet
         lv_label_set_text(launcher_battery_label, "--");
-        lv_obj_set_style_text_color(launcher_battery_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(launcher_battery_label,
+                                    lv_color_hex(Tui::Muted), LV_PART_MAIN);
         return;
     }
     char buf[16];
@@ -2376,13 +2360,14 @@ void TFTView_320x240::createSettingsScreen(void)
 {
     settings_screen = lv_obj_create(NULL);
     tui_statusbar_reserve(settings_screen); // 20px of top padding moves every child down
-    lv_obj_set_style_bg_color(settings_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(settings_screen, lv_color_hex(Tui::Background),
+                              LV_PART_MAIN);
     lv_obj_set_scroll_dir(settings_screen, LV_DIR_VER); // scrollable now that there are more rows
     lv_obj_set_scrollbar_mode(settings_screen, LV_SCROLLBAR_MODE_AUTO);
 
     lv_obj_t *title = lv_label_create(settings_screen);
     lv_label_set_text(title, "Settings");
-    lv_obj_set_style_text_color(title, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(title, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
 
     // Back, where every other screen keeps it. There is still one at the bottom of the page -
@@ -2391,7 +2376,7 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_obj_set_size(topBack, 62, 28);
     lv_obj_align(topBack, LV_ALIGN_TOP_LEFT, 8, 4);
     lv_obj_set_style_radius(topBack, 8, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(topBack, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(topBack, lv_color_hex(Tui::Border), LV_PART_MAIN);
     lv_obj_add_event_cb(
         topBack,
         [](lv_event_t *) {
@@ -2409,35 +2394,35 @@ void TFTView_320x240::createSettingsScreen(void)
     {
         lv_obj_t *h = lv_label_create(settings_screen);
         lv_label_set_text(h, "DISPLAY");
-        lv_obj_set_style_text_color(h, lv_color_hex(0x0a84ff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(h, lv_color_hex(Tui::Accent), LV_PART_MAIN);
         lv_obj_set_style_text_font(h, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_obj_align(h, LV_ALIGN_TOP_LEFT, 16, 48);
     }
     {
         lv_obj_t *h = lv_label_create(settings_screen);
         lv_label_set_text(h, "LOCATION");
-        lv_obj_set_style_text_color(h, lv_color_hex(0x0a84ff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(h, lv_color_hex(Tui::Accent), LV_PART_MAIN);
         lv_obj_set_style_text_font(h, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_obj_align(h, LV_ALIGN_TOP_LEFT, 16, 164);
     }
     {
         lv_obj_t *h = lv_label_create(settings_screen);
         lv_label_set_text(h, "SOUND");
-        lv_obj_set_style_text_color(h, lv_color_hex(0x0a84ff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(h, lv_color_hex(Tui::Accent), LV_PART_MAIN);
         lv_obj_set_style_text_font(h, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_obj_align(h, LV_ALIGN_TOP_LEFT, 16, 580);
     }
     {
         lv_obj_t *h = lv_label_create(settings_screen);
         lv_label_set_text(h, "MESH");
-        lv_obj_set_style_text_color(h, lv_color_hex(0x0a84ff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(h, lv_color_hex(Tui::Accent), LV_PART_MAIN);
         lv_obj_set_style_text_font(h, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_obj_align(h, LV_ALIGN_TOP_LEFT, 16, 680);
     }
     {
         lv_obj_t *h = lv_label_create(settings_screen);
         lv_label_set_text(h, "SYSTEM");
-        lv_obj_set_style_text_color(h, lv_color_hex(0x0a84ff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(h, lv_color_hex(Tui::Accent), LV_PART_MAIN);
         lv_obj_set_style_text_font(h, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_obj_align(h, LV_ALIGN_TOP_LEFT, 16, 786);
     }
@@ -2447,7 +2432,7 @@ void TFTView_320x240::createSettingsScreen(void)
     // between the PIN and the brightness slider; they are one subject, so this is one row.
     lv_obj_t *lockLbl = lv_label_create(settings_screen);
     lv_label_set_text(lockLbl, "Lock screen");
-    lv_obj_set_style_text_color(lockLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(lockLbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(lockLbl, LV_ALIGN_TOP_LEFT, 16, 78);
 
     lv_obj_t *lockBtn = lv_btn_create(settings_screen);
@@ -2472,7 +2457,7 @@ void TFTView_320x240::createSettingsScreen(void)
     // "Brightness" row — live slider; persisted on release
     lv_obj_t *briLbl = lv_label_create(settings_screen);
     lv_label_set_text(briLbl, "Brightness");
-    lv_obj_set_style_text_color(briLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(briLbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(briLbl, LV_ALIGN_TOP_LEFT, 16, 130);
 
     lv_obj_t *briSlider = lv_slider_create(settings_screen);
@@ -2499,7 +2484,7 @@ void TFTView_320x240::createSettingsScreen(void)
     // "GPS" row — on = always searching (continuous); off = powered down
     lv_obj_t *gpsLbl = lv_label_create(settings_screen);
     lv_label_set_text(gpsLbl, "GPS");
-    lv_obj_set_style_text_color(gpsLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(gpsLbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(gpsLbl, LV_ALIGN_TOP_LEFT, 16, 194);
 
     gpsEnabled = tdeck_gps_get_enabled(); // reflect the firmware's current GPS state
@@ -2522,7 +2507,7 @@ void TFTView_320x240::createSettingsScreen(void)
     // On public-key channels the firmware itself clamps anything finer than ~350 m — rule kept.
     lv_obj_t *locLbl = lv_label_create(settings_screen);
     lv_label_set_text(locLbl, "Share location");
-    lv_obj_set_style_text_color(locLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(locLbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(locLbl, LV_ALIGN_TOP_LEFT, 16, 228);
 
     lv_obj_t *locBtn = lv_btn_create(settings_screen);
@@ -2540,20 +2525,22 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_label_set_long_mode(gpsHint, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_font(gpsHint, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_label_set_text(gpsHint, "GPS on = always searching, even while asleep. Share location = how exactly others on the mesh see you.");
-    lv_obj_set_style_text_color(gpsHint, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(gpsHint, lv_color_hex(Tui::Muted),
+                                LV_PART_MAIN);
     lv_obj_align(gpsHint, LV_ALIGN_TOP_LEFT, 16, 264);
 
     // ---- WiFi section ----
     lv_obj_t *wifiHdr = lv_label_create(settings_screen);
     lv_label_set_text(wifiHdr, "NETWORK");
-    lv_obj_set_style_text_color(wifiHdr, lv_color_hex(0x0a84ff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(wifiHdr, lv_color_hex(Tui::Accent),
+                                LV_PART_MAIN);
     lv_obj_set_style_text_font(wifiHdr, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_obj_align(wifiHdr, LV_ALIGN_TOP_LEFT, 16, 308);
 
     // Network name -> keyboard (button shows the saved name)
     lv_obj_t *netLbl = lv_label_create(settings_screen);
     lv_label_set_text(netLbl, "Network");
-    lv_obj_set_style_text_color(netLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(netLbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(netLbl, LV_ALIGN_TOP_LEFT, 16, 340);
 
     lv_obj_t *netBtn = lv_btn_create(settings_screen);
@@ -2572,7 +2559,7 @@ void TFTView_320x240::createSettingsScreen(void)
     // Password -> keyboard (masked)
     lv_obj_t *pwLbl = lv_label_create(settings_screen);
     lv_label_set_text(pwLbl, "Password");
-    lv_obj_set_style_text_color(pwLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(pwLbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(pwLbl, LV_ALIGN_TOP_LEFT, 16, 372);
 
     lv_obj_t *pwBtn = lv_btn_create(settings_screen);
@@ -2588,7 +2575,7 @@ void TFTView_320x240::createSettingsScreen(void)
     // WiFi on/off — applying writes the network config (device reboots to connect)
     lv_obj_t *wifiLbl = lv_label_create(settings_screen);
     lv_label_set_text(wifiLbl, "Turn WiFi on");
-    lv_obj_set_style_text_color(wifiLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(wifiLbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(wifiLbl, LV_ALIGN_TOP_LEFT, 16, 408);
 
     wifi_switch = lv_switch_create(settings_screen);
@@ -2609,7 +2596,8 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_obj_set_width(wifi_status_label, 288);
     lv_label_set_long_mode(wifi_status_label, LV_LABEL_LONG_DOT);
     tui_one_line(wifi_status_label); // LONG_DOT needs a pinned height - see TuiLabel.h
-    lv_obj_set_style_text_color(wifi_status_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(wifi_status_label, lv_color_hex(Tui::Muted),
+                                LV_PART_MAIN);
     lv_obj_align(wifi_status_label, LV_ALIGN_TOP_LEFT, 16, 436);
     updateWifiStatus();
 
@@ -2618,7 +2606,8 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_label_set_long_mode(wifiHint, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_font(wifiHint, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_label_set_text(wifiHint, "Set the name + password, then turn WiFi on.\nIt restarts the device and pauses Bluetooth.");
-    lv_obj_set_style_text_color(wifiHint, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(wifiHint, lv_color_hex(Tui::Muted),
+                                LV_PART_MAIN);
     lv_obj_align(wifiHint, LV_ALIGN_TOP_LEFT, 16, 460);
 
     // refresh the status line every couple seconds while this screen is up
@@ -2627,7 +2616,8 @@ void TFTView_320x240::createSettingsScreen(void)
     // File Share (FTP) — opens the on-demand share screen (turns WiFi on just for transfers)
     lv_obj_t *shareLbl = lv_label_create(settings_screen);
     lv_label_set_text(shareLbl, "Share files (Wi-Fi)");
-    lv_obj_set_style_text_color(shareLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(shareLbl, lv_color_hex(Tui::Text),
+                                LV_PART_MAIN);
     lv_obj_align(shareLbl, LV_ALIGN_TOP_LEFT, 16, 502);
 
     lv_obj_t *shareBtn = lv_btn_create(settings_screen);
@@ -2644,7 +2634,7 @@ void TFTView_320x240::createSettingsScreen(void)
     // Cycle button; persists in uiConfig like brightness.
     lv_obj_t *toLbl = lv_label_create(settings_screen);
     lv_label_set_text(toLbl, "Screen timeout");
-    lv_obj_set_style_text_color(toLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(toLbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(toLbl, LV_ALIGN_TOP_LEFT, 16, 542);
 
     lv_obj_t *toBtn = lv_btn_create(settings_screen);
@@ -2660,7 +2650,7 @@ void TFTView_320x240::createSettingsScreen(void)
     // "Sound" row — off = mute the beeps (games, metronome, timer alarm, Lua apps).
     lv_obj_t *sndLbl = lv_label_create(settings_screen);
     lv_label_set_text(sndLbl, "Sound");
-    lv_obj_set_style_text_color(sndLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(sndLbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(sndLbl, LV_ALIGN_TOP_LEFT, 16, 610);
 
     mute_switch = lv_switch_create(settings_screen);
@@ -2681,7 +2671,8 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_label_set_long_mode(sndHint, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_font(sndHint, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_label_set_text(sndHint, "Off = silence everything, including message alerts.");
-    lv_obj_set_style_text_color(sndHint, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(sndHint, lv_color_hex(Tui::Muted),
+                                LV_PART_MAIN);
     lv_obj_align(sndHint, LV_ALIGN_TOP_LEFT, 16, 638);
 
     // "Add channel" row — reads a Meshtastic channel link from /channel.txt on the card.
@@ -2689,7 +2680,7 @@ void TFTView_320x240::createSettingsScreen(void)
     // camera for the usual QR code, so a file on the card is the practical route.
     lv_obj_t *chLbl = lv_label_create(settings_screen);
     lv_label_set_text(chLbl, "Add channel");
-    lv_obj_set_style_text_color(chLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(chLbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(chLbl, LV_ALIGN_TOP_LEFT, 16, 710);
 
     lv_obj_t *chBtn = lv_btn_create(settings_screen);
@@ -2706,7 +2697,8 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_label_set_long_mode(channel_import_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_font(channel_import_label, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_label_set_text(channel_import_label, "Put the channel link in channel.txt on the card, then tap.");
-    lv_obj_set_style_text_color(channel_import_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(channel_import_label, lv_color_hex(Tui::Muted),
+                                LV_PART_MAIN);
     lv_obj_align(channel_import_label, LV_ALIGN_TOP_LEFT, 16, 740);
 
     lv_obj_add_event_cb(
@@ -2717,7 +2709,7 @@ void TFTView_320x240::createSettingsScreen(void)
     // why the clock would otherwise be hours out. Order must match kTdeckZones[].
     lv_obj_t *tzLbl = lv_label_create(settings_screen);
     lv_label_set_text(tzLbl, "Time zone");
-    lv_obj_set_style_text_color(tzLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(tzLbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(tzLbl, LV_ALIGN_TOP_LEFT, 16, 816);
 
     // When no zone is set the device silently runs on GMT. Showing the list's first entry in
@@ -2757,7 +2749,7 @@ void TFTView_320x240::createSettingsScreen(void)
     // to be hard-wired to 12-hour even when the Meshtastic screens beside it showed 24.
     lv_obj_t *clkLbl = lv_label_create(settings_screen);
     lv_label_set_text(clkLbl, "24-hour clock");
-    lv_obj_set_style_text_color(clkLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(clkLbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(clkLbl, LV_ALIGN_TOP_LEFT, 16, 852);
 
     lv_obj_t *clk_switch = lv_switch_create(settings_screen);
@@ -2786,7 +2778,7 @@ void TFTView_320x240::createSettingsScreen(void)
     // parked for a later deep-dive (see src/TDeckKeyboardLight.cpp, left dormant).
     lv_obj_t *kbdLbl = lv_label_create(settings_screen);
     lv_label_set_text(kbdLbl, "Keyboard light");
-    lv_obj_set_style_text_color(kbdLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(kbdLbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(kbdLbl, LV_ALIGN_TOP_LEFT, 16, 890);
 
     lv_obj_t *kbdHint = lv_label_create(settings_screen);
@@ -2794,7 +2786,8 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_label_set_long_mode(kbdHint, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_font(kbdHint, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_label_set_text(kbdHint, "Press Alt + B to turn the keyboard backlight on or off.");
-    lv_obj_set_style_text_color(kbdHint, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(kbdHint, lv_color_hex(Tui::Muted),
+                                LV_PART_MAIN);
     lv_obj_align(kbdHint, LV_ALIGN_TOP_LEFT, 16, 914);
 
     // ---- Trackball cursor (t-ui-firmware#1) ----------------------------------------------
@@ -2809,7 +2802,7 @@ void TFTView_320x240::createSettingsScreen(void)
     // tdeckRefreshNavGroup for that story).
     lv_obj_t *tbLbl = lv_label_create(settings_screen);
     lv_label_set_text(tbLbl, "Trackball cursor");
-    lv_obj_set_style_text_color(tbLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(tbLbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(tbLbl, LV_ALIGN_TOP_LEFT, 16, 966);
 
     lv_obj_t *tbSw = lv_switch_create(settings_screen);
@@ -2838,13 +2831,13 @@ void TFTView_320x240::createSettingsScreen(void)
     {
         lv_obj_t *l = lv_label_create(settings_tb_speed_row);
         lv_label_set_text(l, "Cursor speed");
-        lv_obj_set_style_text_color(l, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(l, lv_color_hex(Tui::Text), LV_PART_MAIN);
         lv_obj_align(l, LV_ALIGN_LEFT_MID, 16, 0);
         lv_obj_t *b = lv_btn_create(settings_tb_speed_row);
         lv_obj_set_size(b, 110, 30);
         lv_obj_align(b, LV_ALIGN_RIGHT_MID, -16, 0);
         lv_obj_set_style_radius(b, 8, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(b, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(b, lv_color_hex(Tui::Border), LV_PART_MAIN);
         lv_obj_add_event_cb(
             b,
             [](lv_event_t *) {
@@ -2866,13 +2859,13 @@ void TFTView_320x240::createSettingsScreen(void)
     {
         lv_obj_t *l = lv_label_create(settings_tb_style_row);
         lv_label_set_text(l, "Cursor style");
-        lv_obj_set_style_text_color(l, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(l, lv_color_hex(Tui::Text), LV_PART_MAIN);
         lv_obj_align(l, LV_ALIGN_LEFT_MID, 16, 0);
         lv_obj_t *b = lv_btn_create(settings_tb_style_row);
         lv_obj_set_size(b, 110, 30);
         lv_obj_align(b, LV_ALIGN_RIGHT_MID, -16, 0);
         lv_obj_set_style_radius(b, 8, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(b, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(b, lv_color_hex(Tui::Border), LV_PART_MAIN);
         lv_obj_add_event_cb(
             b,
             [](lv_event_t *) {
@@ -2895,7 +2888,8 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_obj_set_width(settings_tb_hint, 288);
     lv_label_set_long_mode(settings_tb_hint, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_font(settings_tb_hint, &ui_font_montserrat_12, LV_PART_MAIN);
-    lv_obj_set_style_text_color(settings_tb_hint, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(settings_tb_hint, lv_color_hex(Tui::Muted),
+                                LV_PART_MAIN);
     lv_obj_align(settings_tb_hint, LV_ALIGN_TOP_LEFT, 16, 1076);
 
     updateTrackballRows();
@@ -2925,7 +2919,7 @@ void TFTView_320x240::createSettingsScreen(void)
     snprintf(verBuf, sizeof(verBuf), "Version %s\nMeshtastic %s", TUI_VERSION, firmware_version ? firmware_version : "?");
     lv_label_set_text(verLbl, verBuf);
     lv_obj_set_style_text_align(verLbl, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-    lv_obj_set_style_text_color(verLbl, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(verLbl, lv_color_hex(Tui::Muted), LV_PART_MAIN);
     lv_obj_align(verLbl, LV_ALIGN_TOP_MID, 0, 1320);
 
     // "Send my location" - Jake, 2026-09-18: "manua share location and info button?"
@@ -2937,7 +2931,8 @@ void TFTView_320x240::createSettingsScreen(void)
     // is the "info" half: it reports the position that actually went out.
     lv_obj_t *shareNowLbl = lv_label_create(settings_screen);
     lv_label_set_text(shareNowLbl, "Send my location");
-    lv_obj_set_style_text_color(shareNowLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(shareNowLbl, lv_color_hex(Tui::Text),
+                                LV_PART_MAIN);
     lv_obj_align(shareNowLbl, LV_ALIGN_TOP_LEFT, 16, 1140);
 
     lv_obj_t *shareNowBtn = lv_btn_create(settings_screen);
@@ -2957,7 +2952,8 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_label_set_long_mode(share_now_hint, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_font(share_now_hint, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_label_set_text(share_now_hint, "Broadcasts where you are right now, once.");
-    lv_obj_set_style_text_color(share_now_hint, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(share_now_hint, lv_color_hex(Tui::Muted),
+                                LV_PART_MAIN);
     lv_obj_align(share_now_hint, LV_ALIGN_TOP_LEFT, 16, 1166);
 
     // "Screenshot" - Jake, 2026-09-18: "debug: screen shot thar we can both trigger. saves
@@ -2966,14 +2962,15 @@ void TFTView_320x240::createSettingsScreen(void)
     // whatever is on the glass at the moment it fires, overlays included.
     lv_obj_t *shotLbl = lv_label_create(settings_screen);
     lv_label_set_text(shotLbl, "Screenshot");
-    lv_obj_set_style_text_color(shotLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(shotLbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(shotLbl, LV_ALIGN_TOP_LEFT, 16, 1204);
 
     shot_btn = lv_btn_create(settings_screen);
     lv_obj_set_size(shot_btn, 116, 30);
     lv_obj_align(shot_btn, LV_ALIGN_TOP_RIGHT, -16, 1200);
     lv_obj_set_style_radius(shot_btn, 8, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(shot_btn, lv_color_hex(0x0a84ff), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(shot_btn, lv_color_hex(Tui::Accent),
+                              LV_PART_MAIN);
     shot_btn_label = lv_label_create(shot_btn);
     lv_label_set_text(shot_btn_label, "In 5 seconds");
     lv_obj_set_style_text_font(shot_btn_label, &ui_font_montserrat_12, LV_PART_MAIN);
@@ -2986,7 +2983,8 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_label_set_long_mode(shot_hint_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_font(shot_hint_label, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_label_set_text(shot_hint_label, "Tap, then go to the screen you want. Saved to /shots on the card.");
-    lv_obj_set_style_text_color(shot_hint_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(shot_hint_label, lv_color_hex(Tui::Muted),
+                                LV_PART_MAIN);
     lv_obj_align(shot_hint_label, LV_ALIGN_TOP_LEFT, 16, 1230);
 }
 
@@ -3186,12 +3184,14 @@ void TFTView_320x240::openFileShare(void)
     if (!fileshare_screen) {
         fileshare_screen = lv_obj_create(NULL);
         tui_statusbar_reserve(fileshare_screen); // 20px of top padding moves every child down
-        lv_obj_set_style_bg_color(fileshare_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(fileshare_screen,
+                                  lv_color_hex(Tui::Background), LV_PART_MAIN);
         lv_obj_clear_flag(fileshare_screen, LV_OBJ_FLAG_SCROLLABLE);
 
         lv_obj_t *title = lv_label_create(fileshare_screen);
         lv_label_set_text(title, "Share files over Wi-Fi");
-        lv_obj_set_style_text_color(title, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(title, lv_color_hex(Tui::Text),
+                                    LV_PART_MAIN);
         lv_obj_set_style_text_font(title, &ui_font_montserrat_20, LV_PART_MAIN);
         lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 12);
 
@@ -3203,7 +3203,8 @@ void TFTView_320x240::openFileShare(void)
         fileshare_info_label = lv_label_create(fileshare_screen);
         lv_obj_set_width(fileshare_info_label, 300);
         lv_label_set_long_mode(fileshare_info_label, LV_LABEL_LONG_WRAP);
-        lv_obj_set_style_text_color(fileshare_info_label, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(fileshare_info_label,
+                                    lv_color_hex(Tui::Text), LV_PART_MAIN);
         lv_obj_align(fileshare_info_label, LV_ALIGN_TOP_LEFT, 12, 84);
         lv_label_set_text(fileshare_info_label, "");
 
@@ -3469,18 +3470,19 @@ void TFTView_320x240::wifiEntryPrompt(bool psk)
     wifi_ovl = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(wifi_ovl);
     lv_obj_set_size(wifi_ovl, 320, 240);
-    lv_obj_set_style_bg_color(wifi_ovl, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(wifi_ovl, lv_color_hex(Tui::Background),
+                              LV_PART_MAIN);
     lv_obj_set_style_bg_opa(wifi_ovl, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(wifi_ovl, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *title = lv_label_create(wifi_ovl);
     lv_label_set_text(title, psk ? "WiFi password" : "WiFi network name");
-    lv_obj_set_style_text_color(title, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(title, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(title, LV_ALIGN_TOP_LEFT, 14, 18);
 
     lv_obj_t *hint = lv_label_create(wifi_ovl);
     lv_label_set_text(hint, "Type on the keyboard, then Enter or OK");
-    lv_obj_set_style_text_color(hint, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(hint, lv_color_hex(Tui::Muted), LV_PART_MAIN);
     lv_obj_align(hint, LV_ALIGN_TOP_LEFT, 14, 44);
 
     wifi_ta = lv_textarea_create(wifi_ovl);
@@ -3503,7 +3505,8 @@ void TFTView_320x240::wifiEntryPrompt(bool psk)
     if (psk) {
         lv_obj_t *showCb = lv_checkbox_create(wifi_ovl);
         lv_checkbox_set_text(showCb, "Show password");
-        lv_obj_set_style_text_color(showCb, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(showCb, lv_color_hex(Tui::Text),
+                                    LV_PART_MAIN);
         lv_obj_align(showCb, LV_ALIGN_TOP_LEFT, 14, 116);
         lv_obj_add_event_cb(
             showCb,
@@ -3543,7 +3546,7 @@ void TFTView_320x240::wifiEntryPrompt(bool psk)
     lv_obj_set_size(okBtn, 96, 38);
     lv_obj_align(okBtn, LV_ALIGN_BOTTOM_RIGHT, -16, -26);
     lv_obj_set_style_radius(okBtn, 8, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(okBtn, lv_color_hex(0x0a84ff), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(okBtn, lv_color_hex(Tui::Accent), LV_PART_MAIN);
     lv_obj_add_event_cb(okBtn, [](lv_event_t *) { THIS->wifiEntryCommit(); }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *okl = lv_label_create(okBtn);
     lv_label_set_text(okl, "OK");
@@ -3582,18 +3585,20 @@ void TFTView_320x240::wifiScanOpen(void)
     wifi_scan_ovl = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(wifi_scan_ovl);
     lv_obj_set_size(wifi_scan_ovl, 320, 240);
-    lv_obj_set_style_bg_color(wifi_scan_ovl, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(wifi_scan_ovl, lv_color_hex(Tui::Background),
+                              LV_PART_MAIN);
     lv_obj_set_style_bg_opa(wifi_scan_ovl, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(wifi_scan_ovl, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *title = lv_label_create(wifi_scan_ovl);
     lv_label_set_text(title, "Choose WiFi network");
-    lv_obj_set_style_text_color(title, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(title, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(title, LV_ALIGN_TOP_LEFT, 12, 10);
 
     wifi_scan_status = lv_label_create(wifi_scan_ovl);
     lv_label_set_text(wifi_scan_status, "Scanning...");
-    lv_obj_set_style_text_color(wifi_scan_status, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(wifi_scan_status, lv_color_hex(Tui::Muted),
+                                LV_PART_MAIN);
     lv_obj_align(wifi_scan_status, LV_ALIGN_TOP_LEFT, 12, 34);
 
     wifi_scan_list = lv_list_create(wifi_scan_ovl);
@@ -3668,7 +3673,7 @@ void TFTView_320x240::wifiScanPoll(void)
 
         lv_obj_t *btn = lv_list_add_button(wifi_scan_list, LV_SYMBOL_WIFI, wifi_scan_ssids[shown]);
         lv_obj_set_style_bg_color(btn, lv_color_hex(0x0d0d0f), LV_PART_MAIN);
-        lv_obj_set_style_text_color(btn, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(btn, lv_color_hex(Tui::Text), LV_PART_MAIN);
         lv_obj_add_event_cb(
             btn,
             [](lv_event_t *e) {
@@ -3801,7 +3806,8 @@ void TFTView_320x240::openMaps(void)
     tdeck_chess_release();
     if (!maps_screen) {
         maps_screen = lv_obj_create(NULL);
-        lv_obj_set_style_bg_color(maps_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_screen, lv_color_hex(Tui::Background),
+                                  LV_PART_MAIN);
         lv_obj_clear_flag(maps_screen, LV_OBJ_FLAG_SCROLLABLE);
 
         // tile canvas below the top bar; children outside its area are clipped
@@ -3839,8 +3845,10 @@ void TFTView_320x240::openMaps(void)
         // White, not grey: this sits on top of map tiles that can be any colour at all,
         // and grey-on-terrain was hard to read. The dark translucent backing behind it is
         // what keeps it legible, so the text itself should be at full contrast.
-        lv_obj_set_style_text_color(maps_credit_label, lv_color_hex(0xffffff), LV_PART_MAIN);
-        lv_obj_set_style_bg_color(maps_credit_label, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_text_color(maps_credit_label, lv_color_hex(Tui::Text),
+                                    LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_credit_label,
+                                  lv_color_hex(Tui::Background), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(maps_credit_label, LV_OPA_50, LV_PART_MAIN);
         lv_obj_set_style_pad_all(maps_credit_label, 2, LV_PART_MAIN);
         lv_label_set_text(maps_credit_label, "");
@@ -3851,7 +3859,8 @@ void TFTView_320x240::openMaps(void)
         // read as the device ignoring you.
         maps_hold_label = lv_label_create(maps_screen);
         lv_obj_set_style_text_font(maps_hold_label, &ui_font_montserrat_12, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(maps_hold_label, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_hold_label,
+                                  lv_color_hex(Tui::Background), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(maps_hold_label, LV_OPA_70, LV_PART_MAIN);
         lv_obj_set_style_pad_all(maps_hold_label, 5, LV_PART_MAIN);
         lv_obj_set_style_radius(maps_hold_label, 6, LV_PART_MAIN);
@@ -4035,7 +4044,8 @@ void TFTView_320x240::openMaps(void)
         // satellite readout in the top-bar gap between "+" and "Me" (green = locked)
         maps_sats_label = lv_label_create(maps_screen);
         lv_label_set_text(maps_sats_label, "");
-        lv_obj_set_style_text_color(maps_sats_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(maps_sats_label, lv_color_hex(Tui::Muted),
+                                    LV_PART_MAIN);
         lv_obj_align(maps_sats_label, LV_ALIGN_TOP_MID, 14, 9);
         maps_sats_timer = lv_timer_create([](lv_timer_t *) { THIS->updateMapsSats(); }, 1000, NULL);
 
@@ -4075,7 +4085,8 @@ void TFTView_320x240::openMaps(void)
         maps_gear_btn = lv_btn_create(maps_screen);
         lv_obj_set_size(maps_gear_btn, 36, 36);
         lv_obj_set_style_radius(maps_gear_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(maps_gear_btn, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_gear_btn, lv_color_hex(Tui::Border),
+                                  LV_PART_MAIN);
         lv_obj_set_style_bg_opa(maps_gear_btn, LV_OPA_80, LV_PART_MAIN);
         lv_obj_align(maps_gear_btn, LV_ALIGN_BOTTOM_RIGHT, -6, -6);
         {
@@ -4101,7 +4112,8 @@ void TFTView_320x240::openMaps(void)
         maps_search_btn = lv_btn_create(maps_screen);
         lv_obj_set_size(maps_search_btn, 36, 36);
         lv_obj_set_style_radius(maps_search_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(maps_search_btn, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_search_btn, lv_color_hex(Tui::Border),
+                                  LV_PART_MAIN);
         lv_obj_set_style_bg_opa(maps_search_btn, LV_OPA_80, LV_PART_MAIN);
         lv_obj_set_style_pad_all(maps_search_btn, 0, LV_PART_MAIN);
         lv_obj_align(maps_search_btn, LV_ALIGN_BOTTOM_RIGHT, -48, -6);
@@ -4121,7 +4133,8 @@ void TFTView_320x240::openMaps(void)
         maps_measure_btn = lv_btn_create(maps_screen);
         lv_obj_set_size(maps_measure_btn, 36, 36);
         lv_obj_set_style_radius(maps_measure_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(maps_measure_btn, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_measure_btn, lv_color_hex(Tui::Border),
+                                  LV_PART_MAIN);
         lv_obj_set_style_bg_opa(maps_measure_btn, LV_OPA_80, LV_PART_MAIN);
         lv_obj_set_style_pad_all(maps_measure_btn, 0, LV_PART_MAIN);
         lv_obj_align(maps_measure_btn, LV_ALIGN_BOTTOM_RIGHT, -90, -6);
@@ -4137,7 +4150,8 @@ void TFTView_320x240::openMaps(void)
         lv_obj_set_style_text_font(maps_measure_label, &ui_font_montserrat_14, LV_PART_MAIN);
         lv_obj_set_style_text_color(maps_measure_label, lv_color_hex(0xffd60a), LV_PART_MAIN);
         lv_obj_set_style_text_align(maps_measure_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(maps_measure_label, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_measure_label,
+                                  lv_color_hex(Tui::Background), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(maps_measure_label, LV_OPA_70, LV_PART_MAIN);
         lv_obj_set_style_pad_all(maps_measure_label, 5, LV_PART_MAIN);
         lv_obj_set_style_radius(maps_measure_label, 6, LV_PART_MAIN);
@@ -4148,8 +4162,10 @@ void TFTView_320x240::openMaps(void)
 
         // Height above sea level from the GPS, over the zoom readout. Only with a 3D fix.
         maps_alt_label = lv_label_create(maps_screen);
-        lv_obj_set_style_text_color(maps_alt_label, lv_color_hex(0xffffff), LV_PART_MAIN);
-        lv_obj_set_style_bg_color(maps_alt_label, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_text_color(maps_alt_label, lv_color_hex(Tui::Text),
+                                    LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_alt_label, lv_color_hex(Tui::Border),
+                                  LV_PART_MAIN);
         lv_obj_set_style_bg_opa(maps_alt_label, LV_OPA_80, LV_PART_MAIN);
         lv_obj_set_style_pad_hor(maps_alt_label, 6, LV_PART_MAIN);
         lv_obj_set_style_pad_ver(maps_alt_label, 2, LV_PART_MAIN);
@@ -4160,8 +4176,10 @@ void TFTView_320x240::openMaps(void)
 
         // zoom level readout, bottom-left over the map
         maps_zoom_label = lv_label_create(maps_screen);
-        lv_obj_set_style_text_color(maps_zoom_label, lv_color_hex(0xffffff), LV_PART_MAIN);
-        lv_obj_set_style_bg_color(maps_zoom_label, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_text_color(maps_zoom_label, lv_color_hex(Tui::Text),
+                                    LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_zoom_label, lv_color_hex(Tui::Border),
+                                  LV_PART_MAIN);
         lv_obj_set_style_bg_opa(maps_zoom_label, LV_OPA_80, LV_PART_MAIN);
         lv_obj_set_style_pad_hor(maps_zoom_label, 6, LV_PART_MAIN);
         lv_obj_set_style_pad_ver(maps_zoom_label, 2, LV_PART_MAIN);
@@ -4219,9 +4237,11 @@ void TFTView_320x240::openMaps(void)
             lv_obj_remove_style_all(maps_gps_dot);
             lv_obj_set_size(maps_gps_dot, 14, 14);
             lv_obj_set_style_radius(maps_gps_dot, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-            lv_obj_set_style_bg_color(maps_gps_dot, lv_color_hex(0x0a84ff), LV_PART_MAIN);
+            lv_obj_set_style_bg_color(maps_gps_dot, lv_color_hex(Tui::Accent),
+                                      LV_PART_MAIN);
             lv_obj_set_style_bg_opa(maps_gps_dot, LV_OPA_COVER, LV_PART_MAIN);
-            lv_obj_set_style_border_color(maps_gps_dot, lv_color_hex(0xffffff), LV_PART_MAIN);
+            lv_obj_set_style_border_color(maps_gps_dot, lv_color_hex(Tui::Text),
+                                          LV_PART_MAIN);
             lv_obj_set_style_border_width(maps_gps_dot, 2, LV_PART_MAIN);
             lv_obj_add_flag(maps_gps_dot, LV_OBJ_FLAG_HIDDEN);
             lv_obj_clear_flag(maps_gps_dot, LV_OBJ_FLAG_CLICKABLE);
@@ -4319,10 +4339,12 @@ void TFTView_320x240::updateMapsSats(void)
 
     if (db.config.position.gps_mode == meshtastic_Config_PositionConfig_GpsMode_NOT_PRESENT) {
         lv_label_set_text(maps_sats_label, "no GPS");
-        lv_obj_set_style_text_color(maps_sats_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(maps_sats_label, lv_color_hex(Tui::Muted),
+                                    LV_PART_MAIN);
     } else if (db.config.position.gps_mode == meshtastic_Config_PositionConfig_GpsMode_DISABLED) {
         lv_label_set_text(maps_sats_label, "GPS off");
-        lv_obj_set_style_text_color(maps_sats_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(maps_sats_label, lv_color_hex(Tui::Muted),
+                                    LV_PART_MAIN);
     } else {
         bool lock = tdeck_gps_has_lock();
         uint32_t sats = tdeck_gps_num_sats();
@@ -4358,12 +4380,14 @@ void TFTView_320x240::mapsShowNotice(const char *msg)
         return;
     if (!maps_notice) {
         maps_notice = lv_label_create(maps_screen);
-        lv_obj_set_style_bg_color(maps_notice, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_notice, lv_color_hex(Tui::Border),
+                                  LV_PART_MAIN);
         lv_obj_set_style_bg_opa(maps_notice, LV_OPA_90, LV_PART_MAIN);
         lv_obj_set_style_radius(maps_notice, 8, LV_PART_MAIN);
         lv_obj_set_style_pad_hor(maps_notice, 10, LV_PART_MAIN);
         lv_obj_set_style_pad_ver(maps_notice, 6, LV_PART_MAIN);
-        lv_obj_set_style_text_color(maps_notice, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(maps_notice, lv_color_hex(Tui::Text),
+                                    LV_PART_MAIN);
     }
     lv_label_set_text(maps_notice, msg);
     lv_obj_align(maps_notice, LV_ALIGN_TOP_MID, 0, 60);
@@ -5261,7 +5285,7 @@ lv_obj_t *mapsMenuRow(lv_obj_t *parent, const char *txt, uint32_t color, lv_even
     lv_obj_t *b = lv_btn_create(parent);
     lv_obj_set_width(b, LV_PCT(100));
     lv_obj_set_height(b, 34);
-    lv_obj_set_style_bg_color(b, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(b, lv_color_hex(Tui::Border), LV_PART_MAIN);
     lv_obj_set_style_radius(b, 8, LV_PART_MAIN);
     lv_obj_t *l = lv_label_create(b);
     lv_label_set_text(l, txt);
@@ -5290,7 +5314,8 @@ lv_obj_t *TFTView_320x240::mapsMenuShell(const char *title)
     maps_style_ovl = lv_obj_create(maps_screen);
     lv_obj_set_size(maps_style_ovl, 292, 228);
     lv_obj_center(maps_style_ovl);
-    lv_obj_set_style_bg_color(maps_style_ovl, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(maps_style_ovl, lv_color_hex(Tui::Surface),
+                              LV_PART_MAIN);
     lv_obj_set_style_border_color(maps_style_ovl, lv_color_hex(0x3a3a3c), LV_PART_MAIN);
     lv_obj_set_style_radius(maps_style_ovl, 12, LV_PART_MAIN);
     lv_obj_set_flex_flow(maps_style_ovl, LV_FLEX_FLOW_COLUMN);
@@ -5299,7 +5324,7 @@ lv_obj_t *TFTView_320x240::mapsMenuShell(const char *title)
     lv_obj_set_scroll_dir(maps_style_ovl, LV_DIR_VER);
     lv_obj_t *t = lv_label_create(maps_style_ovl);
     lv_label_set_text(t, title);
-    lv_obj_set_style_text_color(t, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(t, lv_color_hex(Tui::Muted), LV_PART_MAIN);
     return maps_style_ovl;
 }
 
@@ -5453,7 +5478,7 @@ void TFTView_320x240::openNamesMenu(void)
     lv_obj_t *note = lv_label_create(m);
     lv_label_set_text(note, "Over Wi-Fi. Areas already on the card\nare skipped, so it can stop and carry\non later. Download this area brings\nthem too, along with the map.");
     lv_obj_set_style_text_font(note, &ui_font_montserrat_12, LV_PART_MAIN);
-    lv_obj_set_style_text_color(note, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(note, lv_color_hex(Tui::Muted), LV_PART_MAIN);
     mapsMenuRow(m, "Back", 0x8e8e93, [](lv_event_t *) { THIS->mapsMenuReopen(); }, NULL);
 }
 
@@ -5618,12 +5643,14 @@ void TFTView_320x240::openMapDownload(void)
 
     if (!mapdl_screen) {
         mapdl_screen = lv_obj_create(NULL);
-        lv_obj_set_style_bg_color(mapdl_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(mapdl_screen, lv_color_hex(Tui::Background),
+                                  LV_PART_MAIN);
         lv_obj_clear_flag(mapdl_screen, LV_OBJ_FLAG_SCROLLABLE);
 
         mapdl_title = lv_label_create(mapdl_screen);
         lv_label_set_text(mapdl_title, "Download map area");
-        lv_obj_set_style_text_color(mapdl_title, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(mapdl_title, lv_color_hex(Tui::Text),
+                                    LV_PART_MAIN);
         lv_obj_align(mapdl_title, LV_ALIGN_TOP_MID, 0, 4);
 
         mapdl_status = lv_label_create(mapdl_screen);
@@ -5643,14 +5670,15 @@ void TFTView_320x240::openMapDownload(void)
         mapdl_info = lv_label_create(mapdl_screen);
         lv_obj_set_width(mapdl_info, 300);
         lv_label_set_long_mode(mapdl_info, LV_LABEL_LONG_WRAP);
-        lv_obj_set_style_text_color(mapdl_info, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(mapdl_info, lv_color_hex(Tui::Muted),
+                                    LV_PART_MAIN);
         lv_obj_align(mapdl_info, LV_ALIGN_TOP_LEFT, 12, 76);
         lv_label_set_text(mapdl_info, "Area = what the map shows.\nSleep is OK once started.");
 
         lv_obj_t *ls = lv_label_create(mapdl_screen);
         mapdl_opt_lbls[0] = ls;
         lv_label_set_text(ls, "Source:");
-        lv_obj_set_style_text_color(ls, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(ls, lv_color_hex(Tui::Text), LV_PART_MAIN);
         lv_obj_align(ls, LV_ALIGN_TOP_LEFT, 12, 128);
 
         mapdl_src_dd = lv_dropdown_create(mapdl_screen);
@@ -5691,7 +5719,7 @@ void TFTView_320x240::openMapDownload(void)
         lv_obj_t *l1 = lv_label_create(mapdl_screen);
         mapdl_opt_lbls[1] = l1;
         lv_label_set_text(l1, "Detail:");
-        lv_obj_set_style_text_color(l1, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(l1, lv_color_hex(Tui::Text), LV_PART_MAIN);
         lv_obj_align(l1, LV_ALIGN_TOP_LEFT, 12, 166);
 
         mapdl_zmin_dd = lv_dropdown_create(mapdl_screen);
@@ -5707,7 +5735,7 @@ void TFTView_320x240::openMapDownload(void)
         lv_obj_t *l2 = lv_label_create(mapdl_screen);
         mapdl_opt_lbls[2] = l2;
         lv_label_set_text(l2, "to");
-        lv_obj_set_style_text_color(l2, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(l2, lv_color_hex(Tui::Text), LV_PART_MAIN);
         lv_obj_align(l2, LV_ALIGN_TOP_LEFT, 172, 166);
 
         mapdl_zmax_dd = lv_dropdown_create(mapdl_screen);
@@ -5726,7 +5754,8 @@ void TFTView_320x240::openMapDownload(void)
         lv_obj_align(mapdl_btn, LV_ALIGN_BOTTOM_LEFT, 12, -6);
         mapdl_btn_lbl = lv_label_create(mapdl_btn);
         lv_label_set_text(mapdl_btn_lbl, "Start");
-        lv_obj_set_style_text_color(mapdl_btn_lbl, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_text_color(
+            mapdl_btn_lbl, lv_color_hex(Tui::Background), LV_PART_MAIN);
         lv_obj_center(mapdl_btn_lbl);
         lv_obj_add_event_cb(
             mapdl_btn,
@@ -5741,11 +5770,12 @@ void TFTView_320x240::openMapDownload(void)
         mapdl_use_btn = lv_btn_create(mapdl_screen);
         // 90+120+70 wide + margins: all three bottom buttons coexist without overlap
         lv_obj_set_size(mapdl_use_btn, 120, 38);
-        lv_obj_set_style_bg_color(mapdl_use_btn, lv_color_hex(0x0a84ff), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(mapdl_use_btn, lv_color_hex(Tui::Accent),
+                                  LV_PART_MAIN);
         lv_obj_align(mapdl_use_btn, LV_ALIGN_BOTTOM_LEFT, 110, -6);
         lv_obj_t *ubl = lv_label_create(mapdl_use_btn);
         lv_label_set_text(ubl, "Use this map");
-        lv_obj_set_style_text_color(ubl, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(ubl, lv_color_hex(Tui::Text), LV_PART_MAIN);
         lv_obj_center(ubl);
         lv_obj_add_flag(mapdl_use_btn, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_event_cb(
@@ -5758,11 +5788,12 @@ void TFTView_320x240::openMapDownload(void)
 
         lv_obj_t *back = lv_btn_create(mapdl_screen);
         lv_obj_set_size(back, 70, 38);
-        lv_obj_set_style_bg_color(back, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(back, lv_color_hex(Tui::Border),
+                                  LV_PART_MAIN);
         lv_obj_align(back, LV_ALIGN_BOTTOM_RIGHT, -10, -6);
         lv_obj_t *bl = lv_label_create(back);
         lv_label_set_text(bl, "Back");
-        lv_obj_set_style_text_color(bl, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(bl, lv_color_hex(Tui::Text), LV_PART_MAIN);
         lv_obj_center(bl);
         // Back just leaves the screen — a running download keeps going headless.
         lv_obj_add_event_cb(
@@ -6550,7 +6581,7 @@ void TFTView_320x240::getappsBuildList(void)
 
         lv_obj_t *nm = lv_label_create(row);
         lv_label_set_text(nm, a.name);
-        lv_obj_set_style_text_color(nm, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(nm, lv_color_hex(Tui::Text), LV_PART_MAIN);
         lv_obj_align(nm, LV_ALIGN_TOP_LEFT, 0, 0);
 
         // Size, in the units a person thinks in.
@@ -6562,7 +6593,7 @@ void TFTView_320x240::getappsBuildList(void)
         lv_obj_t *mt = lv_label_create(row);
         lv_obj_set_style_text_font(mt, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_label_set_text(mt, meta);
-        lv_obj_set_style_text_color(mt, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(mt, lv_color_hex(Tui::Muted), LV_PART_MAIN);
         lv_obj_align(mt, LV_ALIGN_TOP_LEFT, 0, 20);
 
         // One line of description, clipped to the row rather than wrapping into the button.
@@ -6639,7 +6670,8 @@ void TFTView_320x240::getappsBuildList(void)
                         lv_label_set_text(lbl, ok ? "On device" : "Failed");
                     lv_obj_set_style_bg_color(b, lv_color_hex(ok ? 0x2c2c2e : 0xff453a), LV_PART_MAIN);
                     if (ok) {
-                        lv_obj_set_style_text_color(lbl, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+                        lv_obj_set_style_text_color(
+                            lbl, lv_color_hex(Tui::Muted), LV_PART_MAIN);
                         lv_label_set_text(THIS->getapps_status, "Added to your home screen");
                         THIS->getappsScheduleRebuild(); // the row becomes a Remove button
                     } else {
@@ -6655,7 +6687,8 @@ void TFTView_320x240::getappsBuildList(void)
         lv_obj_t *none = lv_label_create(getapps_list);
         lv_obj_set_style_text_font(none, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_label_set_text(none, "Nothing here yet.");
-        lv_obj_set_style_text_color(none, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(none, lv_color_hex(Tui::Muted),
+                                    LV_PART_MAIN);
     }
 }
 
@@ -6844,12 +6877,14 @@ void TFTView_320x240::openGetApps(void)
     if (!getapps_screen) {
         getapps_screen = lv_obj_create(NULL);
         tui_statusbar_reserve(getapps_screen); // 20px of top padding moves every child down
-        lv_obj_set_style_bg_color(getapps_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(getapps_screen, lv_color_hex(Tui::Background),
+                                  LV_PART_MAIN);
         lv_obj_clear_flag(getapps_screen, LV_OBJ_FLAG_SCROLLABLE);
 
         lv_obj_t *title = lv_label_create(getapps_screen);
         lv_label_set_text(title, "Get Apps");
-        lv_obj_set_style_text_color(title, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(title, lv_color_hex(Tui::Text),
+                                    LV_PART_MAIN);
         lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
 
         getapps_status = lv_label_create(getapps_screen);
@@ -6898,11 +6933,12 @@ void TFTView_320x240::openGetApps(void)
 
         lv_obj_t *back = lv_btn_create(getapps_screen);
         lv_obj_set_size(back, 80, 34);
-        lv_obj_set_style_bg_color(back, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(back, lv_color_hex(Tui::Border),
+                                  LV_PART_MAIN);
         lv_obj_align(back, LV_ALIGN_BOTTOM_MID, 0, -4);
         lv_obj_t *bl = lv_label_create(back);
         lv_label_set_text(bl, "Back");
-        lv_obj_set_style_text_color(bl, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(bl, lv_color_hex(Tui::Text), LV_PART_MAIN);
         lv_obj_center(bl);
         lv_obj_add_event_cb(
             back,
@@ -6993,13 +7029,14 @@ void TFTView_320x240::stylePinMarker(lv_obj_t *m, uint32_t color, bool theirs)
         lv_obj_set_style_bg_opa(m, LV_OPA_TRANSP, LV_PART_MAIN);
         lv_obj_set_style_border_color(m, lv_color_hex(color), LV_PART_MAIN);
         lv_obj_set_style_border_width(m, 3, LV_PART_MAIN);
-        lv_obj_set_style_outline_color(m, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_outline_color(m, lv_color_hex(Tui::Background),
+                                       LV_PART_MAIN);
         lv_obj_set_style_outline_width(m, 1, LV_PART_MAIN);
         lv_obj_set_style_outline_opa(m, LV_OPA_60, LV_PART_MAIN);
     } else {
         lv_obj_set_style_bg_color(m, lv_color_hex(color), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(m, LV_OPA_COVER, LV_PART_MAIN);
-        lv_obj_set_style_border_color(m, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_border_color(m, lv_color_hex(Tui::Text), LV_PART_MAIN);
         lv_obj_set_style_border_width(m, 2, LV_PART_MAIN);
         lv_obj_set_style_outline_width(m, 0, LV_PART_MAIN);
     }
@@ -7058,8 +7095,8 @@ lv_obj_t *TFTView_320x240::makePinLabel(const char *name, uint32_t color)
     // only, so "Köln" came out as "Kln" and a node's emoji short name as nothing at all. Ours has
     // Latin-1, Latin Extended-A, Greek, Cyrillic and the emoji the rest of the UI already shows.
     lv_obj_set_style_text_font(l, &ui_font_montserrat_14, LV_PART_MAIN);
-    lv_obj_set_style_text_color(l, lv_color_hex(0xffffff), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(l, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_text_color(l, lv_color_hex(Tui::Text), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(l, lv_color_hex(Tui::Background), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(l, LV_OPA_60, LV_PART_MAIN);
     lv_obj_set_style_pad_hor(l, 4, LV_PART_MAIN);
     lv_obj_set_style_pad_ver(l, 2, LV_PART_MAIN);
@@ -7162,7 +7199,8 @@ void TFTView_320x240::addOrUpdateUserMapNode(uint32_t nodeNum, float lat, float 
     lv_obj_set_style_bg_opa(n.marker, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_color(n.marker, lv_color_hex(bgColor), LV_PART_MAIN);
     lv_obj_set_style_border_width(n.marker, 3, LV_PART_MAIN);
-    lv_obj_set_style_outline_color(n.marker, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_outline_color(n.marker, lv_color_hex(Tui::Background),
+                                   LV_PART_MAIN);
     lv_obj_set_style_outline_width(n.marker, 1, LV_PART_MAIN);
     lv_obj_set_style_outline_opa(n.marker, LV_OPA_60, LV_PART_MAIN);
     lv_obj_add_flag(n.marker, LV_OBJ_FLAG_HIDDEN);
@@ -7910,13 +7948,14 @@ void TFTView_320x240::openPinsList(bool search)
     pins_overlay = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(pins_overlay);
     lv_obj_set_size(pins_overlay, 320, 240);
-    lv_obj_set_style_bg_color(pins_overlay, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(pins_overlay, lv_color_hex(Tui::Background),
+                              LV_PART_MAIN);
     lv_obj_set_style_bg_opa(pins_overlay, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(pins_overlay, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *title = lv_label_create(pins_overlay);
     lv_label_set_text(title, search ? "Find" : "Pins");
-    lv_obj_set_style_text_color(title, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(title, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(title, LV_ALIGN_TOP_LEFT, 12, 10);
 
     lv_obj_t *closeBtn = lv_btn_create(pins_overlay);
@@ -7951,7 +7990,8 @@ void TFTView_320x240::openPinsList(bool search)
     lv_obj_t *al = lv_label_create(addBtn);
     lv_obj_set_style_text_font(al, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_label_set_text(al, "Add pin");
-    lv_obj_set_style_text_color(al, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_text_color(al, lv_color_hex(Tui::Background),
+                                LV_PART_MAIN);
 
     // Mesh nodes on/off. It lives here because this overlay is already "what gets drawn on my map",
     // and the top bar has no room left. Off by choice matters: on a busy mesh a few dozen rings will
@@ -7993,13 +8033,16 @@ void TFTView_320x240::openPinsList(bool search)
     // Dark, like everything else here. An unstyled lv_textarea is WHITE, which on this screen
     // looks like a rendering fault rather than a place to type. Seen on the device, not in a
     // build log.
-    lv_obj_set_style_bg_color(pins_search_ta, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(pins_search_ta, lv_color_hex(Tui::Surface),
+                              LV_PART_MAIN);
     lv_obj_set_style_border_color(pins_search_ta, lv_color_hex(0x3a3a3c), LV_PART_MAIN);
     lv_obj_set_style_border_width(pins_search_ta, 1, LV_PART_MAIN);
     lv_obj_set_style_radius(pins_search_ta, 8, LV_PART_MAIN);
-    lv_obj_set_style_text_color(pins_search_ta, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(pins_search_ta, lv_color_hex(Tui::Text),
+                                LV_PART_MAIN);
     lv_obj_set_style_text_color(pins_search_ta, lv_color_hex(0x6a6a70), LV_PART_TEXTAREA_PLACEHOLDER);
-    lv_obj_set_style_bg_color(pins_search_ta, lv_color_hex(0x0a84ff), LV_PART_CURSOR);
+    lv_obj_set_style_bg_color(pins_search_ta, lv_color_hex(Tui::Accent),
+                              LV_PART_CURSOR);
     lv_obj_add_event_cb(
         pins_search_ta,
         [](lv_event_t *) {
@@ -8062,7 +8105,7 @@ void TFTView_320x240::pinsSectionHeader(lv_obj_t *list, const char *text)
     lv_obj_t *h = lv_label_create(list);
     lv_label_set_text(h, text);
     lv_obj_set_style_text_font(h, &ui_font_montserrat_12, LV_PART_MAIN);
-    lv_obj_set_style_text_color(h, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(h, lv_color_hex(Tui::Muted), LV_PART_MAIN);
 }
 
 // Does `hay` contain the already-lower-cased `needle`? Plain substring, no wildcards: on a
@@ -8110,7 +8153,7 @@ void TFTView_320x240::pinsNodeRow(lv_obj_t *list, uint32_t num, const char *name
 
     lv_obj_t *nm = lv_label_create(row);
     lv_label_set_text(nm, name);
-    lv_obj_set_style_text_color(nm, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(nm, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_set_width(nm, 140);
     lv_label_set_long_mode(nm, LV_LABEL_LONG_DOT);
     tui_one_line(nm); // LONG_DOT needs a pinned height - see TuiLabel.h
@@ -8121,7 +8164,7 @@ void TFTView_320x240::pinsNodeRow(lv_obj_t *list, uint32_t num, const char *name
     lv_obj_t *aw = lv_label_create(row);
     lv_label_set_text(aw, away[0] ? away : "node");
     lv_obj_set_style_text_font(aw, &ui_font_montserrat_12, LV_PART_MAIN);
-    lv_obj_set_style_text_color(aw, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(aw, lv_color_hex(Tui::Muted), LV_PART_MAIN);
     lv_obj_align(aw, LV_ALIGN_LEFT_MID, 28, 10);
 
     lv_obj_t *go = lv_btn_create(row);
@@ -8264,7 +8307,7 @@ void TFTView_320x240::placeRow(lv_obj_t *list, int idx)
 
     lv_obj_t *nm = lv_label_create(row);
     lv_label_set_text(nm, h.name);
-    lv_obj_set_style_text_color(nm, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(nm, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_set_width(nm, 176);
     lv_label_set_long_mode(nm, LV_LABEL_LONG_DOT);
     tui_one_line(nm); // LONG_DOT needs a pinned height - see TuiLabel.h
@@ -8279,7 +8322,7 @@ void TFTView_320x240::placeRow(lv_obj_t *list, int idx)
     lv_obj_t *sb = lv_label_create(row);
     lv_label_set_text(sb, sub);
     lv_obj_set_style_text_font(sb, &ui_font_montserrat_12, LV_PART_MAIN);
-    lv_obj_set_style_text_color(sb, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(sb, lv_color_hex(Tui::Muted), LV_PART_MAIN);
     lv_obj_set_width(sb, 176);
     lv_label_set_long_mode(sb, LV_LABEL_LONG_DOT);
     tui_one_line(sb);
@@ -8375,7 +8418,9 @@ void TFTView_320x240::setFoundMarker(float lat, float lon, const char *name)
         lv_obj_set_style_bg_opa(found_marker, LV_OPA_TRANSP, LV_PART_MAIN);
         lv_obj_set_style_border_color(found_marker, lv_color_hex(0xffd60a), LV_PART_MAIN);
         lv_obj_set_style_border_width(found_marker, 4, LV_PART_MAIN);
-        lv_obj_set_style_outline_color(found_marker, lv_color_hex(0x000000), LV_PART_MAIN); // shows on pale tiles
+        lv_obj_set_style_outline_color(found_marker,
+                                       lv_color_hex(Tui::Background),
+                                       LV_PART_MAIN); // shows on pale tiles
         lv_obj_set_style_outline_width(found_marker, 1, LV_PART_MAIN);
         lv_obj_add_flag(found_marker, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(found_marker, LV_OBJ_FLAG_SCROLLABLE);
@@ -8481,7 +8526,8 @@ void TFTView_320x240::measureRedraw(void)
             lv_obj_set_style_radius(measure_dot[i], LV_RADIUS_CIRCLE, LV_PART_MAIN);
             lv_obj_set_style_bg_color(measure_dot[i], lv_color_hex(0xffd60a), LV_PART_MAIN);
             lv_obj_set_style_bg_opa(measure_dot[i], LV_OPA_COVER, LV_PART_MAIN);
-            lv_obj_set_style_border_color(measure_dot[i], lv_color_hex(0x000000), LV_PART_MAIN);
+            lv_obj_set_style_border_color(
+                measure_dot[i], lv_color_hex(Tui::Background), LV_PART_MAIN);
             lv_obj_set_style_border_width(measure_dot[i], 2, LV_PART_MAIN);
             lv_obj_clear_flag(measure_dot[i], LV_OBJ_FLAG_CLICKABLE);
             lv_obj_clear_flag(measure_dot[i], LV_OBJ_FLAG_SCROLLABLE);
@@ -8535,7 +8581,8 @@ void TFTView_320x240::measureClear(void)
             lv_obj_add_flag(d, LV_OBJ_FLAG_HIDDEN);
     measureShowText();
     if (maps_measure_btn)
-        lv_obj_set_style_bg_color(maps_measure_btn, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_measure_btn, lv_color_hex(Tui::Border),
+                                  LV_PART_MAIN);
 }
 
 // The ruler button: start measuring, or put the ruler away.
@@ -8550,7 +8597,8 @@ void TFTView_320x240::measureToggle(void)
         lv_obj_add_flag(maps_hold_label, LV_OBJ_FLAG_HIDDEN);
     measureStep = 1;
     if (maps_measure_btn)
-        lv_obj_set_style_bg_color(maps_measure_btn, lv_color_hex(0x0a84ff), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_measure_btn, lv_color_hex(Tui::Accent),
+                                  LV_PART_MAIN);
     measureShowText();
 }
 
@@ -8632,7 +8680,8 @@ void TFTView_320x240::rebuildPinRows(void)
     if (mapPins.empty() && !filtering) {
         lv_obj_t *empty = lv_label_create(list);
         lv_label_set_text(empty, "No pins yet.\nTap Add pin, then tap the map.\n\nThe box above finds towns, lakes, peaks\nand your nodes too.");
-        lv_obj_set_style_text_color(empty, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(empty, lv_color_hex(Tui::Muted),
+                                    LV_PART_MAIN);
         return;
     }
 
@@ -8662,7 +8711,8 @@ void TFTView_320x240::rebuildPinRows(void)
         lv_obj_t *row = lv_obj_create(list);
         lv_obj_remove_style_all(row);
         lv_obj_set_size(row, 302, 74); // share line, then the coordinates line, under the buttons
-        lv_obj_set_style_bg_color(row, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(row, lv_color_hex(Tui::Surface),
+                                  LV_PART_MAIN);
         lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_set_style_radius(row, 8, LV_PART_MAIN);
         lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
@@ -8687,7 +8737,8 @@ void TFTView_320x240::rebuildPinRows(void)
 
         lv_obj_t *name = lv_label_create(row);
         lv_label_set_text(name, p.label);
-        lv_obj_set_style_text_color(name, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(name, lv_color_hex(Tui::Text),
+                                    LV_PART_MAIN);
         lv_obj_set_width(name, 78); // pulled in to make room for Share; long names still ellipsize
         lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
         tui_one_line(name); // LONG_DOT needs a pinned height - see TuiLabel.h
@@ -8829,7 +8880,7 @@ void TFTView_320x240::rebuildPinRows(void)
         lv_obj_t *co = lv_label_create(row);
         lv_label_set_text(co, coords);
         lv_obj_set_style_text_font(co, &ui_font_montserrat_12, LV_PART_MAIN);
-        lv_obj_set_style_text_color(co, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(co, lv_color_hex(Tui::Muted), LV_PART_MAIN);
         lv_obj_set_width(co, 286);
         lv_label_set_long_mode(co, LV_LABEL_LONG_DOT);
         tui_one_line(co); // LONG_DOT needs a pinned height - see TuiLabel.h
@@ -8904,7 +8955,8 @@ void TFTView_320x240::rebuildPinRows(void)
         char msg[48];
         snprintf(msg, sizeof(msg), "and %d more node%s - type a bit more", moreNodes, moreNodes == 1 ? "" : "s");
         lv_label_set_text(more, msg);
-        lv_obj_set_style_text_color(more, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(more, lv_color_hex(Tui::Muted),
+                                    LV_PART_MAIN);
         lv_obj_set_style_text_font(more, &ui_font_montserrat_12, LV_PART_MAIN);
     }
 
@@ -8922,7 +8974,8 @@ void TFTView_320x240::rebuildPinRows(void)
             snprintf(msg, sizeof(msg), "Nothing called \"%s\" near here.\nSearches look around the map's\ncentre - pan there first.", pinFilter);
         lv_obj_t *none = lv_label_create(list);
         lv_label_set_text(none, msg);
-        lv_obj_set_style_text_color(none, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(none, lv_color_hex(Tui::Muted),
+                                    LV_PART_MAIN);
         lv_obj_set_style_text_font(none, &ui_font_montserrat_12, LV_PART_MAIN);
     }
 
@@ -8943,7 +8996,7 @@ void TFTView_320x240::rebuildPinRows(void)
         lv_obj_t *fl = lv_label_create(list);
         lv_label_set_text(fl, foot);
         lv_obj_set_style_text_font(fl, &ui_font_montserrat_12, LV_PART_MAIN);
-        lv_obj_set_style_text_color(fl, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(fl, lv_color_hex(Tui::Muted), LV_PART_MAIN);
     }
 }
 
@@ -8970,7 +9023,8 @@ void TFTView_320x240::openSharePicker(uint32_t id)
     share_overlay = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(share_overlay);
     lv_obj_set_size(share_overlay, 320, 240);
-    lv_obj_set_style_bg_color(share_overlay, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(share_overlay, lv_color_hex(Tui::Background),
+                              LV_PART_MAIN);
     lv_obj_set_style_bg_opa(share_overlay, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(share_overlay, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -8978,7 +9032,7 @@ void TFTView_320x240::openSharePicker(uint32_t id)
     char t[48];
     snprintf(t, sizeof(t), "Share \"%s\" with", p->label);
     lv_label_set_text(title, t);
-    lv_obj_set_style_text_color(title, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(title, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_set_width(title, 236);
     lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
     tui_one_line(title); // LONG_DOT needs a pinned height - see TuiLabel.h
@@ -9011,7 +9065,8 @@ void TFTView_320x240::openSharePicker(uint32_t id)
     auto addChoice = [&](const char *text, const char *sub, uint32_t packed, uint32_t accent) {
         lv_obj_t *row = lv_btn_create(list);
         lv_obj_set_size(row, 302, sub ? 42 : 34);
-        lv_obj_set_style_bg_color(row, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(row, lv_color_hex(Tui::Surface),
+                                  LV_PART_MAIN);
         lv_obj_set_style_radius(row, 8, LV_PART_MAIN);
         lv_obj_add_event_cb(
             row,
@@ -9036,7 +9091,7 @@ void TFTView_320x240::openSharePicker(uint32_t id)
 
         lv_obj_t *lbl = lv_label_create(row);
         lv_label_set_text(lbl, text);
-        lv_obj_set_style_text_color(lbl, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(lbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
         lv_obj_set_width(lbl, 272);
         lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
         tui_one_line(lbl); // LONG_DOT needs a pinned height - see TuiLabel.h
@@ -9045,7 +9100,8 @@ void TFTView_320x240::openSharePicker(uint32_t id)
             lv_obj_t *s = lv_label_create(row);
             lv_label_set_text(s, sub);
             lv_obj_set_style_text_font(s, &ui_font_montserrat_12, LV_PART_MAIN);
-            lv_obj_set_style_text_color(s, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+            lv_obj_set_style_text_color(s, lv_color_hex(Tui::Muted),
+                                        LV_PART_MAIN);
             lv_obj_align(s, LV_ALIGN_TOP_LEFT, 16, 22);
         }
     };
@@ -9068,7 +9124,8 @@ void TFTView_320x240::openSharePicker(uint32_t id)
         lv_obj_t *none = lv_label_create(list);
         lv_label_set_text(none, "No other nodes heard yet.");
         lv_obj_set_style_text_font(none, &ui_font_montserrat_12, LV_PART_MAIN);
-        lv_obj_set_style_text_color(none, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(none, lv_color_hex(Tui::Muted),
+                                    LV_PART_MAIN);
     }
 }
 
@@ -9113,7 +9170,8 @@ void TFTView_320x240::openPinConfirm(uint32_t id, uint8_t kind, uint32_t dest)
     confirm_overlay = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(confirm_overlay);
     lv_obj_set_size(confirm_overlay, 320, 240);
-    lv_obj_set_style_bg_color(confirm_overlay, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(confirm_overlay, lv_color_hex(Tui::Background),
+                              LV_PART_MAIN);
     lv_obj_set_style_bg_opa(confirm_overlay, LV_OPA_70, LV_PART_MAIN);
     lv_obj_clear_flag(confirm_overlay, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(confirm_overlay, LV_OBJ_FLAG_CLICKABLE);
@@ -9122,7 +9180,7 @@ void TFTView_320x240::openPinConfirm(uint32_t id, uint8_t kind, uint32_t dest)
     lv_obj_remove_style_all(card);
     lv_obj_set_size(card, 280, 140);
     lv_obj_center(card);
-    lv_obj_set_style_bg_color(card, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(card, lv_color_hex(Tui::Surface), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(card, 10, LV_PART_MAIN);
     lv_obj_set_style_border_color(card, lv_color_hex(0x3a3a3c), LV_PART_MAIN);
@@ -9131,7 +9189,7 @@ void TFTView_320x240::openPinConfirm(uint32_t id, uint8_t kind, uint32_t dest)
 
     lv_obj_t *title = lv_label_create(card);
     lv_label_set_text(title, unshare ? "Stop sharing this pin?" : "Share this pin?");
-    lv_obj_set_style_text_color(title, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(title, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(title, LV_ALIGN_TOP_LEFT, 14, 14);
 
     lv_obj_t *msg = lv_label_create(card);
@@ -9139,7 +9197,7 @@ void TFTView_320x240::openPinConfirm(uint32_t id, uint8_t kind, uint32_t dest)
     lv_obj_set_width(msg, 252);
     lv_label_set_text(msg, body);
     lv_obj_set_style_text_font(msg, &ui_font_montserrat_12, LV_PART_MAIN);
-    lv_obj_set_style_text_color(msg, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(msg, lv_color_hex(Tui::Muted), LV_PART_MAIN);
     lv_obj_align(msg, LV_ALIGN_TOP_LEFT, 14, 40);
 
     // Cancel on the left, where a mis-aimed tap is least costly.
@@ -9183,7 +9241,7 @@ void TFTView_320x240::showDiagnostics(void)
     lv_obj_t *ov = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(ov);
     lv_obj_set_size(ov, 320, 240);
-    lv_obj_set_style_bg_color(ov, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ov, lv_color_hex(Tui::Background), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(ov, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(ov, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(ov, LV_OBJ_FLAG_CLICKABLE);
@@ -9192,7 +9250,7 @@ void TFTView_320x240::showDiagnostics(void)
 
     lv_obj_t *title = lv_label_create(ov);
     lv_label_set_text(title, "Diagnostics");
-    lv_obj_set_style_text_color(title, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(title, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_set_style_text_font(title, &ui_font_montserrat_20, LV_PART_MAIN);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 12);
 
@@ -9213,13 +9271,13 @@ void TFTView_320x240::showDiagnostics(void)
              (unsigned long)(tdeck_min_free_psram() / 1024), (unsigned long)(tdeck_prev_heap_low() / 1024),
              (unsigned long)(tdeck_prev_psram_low() / 1024));
     lv_label_set_text(body, buf);
-    lv_obj_set_style_text_color(body, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(body, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_set_style_text_font(body, &ui_font_montserrat_14, LV_PART_MAIN);
     lv_obj_align(body, LV_ALIGN_TOP_LEFT, 16, 56);
 
     lv_obj_t *hint = lv_label_create(ov);
     lv_label_set_text(hint, "tap to close");
-    lv_obj_set_style_text_color(hint, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(hint, lv_color_hex(Tui::Muted), LV_PART_MAIN);
     lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -12);
 }
 
@@ -9327,13 +9385,14 @@ void TFTView_320x240::openRenamePin(uint32_t id)
     rename_overlay = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(rename_overlay);
     lv_obj_set_size(rename_overlay, 320, 240);
-    lv_obj_set_style_bg_color(rename_overlay, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(rename_overlay, lv_color_hex(Tui::Background),
+                              LV_PART_MAIN);
     lv_obj_set_style_bg_opa(rename_overlay, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(rename_overlay, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *title = lv_label_create(rename_overlay);
     lv_label_set_text(title, "Name this pin");
-    lv_obj_set_style_text_color(title, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(title, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(title, LV_ALIGN_TOP_LEFT, 12, 8);
 
     lv_obj_t *hint = lv_label_create(rename_overlay);
@@ -9341,7 +9400,7 @@ void TFTView_320x240::openRenamePin(uint32_t id)
     lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_font(hint, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_label_set_text(hint, "Type on the keyboard, then Enter or OK");
-    lv_obj_set_style_text_color(hint, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(hint, lv_color_hex(Tui::Muted), LV_PART_MAIN);
     lv_obj_align(hint, LV_ALIGN_TOP_LEFT, 12, 32);
 
     rename_ta = lv_textarea_create(rename_overlay);
@@ -9646,16 +9705,19 @@ void TFTView_320x240::openFiles(void)
     if (!files_screen) {
         files_screen = lv_obj_create(NULL);
         tui_statusbar_reserve(files_screen); // 20px of top padding moves every child down
-        lv_obj_set_style_bg_color(files_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(files_screen, lv_color_hex(Tui::Background),
+                                  LV_PART_MAIN);
         lv_obj_clear_flag(files_screen, LV_OBJ_FLAG_SCROLLABLE);
 
         lv_obj_t *title = lv_label_create(files_screen);
         lv_label_set_text(title, "Files");
-        lv_obj_set_style_text_color(title, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(title, lv_color_hex(Tui::Text),
+                                    LV_PART_MAIN);
         lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 6);
 
         files_path_label = lv_label_create(files_screen);
-        lv_obj_set_style_text_color(files_path_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(files_path_label, lv_color_hex(Tui::Muted),
+                                    LV_PART_MAIN);
         lv_obj_set_width(files_path_label, 300);
         lv_label_set_long_mode(files_path_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
         lv_obj_align(files_path_label, LV_ALIGN_TOP_LEFT, 10, 28);
@@ -9669,7 +9731,8 @@ void TFTView_320x240::openFiles(void)
         // bottom bar: free space (left) · Back (center) · Copy/Paste + X (right)
         files_free_label = lv_label_create(files_screen);
         lv_label_set_text(files_free_label, "");
-        lv_obj_set_style_text_color(files_free_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(files_free_label, lv_color_hex(Tui::Muted),
+                                    LV_PART_MAIN);
         lv_obj_align(files_free_label, LV_ALIGN_BOTTOM_LEFT, 10, -12);
 
         // Back: up one folder -> volume root -> storage picker -> launcher
@@ -9707,7 +9770,8 @@ void TFTView_320x240::openFiles(void)
         lv_obj_set_size(files_copy_btn, 100, 30);
         lv_obj_align(files_copy_btn, LV_ALIGN_BOTTOM_RIGHT, -34, -4);
         lv_obj_set_style_radius(files_copy_btn, 10, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(files_copy_btn, lv_color_hex(0x0a84ff), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(files_copy_btn, lv_color_hex(Tui::Accent),
+                                  LV_PART_MAIN);
         lv_obj_add_event_cb(
             files_copy_btn,
             [](lv_event_t *e) {
@@ -9838,7 +9902,8 @@ void TFTView_320x240::filesUpdateActionBar(void)
             lv_obj_set_size(files_copy_btn, 64, 30);
             lv_obj_align(files_copy_btn, LV_ALIGN_BOTTOM_RIGHT, -70, -4);
             lv_label_set_text(files_copy_lbl, "Copy");
-            lv_obj_set_style_bg_color(files_copy_btn, lv_color_hex(0x0a84ff), LV_PART_MAIN);
+            lv_obj_set_style_bg_color(files_copy_btn, lv_color_hex(Tui::Accent),
+                                      LV_PART_MAIN);
         }
         lv_obj_add_flag(files_cancel_btn, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(files_del_btn, LV_OBJ_FLAG_HIDDEN);
@@ -10085,13 +10150,14 @@ void TFTView_320x240::filesNewFolderPrompt(void)
     files_newfolder_ovl = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(files_newfolder_ovl);
     lv_obj_set_size(files_newfolder_ovl, 320, 240);
-    lv_obj_set_style_bg_color(files_newfolder_ovl, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(files_newfolder_ovl,
+                              lv_color_hex(Tui::Background), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(files_newfolder_ovl, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(files_newfolder_ovl, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *title = lv_label_create(files_newfolder_ovl);
     lv_label_set_text(title, "New folder name");
-    lv_obj_set_style_text_color(title, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(title, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(title, LV_ALIGN_TOP_LEFT, 12, 8);
 
     lv_obj_t *hint = lv_label_create(files_newfolder_ovl);
@@ -10099,7 +10165,7 @@ void TFTView_320x240::filesNewFolderPrompt(void)
     lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_font(hint, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_label_set_text(hint, "Type on the keyboard, then Enter or OK");
-    lv_obj_set_style_text_color(hint, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(hint, lv_color_hex(Tui::Muted), LV_PART_MAIN);
     lv_obj_align(hint, LV_ALIGN_TOP_LEFT, 12, 32);
 
     files_newfolder_ta = lv_textarea_create(files_newfolder_ovl);
@@ -10153,7 +10219,7 @@ namespace
 void filesStyleRow(lv_obj_t *btn, uint32_t iconColor)
 {
     lv_obj_set_style_bg_color(btn, lv_color_hex(0x0d0d0f), LV_PART_MAIN);
-    lv_obj_set_style_text_color(btn, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(btn, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_t *icon = lv_obj_get_child(btn, 0);
     if (icon) {
         lv_obj_set_style_text_font(icon, &lv_font_montserrat_14, LV_PART_MAIN);
@@ -11026,7 +11092,8 @@ void TFTView_320x240::startScreenshotCountdown(void)
                     lv_obj_t *flash = lv_obj_create(lv_layer_top());
                     lv_obj_remove_style_all(flash);
                     lv_obj_set_size(flash, LV_PCT(100), LV_PCT(100));
-                    lv_obj_set_style_bg_color(flash, lv_color_hex(0xffffff), LV_PART_MAIN);
+                    lv_obj_set_style_bg_color(flash, lv_color_hex(Tui::Text),
+                                              LV_PART_MAIN);
                     lv_obj_set_style_bg_opa(flash, LV_OPA_COVER, LV_PART_MAIN);
                     lv_obj_clear_flag(flash, LV_OBJ_FLAG_CLICKABLE);
                     lv_obj_move_foreground(flash);
@@ -11556,14 +11623,14 @@ lv_obj_t *TFTView_320x240::lockPageRow(lv_obj_t *parent, const char *title, int 
 
     lv_obj_t *t = lv_label_create(row);
     lv_label_set_text(t, title);
-    lv_obj_set_style_text_color(t, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(t, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(t, LV_ALIGN_LEFT_MID, 16, 0);
 
     lv_obj_t *b = lv_btn_create(row);
     lv_obj_set_size(b, 124, 30);
     lv_obj_align(b, LV_ALIGN_RIGHT_MID, -16, 0);
     lv_obj_set_style_radius(b, 8, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(b, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(b, lv_color_hex(Tui::Border), LV_PART_MAIN);
     lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *l = lv_label_create(b);
     lv_label_set_text(l, btnText);
@@ -11579,7 +11646,8 @@ void TFTView_320x240::openLockSettings(void)
     if (!lockpage_screen) {
         lockpage_screen = lv_obj_create(NULL);
         tui_statusbar_reserve(lockpage_screen); // an ordinary settings page: you are already unlocked here
-        lv_obj_set_style_bg_color(lockpage_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(lockpage_screen,
+                                  lv_color_hex(Tui::Background), LV_PART_MAIN);
         lv_obj_set_scroll_dir(lockpage_screen, LV_DIR_VER);
         lv_obj_set_scrollbar_mode(lockpage_screen, LV_SCROLLBAR_MODE_AUTO);
 
@@ -11587,7 +11655,8 @@ void TFTView_320x240::openLockSettings(void)
         lv_obj_set_size(back, 54, 26);
         lv_obj_align(back, LV_ALIGN_TOP_LEFT, 8, 5);
         lv_obj_set_style_radius(back, 8, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(back, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(back, lv_color_hex(Tui::Border),
+                                  LV_PART_MAIN);
         lv_obj_add_event_cb(
             back, [](lv_event_t *) { lv_async_call([](void *) { THIS->openSettings(); }, nullptr); },
             LV_EVENT_CLICKED, NULL);
@@ -11598,7 +11667,8 @@ void TFTView_320x240::openLockSettings(void)
 
         lv_obj_t *title = lv_label_create(lockpage_screen);
         lv_label_set_text(title, "Lock screen");
-        lv_obj_set_style_text_color(title, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(title, lv_color_hex(Tui::Text),
+                                    LV_PART_MAIN);
         lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
 
         int y = 44;
@@ -11706,7 +11776,8 @@ void TFTView_320x240::openLockSettings(void)
         lv_obj_set_width(hint, 288);
         lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_font(hint, &ui_font_montserrat_12, LV_PART_MAIN);
-        lv_obj_set_style_text_color(hint, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(hint, lv_color_hex(Tui::Muted),
+                                    LV_PART_MAIN);
         lv_label_set_text(hint,
                           "Off: wakes straight to Home.  Swipe: slide to unlock, no code.  "
                           "PIN: slide, then the keypad.\n\n"
@@ -11753,7 +11824,8 @@ void TFTView_320x240::showLockGlance(void)
 
     if (!lockglance_screen) {
         lockglance_screen = lv_obj_create(NULL);
-        lv_obj_set_style_bg_color(lockglance_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(lockglance_screen,
+                                  lv_color_hex(Tui::Background), LV_PART_MAIN);
         lv_obj_clear_flag(lockglance_screen, LV_OBJ_FLAG_SCROLLABLE);
 
         // ---- top left: Notifications, which is a button ----
@@ -11771,12 +11843,13 @@ void TFTView_320x240::showLockGlance(void)
             LV_EVENT_CLICKED, NULL);
         glance_notif_label = lv_label_create(glance_notif_btn);
         lv_obj_set_style_text_font(glance_notif_label, &ui_font_montserrat_12, LV_PART_MAIN);
-        lv_label_set_text(glance_notif_label, "Notifications");
+        lv_label_set_text(glance_notif_label, "Alerts");
         lv_obj_center(glance_notif_label);
 
         // ---- centre: the clock ----
         glance_clock_label = lv_label_create(lockglance_screen);
-        lv_obj_set_style_text_color(glance_clock_label, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(glance_clock_label, lv_color_hex(Tui::Text),
+                                    LV_PART_MAIN);
         lv_obj_set_style_text_font(glance_clock_label, &ui_font_montserrat_20, LV_PART_MAIN);
         lv_obj_align(glance_clock_label, LV_ALIGN_TOP_MID, 0, 6);
 
@@ -11786,7 +11859,8 @@ void TFTView_320x240::showLockGlance(void)
         lv_obj_set_size(glance_bat_shell, 24, 12);
         lv_obj_align(glance_bat_shell, LV_ALIGN_TOP_RIGHT, -10, 13);
         lv_obj_set_style_radius(glance_bat_shell, 3, LV_PART_MAIN);
-        lv_obj_set_style_border_color(glance_bat_shell, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_border_color(glance_bat_shell,
+                                      lv_color_hex(Tui::Muted), LV_PART_MAIN);
         lv_obj_set_style_border_width(glance_bat_shell, 1, LV_PART_MAIN);
         lv_obj_clear_flag(glance_bat_shell, LV_OBJ_FLAG_SCROLLABLE);
         glance_bat_fill = lv_obj_create(glance_bat_shell);
@@ -11797,11 +11871,13 @@ void TFTView_320x240::showLockGlance(void)
         lv_obj_set_style_bg_opa(glance_bat_fill, LV_OPA_COVER, LV_PART_MAIN);
         glance_bat_label = lv_label_create(lockglance_screen);
         lv_obj_set_style_text_font(glance_bat_label, &ui_font_montserrat_12, LV_PART_MAIN);
-        lv_obj_set_style_text_color(glance_bat_label, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(glance_bat_label, lv_color_hex(Tui::Text),
+                                    LV_PART_MAIN);
         lv_obj_align(glance_bat_label, LV_ALIGN_TOP_RIGHT, -38, 13);
 
         glance_date_label = lv_label_create(lockglance_screen);
-        lv_obj_set_style_text_color(glance_date_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(glance_date_label, lv_color_hex(Tui::Muted),
+                                    LV_PART_MAIN);
         lv_obj_set_style_text_font(glance_date_label, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_obj_align(glance_date_label, LV_ALIGN_TOP_MID, 0, 36);
 
@@ -11822,7 +11898,8 @@ void TFTView_320x240::showLockGlance(void)
         lv_obj_align(glance_slider, LV_ALIGN_BOTTOM_MID, 0, -7);
         lv_slider_set_range(glance_slider, 0, 100);
         lv_slider_set_value(glance_slider, 0, LV_ANIM_OFF);
-        lv_obj_set_style_bg_color(glance_slider, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(glance_slider, lv_color_hex(Tui::Surface),
+                                  LV_PART_MAIN);
         lv_obj_set_style_bg_opa(glance_slider, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_set_style_border_color(glance_slider, lv_color_hex(0x3a3a3c), LV_PART_MAIN);
         lv_obj_set_style_border_width(glance_slider, 1, LV_PART_MAIN);
@@ -11845,7 +11922,8 @@ void TFTView_320x240::showLockGlance(void)
 
         glance_slide_label = lv_label_create(lockglance_screen);
         lv_label_set_text(glance_slide_label, "slide to unlock");
-        lv_obj_set_style_text_color(glance_slide_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(glance_slide_label,
+                                    lv_color_hex(Tui::Muted), LV_PART_MAIN);
         lv_obj_align(glance_slide_label, LV_ALIGN_BOTTOM_MID, 14, -20);
 
         lv_obj_add_event_cb(
@@ -11903,7 +11981,7 @@ void TFTView_320x240::glanceNotifRow(lv_obj_t *parent, const char *who, const ch
 
     lv_obj_t *w = lv_label_create(row);
     lv_label_set_text(w, who);
-    lv_obj_set_style_text_color(w, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(w, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_set_style_text_font(w, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_obj_set_width(w, 210);
     lv_obj_set_height(w, 16); // see glanceWidgetCard: LONG_DOT clips to the HEIGHT, and the
@@ -11939,7 +12017,7 @@ void TFTView_320x240::glanceWidgetCard(lv_obj_t *parent, const LockWidgetText &w
 
     lv_obj_t *big = lv_label_create(card);
     lv_label_set_text(big, w.big);
-    lv_obj_set_style_text_color(big, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(big, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_set_style_text_font(big, &ui_font_montserrat_20, LV_PART_MAIN);
     lv_obj_align(big, LV_ALIGN_TOP_LEFT, 14, 8);
 
@@ -11956,7 +12034,7 @@ void TFTView_320x240::glanceWidgetCard(lv_obj_t *parent, const LockWidgetText &w
     if (w.line1[0]) {
         lv_obj_t *l1 = lv_label_create(card);
         lv_label_set_text(l1, w.line1);
-        lv_obj_set_style_text_color(l1, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(l1, lv_color_hex(Tui::Muted), LV_PART_MAIN);
         lv_obj_set_style_text_font(l1, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_obj_set_width(l1, w.right[0] ? 190 : 272);
         // ⚠️ AN EXPLICIT HEIGHT, OR LONG_DOT DOES NOTHING. LVGL clips to the label's height,
@@ -11970,7 +12048,7 @@ void TFTView_320x240::glanceWidgetCard(lv_obj_t *parent, const LockWidgetText &w
     if (w.right[0]) {
         lv_obj_t *r = lv_label_create(card);
         lv_label_set_text(r, w.right);
-        lv_obj_set_style_text_color(r, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(r, lv_color_hex(Tui::Muted), LV_PART_MAIN);
         lv_obj_set_style_text_font(r, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_obj_align(r, LV_ALIGN_TOP_RIGHT, -14, 44);
     }
@@ -12024,7 +12102,8 @@ void TFTView_320x240::refreshLockGlance(bool force)
     if (glance_bat_label && glance_bat_fill) {
         if (launcherBatPct < 0) {
             lv_label_set_text(glance_bat_label, "--");
-            lv_obj_set_style_text_color(glance_bat_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+            lv_obj_set_style_text_color(glance_bat_label,
+                                        lv_color_hex(Tui::Muted), LV_PART_MAIN);
             lv_obj_set_style_bg_opa(glance_bat_fill, LV_OPA_TRANSP, LV_PART_MAIN);
         } else {
             snprintf(buf, sizeof(buf), "%d%%%s", launcherBatPct, launcherBatPlugged ? "+" : "");
@@ -12048,7 +12127,7 @@ void TFTView_320x240::refreshLockGlance(bool force)
     const int unread = notif_count();
     if (glance_notif_label) {
         if (unread == 0)
-            snprintf(buf, sizeof(buf), "Notifications");
+            snprintf(buf, sizeof(buf), "Alerts");
         else if (unread == 1)
             snprintf(buf, sizeof(buf), "1 msg");
         else
@@ -12120,7 +12199,8 @@ void TFTView_320x240::refreshLockGlance(bool force)
             char m[32];
             snprintf(m, sizeof(m), "and %d more", unread - shown);
             lv_label_set_text(more, m);
-            lv_obj_set_style_text_color(more, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+            lv_obj_set_style_text_color(more, lv_color_hex(Tui::Muted),
+                                        LV_PART_MAIN);
             lv_obj_set_style_text_font(more, &ui_font_montserrat_12, LV_PART_MAIN);
         }
     } else if (haveWidget) {
@@ -12182,11 +12262,13 @@ void TFTView_320x240::showLockPad(bool setMode)
 
     if (!lockpad_screen) {
         lockpad_screen = lv_obj_create(NULL);
-        lv_obj_set_style_bg_color(lockpad_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(lockpad_screen, lv_color_hex(Tui::Background),
+                                  LV_PART_MAIN);
         lv_obj_clear_flag(lockpad_screen, LV_OBJ_FLAG_SCROLLABLE);
 
         lock_title_label = lv_label_create(lockpad_screen);
-        lv_obj_set_style_text_color(lock_title_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(lock_title_label, lv_color_hex(Tui::Muted),
+                                    LV_PART_MAIN);
         lv_obj_align(lock_title_label, LV_ALIGN_TOP_MID, 0, 6);
 
         // Unread-message count in the pad's top-left corner (same green "N msgs" as the launcher
@@ -12212,13 +12294,16 @@ void TFTView_320x240::showLockPad(bool setMode)
         // dark theme + big touch targets (fills the width, ~2/3 of the height)
         lv_obj_set_size(pad, 312, 178);
         lv_obj_align(pad, LV_ALIGN_BOTTOM_MID, 0, -4);
-        lv_obj_set_style_bg_color(pad, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(pad, lv_color_hex(Tui::Background),
+                                  LV_PART_MAIN);
         lv_obj_set_style_border_width(pad, 0, LV_PART_MAIN);
         lv_obj_set_style_pad_all(pad, 4, LV_PART_MAIN);
         lv_obj_set_style_pad_row(pad, 6, LV_PART_MAIN);
         lv_obj_set_style_pad_column(pad, 6, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(pad, lv_color_hex(0x1c1c1e), LV_PART_ITEMS);
-        lv_obj_set_style_text_color(pad, lv_color_hex(0xffffff), LV_PART_ITEMS);
+        lv_obj_set_style_bg_color(pad, lv_color_hex(Tui::Surface),
+                                  LV_PART_ITEMS);
+        lv_obj_set_style_text_color(pad, lv_color_hex(Tui::Text),
+                                    LV_PART_ITEMS);
         lv_obj_set_style_text_font(pad, &ui_font_montserrat_20, LV_PART_ITEMS);
         lv_obj_set_style_radius(pad, 12, LV_PART_ITEMS);
         lv_obj_set_style_shadow_width(pad, 0, LV_PART_ITEMS);
@@ -12543,21 +12628,24 @@ void TFTView_320x240::enterProgrammingMode(void)
         // title at the top
         lv_obj_clear_flag(objects.meshtastic_url, LV_OBJ_FLAG_HIDDEN);
         lv_label_set_text(objects.meshtastic_url, _(">> Programming mode <<"));
-        lv_obj_set_style_text_color(objects.meshtastic_url, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(objects.meshtastic_url,
+                                    lv_color_hex(Tui::Text), LV_PART_MAIN);
         lv_obj_set_style_text_font(objects.meshtastic_url, &ui_font_montserrat_14, LV_PART_MAIN);
         lv_obj_align(objects.meshtastic_url, LV_ALIGN_TOP_MID, 0, 28);
 
         // pairing PIN below the (centered) bluetooth icon
         lv_label_set_text_fmt(objects.firmware_label, "PIN %06d", db.config.bluetooth.fixed_pin);
         lv_obj_set_style_text_font(objects.firmware_label, &ui_font_montserrat_20, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_text_color(objects.firmware_label, lv_color_hex(0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_text_color(objects.firmware_label,
+                                    lv_color_hex(Tui::Text), LV_PART_MAIN);
         lv_obj_align(objects.firmware_label, LV_ALIGN_CENTER, 0, 62);
 
         // exit hint at the bottom (created once, reused on re-entry)
         static lv_obj_t *progHint = nullptr;
         if (!progHint) {
             progHint = lv_label_create(objects.boot_screen);
-            lv_obj_set_style_text_color(progHint, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+            lv_obj_set_style_text_color(progHint, lv_color_hex(Tui::Muted),
+                                        LV_PART_MAIN);
             lv_obj_set_style_text_font(progHint, &ui_font_montserrat_14, LV_PART_MAIN);
         }
         lv_obj_clear_flag(progHint, LV_OBJ_FLAG_HIDDEN);
@@ -19695,9 +19783,10 @@ void TFTView_320x240::updateUnreadMessages(void)
     else
         top[0] = '\0';
     if (launcher_unread_label) {
-        // "Notifications" rather than blank when there is nothing, matching the shared top bar
-        // on every other screen. Blank gave no hint that the corner was tappable at all.
-        lv_label_set_text(launcher_unread_label, top[0] ? top : "Notifications");
+        // "Alerts" rather than blank when there is nothing, matching the shared
+        // top bar on every other screen. Blank gave no hint that the corner was
+        // tappable at all.
+        lv_label_set_text(launcher_unread_label, top[0] ? top : "Alerts");
         lv_obj_set_style_text_color(launcher_unread_label,
                                     lv_color_hex(unreadMessages > 0 ? 0x30d158 : 0x8e8e93), LV_PART_MAIN);
         // The "mesh off" warning sits immediately right of this count, so it has to move when the
@@ -19708,8 +19797,8 @@ void TFTView_320x240::updateUnreadMessages(void)
                             unreadMessages > 0 ? 6 : 0, 0);
         }
     }
-    // The PIN pad still wants the COUNT only - blank when there is nothing. A permanent
-    // "Notifications" on a keypad is noise, and it opens nothing from there.
+    // The PIN pad still wants the COUNT only - blank when there is nothing. A
+    // permanent "Alerts" on a keypad is noise, and it opens nothing from there.
     if (lockpad_unread_label)
         lv_label_set_text(lockpad_unread_label, top);
 }

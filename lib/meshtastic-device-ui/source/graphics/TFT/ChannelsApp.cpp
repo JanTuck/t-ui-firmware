@@ -1,3 +1,4 @@
+#include "graphics/view/TFT/TuiStyle.h"
 // -----------------------------------------------------------------------------
 // T-UI Conversations — the people you are talking to, and the channels you listen to.
 //
@@ -161,7 +162,8 @@ lv_obj_t *convoRow(uint32_t num, const char *name, const char *preview, const ch
         initialsOf(name, ini, sizeof(ini));
         lv_obj_t *l = lv_label_create(av);
         lv_label_set_text(l, ini);
-        lv_obj_set_style_text_color(l, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_text_color(l, lv_color_hex(Tui::Background),
+                                    LV_PART_MAIN);
         lv_obj_center(l);
     }
 
@@ -176,7 +178,7 @@ lv_obj_t *convoRow(uint32_t num, const char *name, const char *preview, const ch
     lv_label_set_long_mode(nm, LV_LABEL_LONG_DOT);
     tui_one_line(nm); // LONG_DOT needs a pinned height - see TuiLabel.h
     lv_label_set_text(nm, (name && name[0]) ? name : "(unnamed)");
-    lv_obj_set_style_text_color(nm, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(nm, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_align(nm, LV_ALIGN_TOP_LEFT, 60, 9);
 
     lv_obj_t *pv = lv_label_create(row);
@@ -242,7 +244,7 @@ lv_obj_t *makeRow(int h)
     lv_obj_t *row = lv_obj_create(listCont);
     lv_obj_remove_style_all(row);
     lv_obj_set_size(row, lv_pct(100), h);
-    lv_obj_set_style_bg_color(row, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(row, lv_color_hex(Tui::Surface), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(row, 8, LV_PART_MAIN);
     lv_obj_set_style_pad_all(row, 0, LV_PART_MAIN);
@@ -365,7 +367,8 @@ void buildChannelList(void)
             lv_obj_remove_style_all(btn);
             lv_obj_set_size(btn, 40, 40);
             lv_obj_align(btn, LV_ALIGN_RIGHT_MID, -8, 0);
-            lv_obj_set_style_bg_color(btn, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+            lv_obj_set_style_bg_color(btn, lv_color_hex(Tui::Border),
+                                      LV_PART_MAIN);
             lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN);
             lv_obj_set_style_radius(btn, 8, LV_PART_MAIN);
             lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
@@ -424,14 +427,15 @@ void buildScreen(void)
 {
     screen = lv_obj_create(NULL);
     tui_statusbar_reserve(screen); // note item A4: the persistent top bar
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(screen, lv_color_hex(Tui::Background),
+                              LV_PART_MAIN);
     lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *back = lv_obj_create(screen);
     lv_obj_remove_style_all(back);
     lv_obj_set_size(back, 56, 28);
     lv_obj_align(back, LV_ALIGN_TOP_LEFT, 4, 2);
-    lv_obj_set_style_bg_color(back, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(back, lv_color_hex(Tui::Border), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(back, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(back, 6, LV_PART_MAIN);
     lv_obj_add_flag(back, LV_OBJ_FLAG_CLICKABLE);
@@ -444,7 +448,7 @@ void buildScreen(void)
         LV_EVENT_CLICKED, nullptr);
     lv_obj_t *bl = lv_label_create(back);
     lv_label_set_text(bl, "Back");
-    lv_obj_set_style_text_color(bl, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(bl, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_center(bl);
 
     titleLbl = lv_label_create(screen);
@@ -464,7 +468,8 @@ void buildScreen(void)
 
     noteLbl = lv_label_create(screen);
     lv_label_set_text(noteLbl, "");
-    lv_obj_set_style_text_color(noteLbl, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(noteLbl, lv_color_hex(Tui::Muted),
+                                LV_PART_MAIN);
     lv_obj_set_style_text_align(noteLbl, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
     lv_obj_align(noteLbl, LV_ALIGN_CENTER, 0, 20);
     lv_obj_add_flag(noteLbl, LV_OBJ_FLAG_HIDDEN);

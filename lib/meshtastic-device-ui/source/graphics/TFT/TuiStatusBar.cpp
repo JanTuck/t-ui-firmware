@@ -1,3 +1,4 @@
+#include "graphics/view/TFT/TuiStyle.h"
 // -----------------------------------------------------------------------------
 // The persistent top bar. See TuiStatusBar.h for the design and why it is opt-in.
 //
@@ -49,18 +50,18 @@ void tui_statusbar_init(void)
     lv_obj_remove_style_all(bar);
     lv_obj_set_size(bar, 320, 20);
     lv_obj_align(bar, LV_ALIGN_TOP_LEFT, 0, 0);
-    lv_obj_set_style_bg_color(bar, lv_color_hex(0x0a0a0c), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(bar, lv_color_hex(Tui::Background), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
     // A hairline, so the bar reads as chrome rather than as part of the screen under it.
     lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_BOTTOM, LV_PART_MAIN);
-    lv_obj_set_style_border_color(bar, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_border_color(bar, lv_color_hex(Tui::Border), LV_PART_MAIN);
     lv_obj_set_style_border_width(bar, 1, LV_PART_MAIN);
     lv_obj_add_flag(bar, LV_OBJ_FLAG_HIDDEN);
 
     notifLbl = lv_label_create(bar);
     lv_obj_set_style_text_font(notifLbl, &ui_font_montserrat_12, LV_PART_MAIN);
-    lv_label_set_text(notifLbl, "Notifications");
+    Tui::setText(notifLbl, "Alerts");
     lv_obj_align(notifLbl, LV_ALIGN_LEFT_MID, 6, 0);
     // The label itself is the button - a real lv_btn would not fit in 20px with its padding,
     // and there is nothing else up here to mis-tap. The hit area is widened below.
@@ -75,14 +76,15 @@ void tui_statusbar_init(void)
 
     clockLbl = lv_label_create(bar);
     lv_obj_set_style_text_font(clockLbl, &ui_font_montserrat_12, LV_PART_MAIN);
-    lv_obj_set_style_text_color(clockLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
-    lv_label_set_text(clockLbl, "");
+    lv_obj_set_style_text_color(clockLbl, lv_color_hex(Tui::Text),
+                                LV_PART_MAIN);
+    Tui::setText(clockLbl, "");
     lv_obj_align(clockLbl, LV_ALIGN_CENTER, 0, 0);
 
     batLbl = lv_label_create(bar);
     lv_obj_set_style_text_font(batLbl, &ui_font_montserrat_12, LV_PART_MAIN);
-    lv_obj_set_style_text_color(batLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
-    lv_label_set_text(batLbl, "");
+    lv_obj_set_style_text_color(batLbl, lv_color_hex(Tui::Text), LV_PART_MAIN);
+    Tui::setText(batLbl, "");
     lv_obj_align(batLbl, LV_ALIGN_RIGHT_MID, -6, 0);
 }
 
@@ -139,23 +141,14 @@ void tui_statusbar_tick(void)
     char buf[24];
     const int unread = notif_count();
     if (unread == 0)
-        snprintf(buf, sizeof(buf), "Notifications");
+        snprintf(buf, sizeof(buf), "Alerts");
     else if (unread == 1)
         snprintf(buf, sizeof(buf), "1 msg");
     else
         snprintf(buf, sizeof(buf), "%d msgs", unread);
-    // ⛔ lv_label_set_text SKIPS UNCHANGED TEXT. lv_obj_set_style_text_color DOES NOT - setting
-    // a style invalidates the object whether or not the value differs. The original comment here
-    // said this was "cheap to call several times a second" and was half right: the text was
-    // cheap, the three colour writes underneath were repainting the whole bar 17 times a second
-    // on every screen that shows it.
-    //
-    // MEASURED with @@fps: 17 fps and 124 KB/s pushed while sitting IDLE on the Mail and Chess
-    // screens, against 2 fps and 5 KB/s on the launcher, which does not use this bar. Jake
-    // reported it as "having chess open is lagging hard, maybe froze my device" - it was not
-    // chess, it was every app built on this bar. Only write a colour when it changes.
+    // LVGL reallocates and invalidates unchanged text; guard text and color writes.
     static uint32_t lastNotifCol = 0xFFFFFFFF, lastBatCol = 0xFFFFFFFF;
-    lv_label_set_text(notifLbl, buf);
+    Tui::setText(notifLbl, buf);
     const uint32_t notifCol = unread ? 0x30d158 : 0x8e8e93;
     if (notifCol != lastNotifCol) {
         lastNotifCol = notifCol;
@@ -163,19 +156,19 @@ void tui_statusbar_tick(void)
     }
 
     if (tdeck_clock_text(buf, sizeof(buf)))
-        lv_label_set_text(clockLbl, buf);
+        Tui::setText(clockLbl, buf);
     else
-        lv_label_set_text(clockLbl, "");
+        Tui::setText(clockLbl, "");
 
     const int pct = tdeck_battery_pct();
     uint32_t batCol;
     if (pct < 0) {
-        lv_label_set_text(batLbl, "--");
+        Tui::setText(batLbl, "--");
         batCol = 0x8e8e93;
     } else {
         const bool plugged = tdeck_battery_plugged();
         snprintf(buf, sizeof(buf), "%d%%%s", pct, plugged ? "+" : "");
-        lv_label_set_text(batLbl, buf);
+        Tui::setText(batLbl, buf);
         batCol = plugged ? 0x30d158 : (pct <= 15 ? 0xff453a : 0xffffff);
     }
     if (batCol != lastBatCol) {

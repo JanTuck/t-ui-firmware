@@ -1,0 +1,363 @@
+#include "graphics/view/TFT/Themes.h"
+#include "graphics/view/TFT/TuiStatusBar.h"
+#include "graphics/view/TFT/TuiStyle.h"
+#include "lvgl.h"
+#include "screens.h"
+#include <cassert>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+extern "C" const lv_font_t ui_font_montserrat_12;
+#include "icons.inc"
+
+extern "C" void calculator_open();
+extern "C" void stopwatch_open();
+extern "C" void notes_open();
+extern "C" void notif_open() {}
+extern "C" int notif_count() { return 0; }
+extern "C" int tdeck_battery_pct() { return 84; }
+extern "C" bool tdeck_battery_plugged() { return false; }
+extern "C" bool tdeck_clock_text(char *out, int n) {
+  snprintf(out, n, "21:41");
+  return true;
+}
+void playBeep() {}
+void playLongBeep() {}
+extern "C" void tdeck_beep_gain(float) {}
+extern "C" void tdeck_alarm_get(int *h, int *m, bool *on) {
+  *h = 7;
+  *m = 0;
+  *on = false;
+}
+extern "C" void tdeck_alarm_set(int, int, bool) {}
+extern "C" bool tdeck_alarm_ringing() { return false; }
+extern "C" void tdeck_alarm_dismiss() {}
+static uint16_t pixels[320 * 240], buffer[320 * 24];
+static bool baseline = false;
+static int flushes = 0, clicked = -1, held = -1;
+static lv_point_t pointer;
+static bool down = false;
+static void flush(lv_display_t *display, const lv_area_t *a, uint8_t *data) {
+  auto src = reinterpret_cast<uint16_t *>(data);
+  for (int y = a->y1; y <= a->y2; ++y)
+    for (int x = a->x1; x <= a->x2; ++x)
+      pixels[y * 320 + x] = *src++;
+  ++flushes;
+  lv_display_flush_ready(display);
+}
+static void step(int ms = 100) {
+  for (int i = 0; i < ms; i += 5) {
+    lv_tick_inc(5);
+    if (lv_tick_get() % 60 == 0)
+      tui_statusbar_tick();
+    lv_timer_handler();
+  }
+}
+static void capture(const char *name) {
+  lv_refr_now(nullptr);
+  char path[96];
+  snprintf(path, sizeof(path), "%s%s", baseline ? "baseline-" : "", name);
+  FILE *f = fopen(path, "wb");
+  assert(f);
+  fprintf(f, "P6\n320 240\n255\n");
+  for (uint16_t c : pixels) {
+    unsigned char rgb[] = {
+        static_cast<unsigned char>(((c >> 11) & 31) * 255 / 31),
+        static_cast<unsigned char>(((c >> 5) & 63) * 255 / 63),
+        static_cast<unsigned char>((c & 31) * 255 / 31)};
+    fwrite(rgb, 1, 3, f);
+  }
+  fclose(f);
+}
+static void readPointer(lv_indev_t *, lv_indev_data_t *data) {
+  data->point = pointer;
+  data->state = down ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+}
+struct App {
+  const char *name;
+  uint32_t color;
+  int userIdx = -1;
+};
+static App launchList[] = {
+    {"Mesh", 0xbf5af2},      {"Notes", 0xffd60a},
+    {"Gemini", 0x30d158},    {"Mail", 0xff9f0a},
+    {"Chess", 0xf2f2f2},     {"Calculator", 0xff9f0a},
+    {"Files", 0x62dfc4},     {"Maps", 0x5ac8fa},
+    {"Settings", 0xa2b4c2},  {"Get Apps", 0xbf5af2},
+    {"Snake", 0x30d158},     {"Flashlight", 0xffd60a},
+    {"Clock", 0x64d2ff},     {"Nodes", 0x5ac8fa},
+    {"Favorites", 0xffd60a}, {"Chats", 0x30d158},
+    {"Alerts", 0xff453a},    {"An unusually long app name", 0x62dfc4}};
+static const char *userAppDirs[] = {""};
+static lv_obj_t *makeGrid(lv_obj_t *screen) {
+  constexpr int kPageW = 320, kPagerH = 188, kPerPage = 6;
+  const int launchCount = sizeof(launchList) / sizeof(launchList[0]);
+  lv_obj_t *pager = lv_obj_create(screen);
+  lv_obj_remove_style_all(pager);
+  lv_obj_set_size(pager, kPageW, kPagerH);
+  lv_obj_set_pos(pager, 0, 26);
+  lv_obj_set_flex_flow(pager, LV_FLEX_FLOW_ROW);
+  lv_obj_set_scroll_dir(pager, LV_DIR_HOR);
+  lv_obj_set_scroll_snap_x(pager, LV_SCROLL_SNAP_CENTER);
+  lv_obj_add_flag(pager, LV_OBJ_FLAG_SCROLL_ONE);
+  lv_obj_set_scrollbar_mode(pager, LV_SCROLLBAR_MODE_OFF);
+  auto tile_cb = [](lv_event_t *e) {
+    clicked = (int)(intptr_t)lv_event_get_user_data(e);
+  };
+  auto tile_long_cb = [](lv_event_t *) { held = 1; };
+#include "grid.inc"
+  return pager;
+}
+static size_t used() {
+  lv_mem_monitor_t m;
+  lv_mem_monitor(&m);
+  return m.total_size - m.free_size;
+}
+static lv_obj_t *findLabel(lv_obj_t *obj, const char *text) {
+  if (lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN))
+    return nullptr;
+  if (lv_obj_check_type(obj, &lv_label_class) &&
+      !strcmp(lv_label_get_text(obj), text))
+    return obj;
+  for (uint32_t i = 0; i < lv_obj_get_child_count(obj); ++i)
+    if (auto found = findLabel(lv_obj_get_child(obj, i), text))
+      return found;
+  return nullptr;
+}
+static void tap(const char *text) {
+  auto label = findLabel(lv_screen_active(), text);
+  assert(label);
+  auto button = lv_obj_get_parent(label);
+  lv_area_t a;
+  lv_obj_get_coords(button, &a);
+  assert(a.x1 >= 0 && a.x2 < 320 && a.y1 >= 20 && a.y2 < 240);
+  pointer = {(lv_coord_t)((a.x1 + a.x2) / 2), (lv_coord_t)((a.y1 + a.y2) / 2)};
+  down = true;
+  step(60);
+  down = false;
+  step(60);
+}
+extern "C" void nodes_open();
+extern "C" void favorites_open();
+extern "C" void channels_open();
+static void gallery(lv_obj_t *home)
+{
+  lv_screen_load(home);
+  calculator_open(); step(); tap("C"); capture("calculator.ppm");
+  lv_screen_load(home);
+  stopwatch_open(); step(); capture("clock.ppm");
+  tap("Timer"); step(); capture("timer.ppm");
+  tap("Alarm"); step(); capture("alarm.ppm");
+  lv_screen_load(home);
+  notes_open(); step(); capture("notes.ppm");
+  tap("+ New"); step(); capture("note-editor.ppm");
+  tap("Delete"); step(); capture("note-delete.ppm");
+  lv_screen_load(home);
+  nodes_open(); step(); capture("nodes.ppm");
+  lv_screen_load(home);
+  favorites_open(); step(); capture("favorites.ppm");
+  lv_screen_load(home);
+  channels_open(); step(); capture("chats.ppm");
+  create_screen_main_screen();
+  Themes::set(Themes::eDark);
+  lv_screen_load(objects.main_screen); step(); capture("mesh.ppm");
+  lv_obj_add_flag(objects.home_panel, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_remove_flag(objects.controller_panel, LV_OBJ_FLAG_HIDDEN);
+  step(); capture("mesh-settings.ppm");
+  create_screen_lock_screen();
+  lv_screen_load(objects.lock_screen); step(); capture("lock-base.ppm");
+}
+int main() {
+  baseline = getenv("SIM_BASELINE") && *getenv("SIM_BASELINE");
+  lv_init();
+  auto display = lv_display_create(320, 240);
+  lv_display_set_color_format(display, LV_COLOR_FORMAT_RGB565);
+  lv_display_set_buffers(display, buffer, nullptr, sizeof(buffer),
+                         LV_DISPLAY_RENDER_MODE_PARTIAL);
+  lv_display_set_flush_cb(display, flush);
+  auto input = lv_indev_create();
+  lv_indev_set_type(input, LV_INDEV_TYPE_POINTER);
+  lv_indev_set_read_cb(input, readPointer);
+  auto screen = lv_screen_active();
+  lv_obj_set_style_bg_color(screen, lv_color_hex(baseline ? 0x000000 : Tui::Background), 0);
+  tui_statusbar_init();
+  tui_statusbar_reserve(screen);
+  lv_obj_set_style_pad_top(screen, 0, 0);
+  tui_statusbar_tick();
+  auto pager = makeGrid(screen);
+  printf("Grid LVGL heap: %zu bytes\n", used());
+  step();
+  if (baseline) {
+    capture("home.ppm");
+    auto tile = lv_obj_get_child(lv_obj_get_child(pager, 0), 0);
+    lv_obj_add_state(tile, LV_STATE_FOCUSED); step(); capture("focus.ppm");
+    lv_obj_add_state(tile, LV_STATE_PRESSED); step(); capture("pressed.ppm");
+    lv_obj_remove_state(tile, LV_STATE_FOCUSED | LV_STATE_PRESSED);
+    lv_obj_scroll_to_x(pager, 640, LV_ANIM_OFF);
+    lv_obj_add_state(lv_obj_get_child(lv_obj_get_child(pager, 2), 5), LV_STATE_FOCUSED);
+    step(); capture("last-page.ppm");
+    gallery(screen);
+    return 0;
+  }
+  capture("home.ppm");
+  auto group = lv_group_create();
+  for (uint32_t p = 0; p < lv_obj_get_child_count(pager); ++p) {
+    auto page = lv_obj_get_child(pager, p);
+    for (uint32_t t = 0; t < lv_obj_get_child_count(page); ++t) {
+      auto tile = lv_obj_get_child(page, t);
+      lv_group_add_obj(group, tile);
+      lv_area_t a;
+      lv_obj_get_coords(tile, &a);
+      assert(a.x2 - a.x1 + 1 == 88 && a.y2 - a.y1 + 1 == 84);
+      assert(a.y1 >= 26 && a.y2 < 214);
+    }
+  }
+  auto first = lv_obj_get_child(lv_obj_get_child(pager, 0), 0);
+  lv_group_focus_obj(first);
+  step();
+  capture("focus.ppm");
+  lv_area_t a;
+  lv_obj_get_coords(first, &a);
+  pointer = {(lv_coord_t)((a.x1 + a.x2) / 2), (lv_coord_t)((a.y1 + a.y2) / 2)};
+  down = true;
+  step(100);
+  assert(lv_obj_has_state(first, LV_STATE_PRESSED));
+  capture("pressed.ppm");
+  down = false;
+  step(100);
+  assert(clicked == 0);
+  down = true;
+  step(650);
+  assert(held == 1);
+  down = false;
+  step();
+  // Navigate all rows and pages through the real LVGL focus group.
+  for (int n = 1; n < 18; ++n) {
+    lv_group_focus_next(group);
+    step(350);
+    auto tile = lv_group_get_focused(group);
+    assert(tile);
+    assert(lv_obj_has_state(tile, LV_STATE_FOCUSED));
+    lv_obj_get_coords(tile, &a);
+    assert(a.x1 >= 0 && a.x2 < 320);
+    clicked = -1;
+    lv_obj_send_event(tile, LV_EVENT_CLICKED, nullptr);
+    assert(clicked == n);
+  }
+  capture("last-page.ppm");
+  // Swipe left and right using the pointer driver, not a synthetic scroll
+  // event.
+  lv_group_focus_obj(first);
+  step(500);
+  pointer = {280, 120};
+  down = true;
+  step(40);
+  for (int x = 280; x >= 40; x -= 20) {
+    pointer.x = x;
+    step(25);
+  }
+  down = false;
+  step(600);
+  assert(lv_obj_get_scroll_x(pager) >= 300);
+  capture("swiped.ppm");
+  pointer = {40, 120};
+  down = true;
+  step(40);
+  for (int x = 40; x <= 280; x += 20) {
+    pointer.x = x;
+    step(25);
+  }
+  down = false;
+  step(600);
+  assert(lv_obj_get_scroll_x(pager) == 0);
+  step(1000);
+  flushes = 0;
+  step(5000);
+  assert(flushes == 0);
+  printf("PASS: touch, hold, 18 focus targets, paging both ways, geometry, "
+         "idle zero flushes\n");
+  lv_group_delete(group);
+  lv_obj_delete(pager);
+  step();
+  const size_t baseline = used();
+  for (int i = 0; i < 100; ++i) {
+    pager = makeGrid(screen);
+    step(30);
+    lv_obj_delete(pager);
+    step(30);
+  }
+  assert(used() == baseline);
+  printf("PASS: 100 grid rebuilds, no retained LVGL heap (%zu bytes)\n",
+         baseline);
+  tui_statusbar_init();
+  auto keys = lv_group_create();
+  lv_group_set_default(keys);
+  calculator_open();
+  tui_statusbar_tick();
+  step();
+  capture("calculator.ppm");
+  tap("C");
+  tap("2");
+  tap("+");
+  tap("3");
+  tap("=");
+  assert(findLabel(lv_screen_active(), "5"));
+  tap("C");
+  tap("8");
+  tap("/");
+  tap("0");
+  tap("=");
+  assert(findLabel(lv_screen_active(), "Error"));
+  tap("C");
+  lv_group_send_data(keys, '7');
+  lv_group_send_data(keys, '+');
+  lv_group_send_data(keys, '2');
+  lv_group_send_data(keys, LV_KEY_ENTER);
+  assert(findLabel(lv_screen_active(), "9"));
+  tap("Back");
+  assert(lv_screen_active() == screen);
+  for (int i = 0; i < 20; ++i) {
+    calculator_open();
+    step();
+    tap("Back");
+  }
+  printf("PASS: calculator touch arithmetic, divide by zero, bottom row and "
+         "Back cycles\n");
+  lv_screen_load(screen);
+  stopwatch_open();
+  tui_statusbar_tick();
+  step();
+  capture("clock.ppm");
+  tap("Start");
+  step(1500);
+  tap("Stop");
+  tap("Reset");
+  tap("Timer");
+  capture("timer.ppm");
+  tap("Alarm");
+  capture("alarm.ppm");
+  tap("Watch");
+  printf("PASS: clock Start/Stop/Reset and Timer/Alarm/Watch navigation\n");
+  lv_screen_load(screen);
+  notes_open();
+  tui_statusbar_tick();
+  step();
+  capture("notes.ppm");
+  tap("+ New");
+  step();
+  capture("note-editor.ppm");
+  auto editor = lv_screen_active();
+  lv_group_send_data(keys, 'H');
+  lv_group_send_data(keys, 'i');
+  auto title = lv_group_get_focused(keys);
+  assert(lv_obj_check_type(title, &lv_textarea_class));
+  assert(!strcmp(lv_textarea_get_text(title), "Hi"));
+  tap("Delete");
+  assert(findLabel(editor, "Delete this note?"));
+  tap("Cancel");
+  assert(!findLabel(editor, "Delete this note?"));
+  printf("PASS: notes no-SD state and new editor navigation\n");
+  gallery(screen);
+  return 0;
+}

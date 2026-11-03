@@ -1,3 +1,4 @@
+#include "graphics/view/TFT/TuiStyle.h"
 // -----------------------------------------------------------------------------
 // T-UI Calculator — a self-contained basic calculator for the launcher.
 //
@@ -251,10 +252,12 @@ void keyEvent(lv_event_t *e)
 lv_obj_t *gridBtn(const char *txt, char key, int col, int row, uint32_t bg, uint32_t fg)
 {
     lv_obj_t *btn = lv_btn_create(screen);
-    lv_obj_set_size(btn, 75, 29);
-    lv_obj_set_pos(btn, 4 + col * 79, 72 + row * 33);
+    Tui::styleTile(btn);
+    lv_obj_set_size(btn, 75, 28);
+    lv_obj_set_pos(btn, 4 + col * 79, 60 + row * 31);
     lv_obj_set_style_bg_color(btn, lv_color_hex(bg), LV_PART_MAIN);
-    lv_obj_set_style_radius(btn, 10, LV_PART_MAIN);
+    lv_obj_set_style_radius(btn, 8, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(btn, 0, LV_PART_MAIN);
     lv_obj_add_event_cb(btn, onButton, LV_EVENT_CLICKED, (void *)(intptr_t)key);
     lv_obj_t *lbl = lv_label_create(btn);
     lv_label_set_text(lbl, txt);
@@ -268,14 +271,15 @@ void buildScreen(void)
 {
     screen = lv_obj_create(NULL);
     tui_statusbar_reserve(screen); // note item A4: the persistent top bar
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(screen, lv_color_hex(Tui::Background),
+                              LV_PART_MAIN);
     lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
 
     // Back (top-left) returns to whatever screen opened us (the launcher)
     lv_obj_t *back = lv_btn_create(screen);
     lv_obj_set_size(back, 56, 24);
     lv_obj_set_pos(back, 4, 4);
-    lv_obj_set_style_bg_color(back, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(back, lv_color_hex(Tui::Border), LV_PART_MAIN);
     lv_obj_set_style_radius(back, 8, LV_PART_MAIN);
     lv_obj_add_event_cb(
         back,
@@ -290,15 +294,15 @@ void buildScreen(void)
 
     // big right-aligned readout
     readout = lv_label_create(screen);
-    lv_obj_set_style_text_color(readout, lv_color_hex(0xffffff), LV_PART_MAIN);
+    lv_obj_set_style_text_color(readout, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_set_style_text_font(readout, &lv_font_montserrat_40, LV_PART_MAIN);
     lv_obj_set_width(readout, 250);
     lv_obj_set_style_text_align(readout, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
-    lv_obj_set_pos(readout, 62, 24);
+    lv_obj_set_pos(readout, 62, 14);
     lv_label_set_long_mode(readout, LV_LABEL_LONG_CLIP);
 
     // the grid — iOS colors: gray function row, orange operators, dark digits
-    const uint32_t kFn = 0xa5a5a5, kOp = 0xff9f0a, kNum = 0x333333;
+    const uint32_t kFn = Tui::Muted, kOp = 0x294c54, kNum = Tui::Surface;
     gridBtn("C", 'C', 0, 0, kFn, 0x000000);
     gridBtn("+/-", 'S', 1, 0, kFn, 0x000000);
     gridBtn("%", '%', 2, 0, kFn, 0x000000);
