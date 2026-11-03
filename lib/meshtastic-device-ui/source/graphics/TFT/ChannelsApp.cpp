@@ -130,7 +130,8 @@ lv_obj_t *convoRow(uint32_t num, const char *name, const char *preview, const ch
     lv_obj_t *row = lv_obj_create(listCont);
     lv_obj_remove_style_all(row);
     lv_obj_set_size(row, 304, 60);
-    lv_obj_set_style_bg_color(row, lv_color_hex(unread ? 0x14241a : 0x1c1c1e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(
+        row, lv_color_hex(unread ? 0x203c3b : Tui::Surface), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(row, 10, LV_PART_MAIN);
     lv_obj_set_style_pad_all(row, 0, LV_PART_MAIN);
@@ -146,7 +147,8 @@ lv_obj_t *convoRow(uint32_t num, const char *name, const char *preview, const ch
     lv_obj_clear_flag(av, LV_OBJ_FLAG_SCROLLABLE);
     if (isChannel) {
         // A channel is a place, not a person: bars instead of initials.
-        lv_obj_set_style_border_color(av, lv_color_hex(0x30d158), LV_PART_MAIN);
+        lv_obj_set_style_border_color(av, lv_color_hex(Tui::Accent),
+                                      LV_PART_MAIN);
         lv_obj_set_style_border_width(av, 2, LV_PART_MAIN);
         for (int k = 0; k < 3; k++) {
             lv_obj_t *b = lv_obj_create(av);
@@ -154,7 +156,8 @@ lv_obj_t *convoRow(uint32_t num, const char *name, const char *preview, const ch
             lv_obj_set_size(b, 18, 3);
             lv_obj_align(b, LV_ALIGN_CENTER, 0, -6 + k * 6);
             lv_obj_set_style_radius(b, 2, LV_PART_MAIN);
-            lv_obj_set_style_bg_color(b, lv_color_hex(k == 0 ? 0x30d158 : 0x6a6a70), LV_PART_MAIN);
+            lv_obj_set_style_bg_color(
+                b, lv_color_hex(k == 0 ? Tui::Accent : 0x6a6a70), LV_PART_MAIN);
             lv_obj_set_style_bg_opa(b, LV_OPA_COVER, LV_PART_MAIN);
         }
     } else {
@@ -169,7 +172,8 @@ lv_obj_t *convoRow(uint32_t num, const char *name, const char *preview, const ch
 
     lv_obj_t *tm = lv_label_create(row);
     lv_label_set_text(tm, (when && when[0]) ? when : "");
-    lv_obj_set_style_text_color(tm, lv_color_hex(unread ? 0x30d158 : 0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(
+        tm, lv_color_hex(unread ? Tui::Accent : Tui::Muted), LV_PART_MAIN);
     lv_obj_set_style_text_font(tm, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_obj_align(tm, LV_ALIGN_TOP_RIGHT, -12, 11);
 
@@ -185,7 +189,8 @@ lv_obj_t *convoRow(uint32_t num, const char *name, const char *preview, const ch
     lv_obj_set_width(pv, 226);
     lv_label_set_long_mode(pv, LV_LABEL_LONG_DOT);
     lv_label_set_text(pv, (preview && preview[0]) ? preview : "No messages yet");
-    lv_obj_set_style_text_color(pv, lv_color_hex(unread ? 0xc7f5d2 : 0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(
+        pv, lv_color_hex(unread ? Tui::Accent : Tui::Muted), LV_PART_MAIN);
     lv_obj_set_style_text_font(pv, &ui_font_montserrat_12, LV_PART_MAIN);
     tui_one_line(pv); // LONG_DOT needs a pinned height - see TuiLabel.h
     lv_obj_align(pv, LV_ALIGN_TOP_LEFT, 60, 32);
@@ -198,7 +203,8 @@ lv_obj_t *convoRow(uint32_t num, const char *name, const char *preview, const ch
         lv_obj_set_size(badge, unread > 9 ? 24 : 18, 18);
         lv_obj_align(badge, LV_ALIGN_BOTTOM_RIGHT, -12, -8);
         lv_obj_set_style_radius(badge, 9, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(badge, lv_color_hex(0x30d158), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(badge, lv_color_hex(Tui::Accent),
+                                  LV_PART_MAIN);
         lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_clear_flag(badge, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_t *n = lv_label_create(badge);
@@ -216,7 +222,7 @@ lv_obj_t *sectionHeader(const char *txt)
 {
     lv_obj_t *l = lv_label_create(listCont);
     lv_label_set_text(l, txt);
-    lv_obj_set_style_text_color(l, lv_color_hex(0x6a6a70), LV_PART_MAIN);
+    lv_obj_set_style_text_color(l, lv_color_hex(Tui::Muted), LV_PART_MAIN);
     lv_obj_set_style_text_font(l, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_obj_set_style_pad_left(l, 6, LV_PART_MAIN);
     lv_obj_set_style_pad_top(l, 4, LV_PART_MAIN);
@@ -401,7 +407,7 @@ void buildMemberList(void)
         char age[16];
         ageText(tdeck_node_age_secs(members[i]), age, sizeof(age));
         if (age[0])
-            makeLabel(row, age, 0x8e8e93, LV_ALIGN_RIGHT_MID, -10, 0);
+            makeLabel(row, age, Tui::Muted, LV_ALIGN_RIGHT_MID, -10, 0);
     }
     // Said plainly, because the alternative is a list that quietly lies about what it is.
     if (n == 0)
@@ -433,11 +439,11 @@ void buildScreen(void)
 
     lv_obj_t *back = lv_obj_create(screen);
     lv_obj_remove_style_all(back);
-    lv_obj_set_size(back, 56, 28);
-    lv_obj_align(back, LV_ALIGN_TOP_LEFT, 4, 2);
-    lv_obj_set_style_bg_color(back, lv_color_hex(Tui::Border), LV_PART_MAIN);
+    Tui::headerButton(back);
+    lv_obj_align(back, LV_ALIGN_TOP_LEFT, 8, 4);
+    lv_obj_set_style_bg_color(back, lv_color_hex(Tui::Surface), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(back, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_radius(back, 6, LV_PART_MAIN);
+    lv_obj_set_style_radius(back, 8, LV_PART_MAIN);
     lv_obj_add_flag(back, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(
         back,
@@ -453,17 +459,19 @@ void buildScreen(void)
 
     titleLbl = lv_label_create(screen);
     lv_label_set_text(titleLbl, "Channels");
-    lv_obj_set_style_text_color(titleLbl, lv_color_hex(0x30d158), LV_PART_MAIN);
-    lv_obj_align(titleLbl, LV_ALIGN_TOP_MID, 0, 9);
+    lv_obj_set_style_text_color(titleLbl, lv_color_hex(Tui::Accent),
+                                LV_PART_MAIN);
+    Tui::headerTitle(titleLbl);
 
     listCont = lv_obj_create(screen);
     lv_obj_remove_style_all(listCont);
-    lv_obj_set_size(listCont, 320, 182); // -20: the status bar took 20px off the top (tui_statusbar_reserve)
-    lv_obj_align(listCont, LV_ALIGN_TOP_MID, 0, 36);
+    lv_obj_set_size(listCont, 304, 172); // -20: the status bar took 20px off
+                                         // the top (tui_statusbar_reserve)
+    lv_obj_align(listCont, LV_ALIGN_TOP_MID, 0, 40);
     lv_obj_set_flex_flow(listCont, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(listCont, 6, LV_PART_MAIN);
-    lv_obj_set_style_pad_left(listCont, 8, LV_PART_MAIN);
-    lv_obj_set_style_pad_right(listCont, 8, LV_PART_MAIN);
+    lv_obj_set_style_pad_left(listCont, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_right(listCont, 0, LV_PART_MAIN);
     lv_obj_set_scroll_dir(listCont, LV_DIR_VER);
 
     noteLbl = lv_label_create(screen);

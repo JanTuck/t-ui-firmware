@@ -307,23 +307,23 @@ void buildScreen(void)
     lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
 
     // mode selector (top): Stopwatch | Timer
-    // Three modes across the top now, so 150 no longer fits: 6 + 100 + 4 + 100 + 4 + 100 + 6
+    // Equal-width tabs on the same 8px grid as the app headers.
     // is exactly the 320 available.
     swModeBtn = makeButton(
         screen, "Watch", 0x294c54,
         [](lv_event_t *) { setMode(MODE_STOPWATCH); }, nullptr);
-    lv_obj_set_size(swModeBtn, 100, 40);
-    lv_obj_align(swModeBtn, LV_ALIGN_TOP_LEFT, 6, 6);
+    lv_obj_set_size(swModeBtn, 96, 36);
+    lv_obj_align(swModeBtn, LV_ALIGN_TOP_LEFT, 8, 4);
     tmModeBtn = makeButton(
         screen, "Timer", Tui::Surface,
         [](lv_event_t *) { setMode(MODE_TIMER); }, nullptr);
-    lv_obj_set_size(tmModeBtn, 100, 40);
-    lv_obj_align(tmModeBtn, LV_ALIGN_TOP_MID, 0, 6);
+    lv_obj_set_size(tmModeBtn, 96, 36);
+    lv_obj_align(tmModeBtn, LV_ALIGN_TOP_MID, 0, 4);
     alModeBtn = makeButton(
         screen, "Alarm", Tui::Surface,
         [](lv_event_t *) { setMode(MODE_ALARM); }, nullptr);
-    lv_obj_set_size(alModeBtn, 100, 40);
-    lv_obj_align(alModeBtn, LV_ALIGN_TOP_RIGHT, -6, 6);
+    lv_obj_set_size(alModeBtn, 96, 36);
+    lv_obj_align(alModeBtn, LV_ALIGN_TOP_RIGHT, -8, 4);
 
     // big readout, with − / + adjust buttons flanking it (timer mode only)
     timeLbl = lv_label_create(screen);
@@ -346,7 +346,8 @@ void buildScreen(void)
     lv_obj_set_style_text_color(hintLbl, lv_color_hex(0xff453a), LV_PART_MAIN);
     lv_obj_align(hintLbl, LV_ALIGN_CENTER, 0, 24);
 
-    lv_obj_t *startBtn = makeButton(screen, "Start", 0x30d158, onStartStop, &startBtnLbl);
+    lv_obj_t *startBtn =
+        makeButton(screen, "Start", 0x294c54, onStartStop, &startBtnLbl);
     lv_obj_set_size(startBtn, 130, 52);
     lv_obj_align(startBtn, LV_ALIGN_BOTTOM_LEFT, 16, -14);
     lv_obj_t *resetBtn =

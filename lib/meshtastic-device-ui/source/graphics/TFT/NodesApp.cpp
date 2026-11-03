@@ -263,7 +263,8 @@ void closeSheet(void)
 lv_obj_t *sheetBtn(lv_obj_t *parent, const char *txt, int y, uint32_t colour, lv_event_cb_t cb)
 {
     lv_obj_t *b = lv_btn_create(parent);
-    lv_obj_set_size(b, 244, 34);
+    Tui::headerButton(b);
+    lv_obj_set_size(b, 244, 30);
     lv_obj_align(b, LV_ALIGN_TOP_MID, 0, y);
     lv_obj_set_style_radius(b, 8, LV_PART_MAIN);
     lv_obj_set_style_bg_color(b, lv_color_hex(colour), LV_PART_MAIN);
@@ -277,10 +278,12 @@ lv_obj_t *sheetBtn(lv_obj_t *parent, const char *txt, int y, uint32_t colour, lv
 void buildSheet(void)
 {
     sheet = lv_obj_create(lv_layer_top());
-    lv_obj_set_size(sheet, 268, 228);
+    lv_obj_set_size(sheet, 280, 228);
+    lv_obj_set_style_pad_all(sheet, 12, 0);
     lv_obj_center(sheet);
     lv_obj_set_style_bg_color(sheet, lv_color_hex(Tui::Surface), LV_PART_MAIN);
-    lv_obj_set_style_border_color(sheet, lv_color_hex(0x48484a), LV_PART_MAIN);
+    lv_obj_set_style_border_color(sheet, lv_color_hex(Tui::Border),
+                                  LV_PART_MAIN);
     lv_obj_set_style_border_width(sheet, 1, LV_PART_MAIN);
     lv_obj_set_style_radius(sheet, 12, LV_PART_MAIN);
     lv_obj_clear_flag(sheet, LV_OBJ_FLAG_SCROLLABLE);
@@ -294,41 +297,44 @@ void buildSheet(void)
     tui_one_line(sheetTitle); // LONG_DOT needs a pinned height - see TuiLabel.h
     lv_obj_align(sheetTitle, LV_ALIGN_TOP_MID, 0, 2);
 
-    sheetBtn(sheet, "Message", 26, 0x0a84ff, [](lv_event_t *) {
-        const uint32_t n = sheetNode;
-        closeSheet();
-        lv_async_call([](void *p) { tui_open_chat_with((uint32_t)(uintptr_t)p); }, (void *)(uintptr_t)n);
+    sheetBtn(sheet, "Message", 28, Tui::Surface, [](lv_event_t *) {
+      const uint32_t n = sheetNode;
+      closeSheet();
+      lv_async_call([](void *p) { tui_open_chat_with((uint32_t)(uintptr_t)p); },
+                    (void *)(uintptr_t)n);
     });
 
-    sheetBtn(sheet, "Show on map", 64, 0x5ac8fa, [](lv_event_t *) {
-        const uint32_t n = sheetNode;
-        closeSheet();
-        lv_async_call(
-            [](void *p) {
-                const uint32_t num = (uint32_t)(uintptr_t)p;
-                int32_t la = 0, lo = 0;
-                if (tdeck_node_position(num, &la, &lo))
-                    tui_show_node_on_map(num, la, lo);
-            },
-            (void *)(uintptr_t)n);
+    sheetBtn(sheet, "Show on map", 64, Tui::Surface, [](lv_event_t *) {
+      const uint32_t n = sheetNode;
+      closeSheet();
+      lv_async_call(
+          [](void *p) {
+            const uint32_t num = (uint32_t)(uintptr_t)p;
+            int32_t la = 0, lo = 0;
+            if (tdeck_node_position(num, &la, &lo))
+              tui_show_node_on_map(num, la, lo);
+          },
+          (void *)(uintptr_t)n);
     });
 
-    sheetBtn(sheet, "Trace route", 102, 0xbf5af2, [](lv_event_t *) {
-        const uint32_t n = sheetNode;
-        closeSheet();
-        lv_async_call([](void *p) { tui_trace_route((uint32_t)(uintptr_t)p); }, (void *)(uintptr_t)n);
+    sheetBtn(sheet, "Trace route", 100, Tui::Surface, [](lv_event_t *) {
+      const uint32_t n = sheetNode;
+      closeSheet();
+      lv_async_call([](void *p) { tui_trace_route((uint32_t)(uintptr_t)p); },
+                    (void *)(uintptr_t)n);
     });
 
     // This one sends a request and stays put: the answer comes back over the mesh whenever
     // that node feels like replying, and lands on its row and the map by itself.
-    sheetBtn(sheet, "Request location", 140, 0x30d158, [](lv_event_t *) {
-        const uint32_t n = sheetNode;
-        tui_request_position(n);
-        if (sheetTitle)
-            lv_label_set_text(sheetTitle, "Asked - the reply lands on its own");
+    sheetBtn(sheet, "Request location", 136, Tui::Surface, [](lv_event_t *) {
+      const uint32_t n = sheetNode;
+      tui_request_position(n);
+      if (sheetTitle)
+        lv_label_set_text(sheetTitle, "Location requested");
     });
 
-    sheetBtn(sheet, "Close", 186, 0x48484a, [](lv_event_t *) { closeSheet(); });
+    sheetBtn(sheet, "Close", 172, Tui::Surface,
+             [](lv_event_t *) { closeSheet(); });
 }
 
 void onMore(lv_event_t *e)
@@ -384,7 +390,7 @@ void addRow(lv_obj_t *parent, uint32_t num, int idx)
     lv_obj_set_style_text_color(name, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
     tui_one_line(name); // LONG_DOT needs a pinned height - see TuiLabel.h
-    lv_obj_set_width(name, unread ? 276 : 290);
+    lv_obj_set_width(name, unread ? 276 : 288);
     lv_obj_align(name, LV_ALIGN_TOP_LEFT, unread ? 20 : 8, 3);
 
     if (unread) {
@@ -392,7 +398,7 @@ void addRow(lv_obj_t *parent, uint32_t num, int idx)
         lv_obj_remove_style_all(dot);
         lv_obj_set_size(dot, 9, 9);
         lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(dot, lv_color_hex(0x30d158), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(dot, lv_color_hex(Tui::Accent), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_align(dot, LV_ALIGN_TOP_LEFT, 7, 8);
     }
@@ -421,14 +427,18 @@ void addRow(lv_obj_t *parent, uint32_t num, int idx)
     // An unread message is the most useful thing this line could be telling you, so it takes
     // the line over entirely and turns green rather than being appended to the end.
     lv_label_set_text(sub, unread ? "New message - tap the envelope to read" : detail);
-    lv_obj_set_style_text_color(sub, lv_color_hex(unread ? 0x30d158 : 0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(
+        sub, lv_color_hex(unread ? Tui::Accent : Tui::Muted), LV_PART_MAIN);
     // TOP-aligned, not BOTTOM: bottom-aligning put this line straight under the buttons, which is
     // the text Jake saw being covered.
+    lv_obj_set_style_text_font(sub, &ui_font_montserrat_12, 0);
+    lv_obj_set_size(sub, 288, 16);
+    lv_label_set_long_mode(sub, LV_LABEL_LONG_DOT);
     lv_obj_align(sub, LV_ALIGN_TOP_LEFT, 8, 24);
 
     // Four actions along the bottom: message, show on map, favourite, and more. The first
     // three keep wide targets because they are the everyday ones; "more" is a narrow chevron.
-    const int bw = 82;
+    const int bw = 80;
     envelopeIcon(actionBtn(row, 4, bw, onChat, idx));
 
     // The map button is only live for a node that has actually reported a position — a dead button
@@ -485,8 +495,12 @@ void rebuild(void)
     lv_label_set_text(titleLbl, favOnly ? "Favorites" : "Nodes");
     // After the rows exist, so LVGL knows how far it is allowed to scroll.
     lv_obj_update_layout(listCont);
-    if (keepScroll > 0)
-        lv_obj_scroll_to_y(listCont, keepScroll, LV_ANIM_OFF);
+    const int32_t maxScroll =
+        lv_obj_get_scroll_y(listCont) + lv_obj_get_scroll_bottom(listCont);
+    lv_obj_scroll_to_y(
+        listCont,
+        maxScroll > 0 ? (keepScroll < maxScroll ? keepScroll : maxScroll) : 0,
+        LV_ANIM_OFF);
     if (shown == 0) {
         lv_label_set_text(emptyLbl, favOnly ? "No favorites yet." : "No nodes heard yet.");
         lv_obj_clear_flag(emptyLbl, LV_OBJ_FLAG_HIDDEN);
@@ -510,11 +524,11 @@ void buildScreen(void)
 
     lv_obj_t *back = lv_obj_create(screen);
     lv_obj_remove_style_all(back);
-    lv_obj_set_size(back, 56, 28);
-    lv_obj_align(back, LV_ALIGN_TOP_LEFT, 4, 2);
-    lv_obj_set_style_bg_color(back, lv_color_hex(Tui::Border), LV_PART_MAIN);
+    Tui::headerButton(back);
+    lv_obj_align(back, LV_ALIGN_TOP_LEFT, 8, 4);
+    lv_obj_set_style_bg_color(back, lv_color_hex(Tui::Surface), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(back, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_radius(back, 6, LV_PART_MAIN);
+    lv_obj_set_style_radius(back, 8, LV_PART_MAIN);
     lv_obj_add_flag(back, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(
         back,
@@ -531,12 +545,13 @@ void buildScreen(void)
     titleLbl = lv_label_create(screen);
     lv_label_set_text(titleLbl, "Nodes");
     lv_obj_set_style_text_color(titleLbl, lv_color_hex(0xffd60a), LV_PART_MAIN);
-    lv_obj_align(titleLbl, LV_ALIGN_TOP_MID, 0, 9);
+    Tui::headerTitle(titleLbl);
 
     listCont = lv_obj_create(screen);
     lv_obj_remove_style_all(listCont);
-    lv_obj_set_size(listCont, 312, 178); // -20: the status bar took 20px off the top (tui_statusbar_reserve)
-    lv_obj_align(listCont, LV_ALIGN_TOP_MID, 0, 36);
+    lv_obj_set_size(listCont, 304, 172); // -20: the status bar took 20px off
+                                         // the top (tui_statusbar_reserve)
+    lv_obj_align(listCont, LV_ALIGN_TOP_MID, 0, 40);
     lv_obj_set_flex_flow(listCont, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(listCont, 4, LV_PART_MAIN);
     lv_obj_set_scroll_dir(listCont, LV_DIR_VER);
@@ -556,6 +571,8 @@ void openWith(bool favourites)
     lv_obj_t *active = lv_screen_active();
     if (active != screen)
         prevScreen = active; // remember the launcher, never our own screen
+    if (favOnly != favourites)
+        lv_obj_scroll_to_y(listCont, 0, LV_ANIM_OFF);
     favOnly = favourites;
     rebuild();
     lv_screen_load_anim(screen, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);

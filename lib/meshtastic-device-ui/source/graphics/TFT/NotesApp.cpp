@@ -241,7 +241,8 @@ void deleteCurrentNote(void) {}
 lv_obj_t *barBtn(lv_obj_t *parent, const char *txt, int w, lv_align_t align, int xofs, uint32_t color, lv_event_cb_t cb)
 {
     lv_obj_t *btn = lv_btn_create(parent);
-    lv_obj_set_size(btn, w, 24);
+    Tui::headerButton(btn);
+    lv_obj_set_width(btn, w);
     lv_obj_align(btn, align, xofs, 4);
     lv_obj_set_style_radius(btn, 8, LV_PART_MAIN);
     lv_obj_set_style_bg_color(btn, lv_color_hex(color), LV_PART_MAIN);
@@ -261,8 +262,9 @@ void openEditor(unsigned id, bool isNew);
 void buildConfirmPanel(void)
 {
     confirmPanel = lv_obj_create(editScreen);
-    lv_obj_set_size(confirmPanel, 250, 104);
+    lv_obj_set_size(confirmPanel, 272, 120);
     lv_obj_center(confirmPanel);
+    lv_obj_set_style_pad_all(confirmPanel, 12, 0);
     lv_obj_set_style_bg_color(confirmPanel, lv_color_hex(Tui::Border),
                               LV_PART_MAIN);
     lv_obj_set_style_border_color(confirmPanel, lv_color_hex(0x636366), LV_PART_MAIN);
@@ -274,15 +276,19 @@ void buildConfirmPanel(void)
     lv_obj_t *q = lv_label_create(confirmPanel);
     lv_label_set_text(q, "Delete this note?");
     lv_obj_set_style_text_color(q, lv_color_hex(Tui::Text), LV_PART_MAIN);
-    lv_obj_align(q, LV_ALIGN_TOP_MID, 0, 2);
+    lv_obj_align(q, LV_ALIGN_TOP_MID, 0, 0);
 
     lv_obj_t *sub = lv_label_create(confirmPanel);
     lv_label_set_text(sub, "This cannot be undone.");
     lv_obj_set_style_text_color(sub, lv_color_hex(Tui::Muted), LV_PART_MAIN);
+    lv_obj_set_style_text_font(sub, &ui_font_montserrat_12, 0);
     lv_obj_align(sub, LV_ALIGN_TOP_MID, 0, 26);
 
-    lv_obj_t *cancel = barBtn(confirmPanel, "Cancel", 92, LV_ALIGN_BOTTOM_LEFT, 0, 0x48484a,
-                              [](lv_event_t *) { lv_obj_add_flag(confirmPanel, LV_OBJ_FLAG_HIDDEN); });
+    lv_obj_t *cancel =
+        barBtn(confirmPanel, "Cancel", 92, LV_ALIGN_BOTTOM_LEFT, 0,
+               Tui::Surface, [](lv_event_t *) {
+                 lv_obj_add_flag(confirmPanel, LV_OBJ_FLAG_HIDDEN);
+               });
     lv_obj_t *del = barBtn(confirmPanel, "Delete", 92, LV_ALIGN_BOTTOM_RIGHT, 0, 0xff453a, [](lv_event_t *) {
         lv_obj_add_flag(confirmPanel, LV_OBJ_FLAG_HIDDEN);
         deleteCurrentNote();
@@ -290,8 +296,8 @@ void buildConfirmPanel(void)
         lv_screen_load_anim(listScreen, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
     });
     // barBtn aligns with a +4 y-offset meant for a top bar; pull both back onto the panel floor.
-    lv_obj_set_y(cancel, -6);
-    lv_obj_set_y(del, -6);
+    lv_obj_set_y(cancel, 0);
+    lv_obj_set_y(del, 0);
 }
 
 void buildListScreen(void)
@@ -302,25 +308,27 @@ void buildListScreen(void)
                               LV_PART_MAIN);
     lv_obj_clear_flag(listScreen, LV_OBJ_FLAG_SCROLLABLE);
 
-    barBtn(listScreen, "Back", 56, LV_ALIGN_TOP_LEFT, 4, 0x2c2c2e, [](lv_event_t *) {
-        if (prevScreen)
-            lv_screen_load_anim(prevScreen, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
-    });
+    barBtn(listScreen, "Back", 64, LV_ALIGN_TOP_LEFT, 8, Tui::Surface,
+           [](lv_event_t *) {
+             if (prevScreen)
+               lv_screen_load_anim(prevScreen, LV_SCR_LOAD_ANIM_NONE, 0, 0,
+                                   false);
+           });
 
     lv_obj_t *title = lv_label_create(listScreen);
     lv_label_set_text(title, "Notes");
-    lv_obj_set_style_text_color(title, lv_color_hex(0xffd60a), LV_PART_MAIN);
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 9);
+    lv_obj_set_style_text_color(title, lv_color_hex(Tui::Text), LV_PART_MAIN);
+    Tui::headerTitle(title);
 
-    barBtn(listScreen, "+ New", 64, LV_ALIGN_TOP_RIGHT, -4, 0x30d158,
+    barBtn(listScreen, "+ New", 64, LV_ALIGN_TOP_RIGHT, -8, 0x294c54,
            [](lv_event_t *) { openEditor(nextFreeId(), true); });
 
     listPanel = lv_obj_create(listScreen);
     lv_obj_remove_style_all(listPanel);
-    lv_obj_set_pos(listPanel, 0, 32);
-    lv_obj_set_size(listPanel, 320, 188);
+    lv_obj_set_pos(listPanel, 8, 40);
+    lv_obj_set_size(listPanel, 304, 172);
     lv_obj_set_flex_flow(listPanel, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_all(listPanel, 6, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(listPanel, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_row(listPanel, 6, LV_PART_MAIN);
     lv_obj_set_scroll_dir(listPanel, LV_DIR_VER);
 }
@@ -376,26 +384,29 @@ void buildEditScreen(void)
     lv_obj_clear_flag(editScreen, LV_OBJ_FLAG_SCROLLABLE);
 
     // Back = save + return to wherever the note was opened from (list or Files)
-    barBtn(editScreen, "Back", 56, LV_ALIGN_TOP_LEFT, 4, 0x2c2c2e, [](lv_event_t *) {
-        saveCurrentNote();
-        if (curFromFiles && filesReturnScreen) {
+    barBtn(
+        editScreen, "Back", 64, LV_ALIGN_TOP_LEFT, 8, Tui::Surface,
+        [](lv_event_t *) {
+          saveCurrentNote();
+          if (curFromFiles && filesReturnScreen) {
             lv_screen_load_anim(filesReturnScreen, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
             return;
-        }
-        rebuildList();
-        lv_screen_load_anim(listScreen, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
-    });
+          }
+          rebuildList();
+          lv_screen_load_anim(listScreen, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
+        });
 
     // The note's TITLE, editable, where the grey "type away" hint used to be. It is the first
     // line of the file, so nothing about the on-card format changes and the list preview still
     // shows exactly what this box shows.
     titleArea = lv_textarea_create(editScreen);
     lv_textarea_set_one_line(titleArea, true);
-    lv_obj_set_size(titleArea, 178, 26);
-    lv_obj_align(titleArea, LV_ALIGN_TOP_MID, 0, 3);
+    lv_obj_set_size(titleArea, 160, 28);
+    lv_obj_align(titleArea, LV_ALIGN_TOP_MID, 0, 4);
     lv_obj_set_style_bg_color(titleArea, lv_color_hex(Tui::Surface),
                               LV_PART_MAIN);
-    lv_obj_set_style_text_color(titleArea, lv_color_hex(0xffd60a), LV_PART_MAIN);
+    lv_obj_set_style_text_color(titleArea, lv_color_hex(Tui::Text),
+                                LV_PART_MAIN);
     lv_obj_set_style_border_width(titleArea, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(titleArea, 6, LV_PART_MAIN);
     lv_obj_set_style_pad_all(titleArea, 3, LV_PART_MAIN);
@@ -430,17 +441,17 @@ void buildEditScreen(void)
 
     // only shown for notes opened from the list; Files has its own Trash button.
     // Deleting is permanent, so it asks first (Jake, 2026-09-18).
-    deleteBtn = barBtn(editScreen, "Delete", 64, LV_ALIGN_TOP_RIGHT, -4, 0xff453a,
-                       [](lv_event_t *) {
-                           lv_obj_move_foreground(confirmPanel);
-                           lv_obj_clear_flag(confirmPanel, LV_OBJ_FLAG_HIDDEN);
+    deleteBtn = barBtn(editScreen, "Delete", 64, LV_ALIGN_TOP_RIGHT, -8,
+                       0xff453a, [](lv_event_t *) {
+                         lv_obj_move_foreground(confirmPanel);
+                         lv_obj_clear_flag(confirmPanel, LV_OBJ_FLAG_HIDDEN);
                        });
 
     buildConfirmPanel();
 
     editArea = lv_textarea_create(editScreen);
-    lv_obj_set_pos(editArea, 0, 32);
-    lv_obj_set_size(editArea, 320, 188);
+    lv_obj_set_pos(editArea, 8, 40);
+    lv_obj_set_size(editArea, 304, 172);
     lv_obj_set_style_bg_color(editArea, lv_color_hex(Tui::Surface),
                               LV_PART_MAIN);
     lv_obj_set_style_text_color(editArea, lv_color_hex(Tui::Text),

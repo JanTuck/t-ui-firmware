@@ -277,9 +277,9 @@ void buildScreen(void)
 
     // Back (top-left) returns to whatever screen opened us (the launcher)
     lv_obj_t *back = lv_btn_create(screen);
-    lv_obj_set_size(back, 56, 24);
-    lv_obj_set_pos(back, 4, 4);
-    lv_obj_set_style_bg_color(back, lv_color_hex(Tui::Border), LV_PART_MAIN);
+    Tui::headerButton(back);
+    lv_obj_set_pos(back, 8, 4);
+    lv_obj_set_style_bg_color(back, lv_color_hex(Tui::Surface), LV_PART_MAIN);
     lv_obj_set_style_radius(back, 8, LV_PART_MAIN);
     lv_obj_add_event_cb(
         back,
@@ -296,9 +296,9 @@ void buildScreen(void)
     readout = lv_label_create(screen);
     lv_obj_set_style_text_color(readout, lv_color_hex(Tui::Text), LV_PART_MAIN);
     lv_obj_set_style_text_font(readout, &lv_font_montserrat_40, LV_PART_MAIN);
-    lv_obj_set_width(readout, 250);
+    lv_obj_set_width(readout, 232);
     lv_obj_set_style_text_align(readout, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
-    lv_obj_set_pos(readout, 62, 14);
+    lv_obj_set_pos(readout, 80, 4);
     lv_label_set_long_mode(readout, LV_LABEL_LONG_CLIP);
 
     // the grid — iOS colors: gray function row, orange operators, dark digits

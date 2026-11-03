@@ -415,34 +415,49 @@ void Themes::set(enum Theme th)
     apply_style_statistics_table_style_ITEMS_DEFAULT();
 }
 
-void Themes::initStyles(void)
-{
+void Themes::initStyles(void) {
+    static bool initialized = false;
+    if (!initialized) {
+      lv_style_init(&style_btn_default);
+      lv_style_init(&style_btn_active);
+      lv_style_init(&style_btn_pressed);
+      initialized = true;
+    }
     // set(get());
     //  lvgl v9 tabview buttons are not btn-matrix anymore but array of buttons
     //  see https://forum.lvgl.io/t/style-a-tabview-widget-in-v9-0-0/14747
-    lv_style_init(&style_btn_default);
-    lv_style_set_text_color(&style_btn_default, lv_color_hex(THEME(eTabButtonDefaultText)));
-    lv_style_set_bg_color(&style_btn_default, lv_color_hex(THEME(eTabButtonDefaultBg)));
+    lv_style_set_text_font(&style_btn_default, &ui_font_montserrat_14);
+    lv_style_set_pad_all(&style_btn_default, 0);
+    lv_style_set_shadow_width(&style_btn_default, 0);
+    lv_style_set_text_color(&style_btn_default,
+                            lv_color_hex(THEME(eTabButtonDefaultText)));
+    lv_style_set_bg_color(&style_btn_default,
+                          lv_color_hex(THEME(eTabButtonDefaultBg)));
     lv_style_set_bg_opa(&style_btn_default, LV_OPA_COVER);
-    lv_style_set_border_color(&style_btn_default, lv_color_hex(THEME(eTabButtonDefaultBorder)));
+    lv_style_set_border_color(&style_btn_default,
+                              lv_color_hex(THEME(eTabButtonDefaultBorder)));
     lv_style_set_border_opa(&style_btn_default, LV_OPA_COVER);
     lv_style_set_border_width(&style_btn_default, 1);
     lv_style_set_border_side(&style_btn_default, LV_BORDER_SIDE_FULL);
 
-    lv_style_init(&style_btn_active);
-    lv_style_set_text_color(&style_btn_active, lv_color_hex(THEME(eTabButtonActiveText)));
-    lv_style_set_bg_color(&style_btn_active, lv_color_hex(THEME(eTabButtonActiveBg)));
+    lv_style_set_text_color(&style_btn_active,
+                            lv_color_hex(THEME(eTabButtonActiveText)));
+    lv_style_set_bg_color(&style_btn_active,
+                          lv_color_hex(THEME(eTabButtonActiveBg)));
     lv_style_set_bg_opa(&style_btn_active, LV_OPA_COVER);
-    lv_style_set_border_color(&style_btn_active, lv_color_hex(0xff67ea94));
+    lv_style_set_border_color(&style_btn_active,
+                              lv_color_hex(THEME(ePanelBorder)));
     lv_style_set_border_opa(&style_btn_active, LV_OPA_COVER);
     lv_style_set_border_width(&style_btn_active, 3);
     lv_style_set_border_side(&style_btn_active, LV_BORDER_SIDE_BOTTOM);
 
-    lv_style_init(&style_btn_pressed);
-    lv_style_set_text_color(&style_btn_pressed, lv_color_hex(THEME(eTabButtonPressedText)));
-    lv_style_set_bg_color(&style_btn_pressed, lv_color_hex(THEME(eTabButtonPressedBg)));
+    lv_style_set_text_color(&style_btn_pressed,
+                            lv_color_hex(THEME(eTabButtonPressedText)));
+    lv_style_set_bg_color(&style_btn_pressed,
+                          lv_color_hex(THEME(eTabButtonPressedBg)));
     lv_style_set_bg_opa(&style_btn_pressed, LV_OPA_COVER);
-    lv_style_set_border_color(&style_btn_pressed, lv_color_hex(0xff67ea94));
+    lv_style_set_border_color(&style_btn_pressed,
+                              lv_color_hex(THEME(ePanelBorder)));
     lv_style_set_border_opa(&style_btn_pressed, LV_OPA_COVER);
     lv_style_set_border_width(&style_btn_pressed, 3);
     lv_style_set_border_side(&style_btn_pressed, LV_BORDER_SIDE_BOTTOM);

@@ -3,6 +3,7 @@ import argparse
 import concurrent.futures
 import subprocess
 import os
+import re
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
@@ -21,6 +22,35 @@ icons = source[source.index("uint32_t tintAccent" if args.baseline else "lv_obj_
 grid = source[source.index("    lv_obj_t *page = nullptr;", source.index("void TFTView_320x240::buildAppGrid")):source.index("    if (pageCount > 1)", source.index("void TFTView_320x240::buildAppGrid"))]
 grid = grid.replace("buildTileIconFromFile(tile, ip)", "false")
 (out / "grid.inc").write_text(grid)
+pin_start = source.index("        lockpad_screen = lv_obj_create(NULL);")
+pin_end = source.index("        lv_obj_add_event_cb(pad, lockpad_event", pin_start)
+(out / "lockpad.inc").write_text(source[pin_start:pin_end])
+pin_messages = re.findall(r'lv_label_set_text\(lock_title_label, "([^"\n]+)"\);', source)
+(out / "pin-messages.inc").write_text(
+    "static const char *pinMessages[] = {" + ",".join('"' + text + '"' for text in pin_messages) + "};")
+settings_start = source.index("{", source.index("void TFTView_320x240::createSettingsScreen")) + 1
+settings_end = source.index('\n}', settings_start)
+settings = source[settings_start:settings_end]
+settings = re.sub(r"lv_obj_add_event_cb\(.*?LV_EVENT_(?:CLICKED|ALL|VALUE_CHANGED), NULL\);", "", settings, flags=re.S)
+settings = re.sub(r"    wifi_status_timer = lv_timer_create.*?;\n", "", settings)
+for call, replacement in {
+    "updateLocPrecisionLabel()": 'lv_label_set_text(loc_precision_label, "Rough")',
+    "updateWifiNetLabel()": 'lv_label_set_text(wifi_net_btn_lbl, "Trail network")',
+    "updateWifiStatus()": 'lv_label_set_text(wifi_status_label, "Wi-Fi off")',
+    "updateTimeoutBtnLabel()": 'lv_label_set_text(timeout_btn_label, "1 minute")',
+    "tdeck_gps_get_enabled()": "true", "tdeck_sound_get_enabled()": "true",
+    "tdeck_tz_get()": "-1", "tdeck_clock_get_12h()": "false",
+    "tdeck_trackball_nav_enabled()": "true", "TUI_VERSION": '\"fixture\"',
+    "firmware_version": '\"fixture\"',
+}.items():
+    settings = settings.replace(call, replacement)
+(out / "settings.inc").write_text(settings)
+gps_error = re.search(r'else if \(st == 3\).*?lv_label_set_text\(THIS->share_now_hint,\s*"([^"]+)"', source, re.S).group(1)
+(out / "settings-messages.inc").write_text('static const char *gpsError = "' + gps_error + '";')
+trackball_start = source.index("{", source.index("void TFTView_320x240::updateTrackballRows")) + 1
+trackball = source[trackball_start:source.index("\n}", trackball_start)]
+trackball = trackball.replace("tdeck_trackball_nav_enabled()", "fixtureCursor").replace("tdeck_trackball_speed()", "1").replace("tdeck_trackball_style()", "0")
+(out / "trackball.inc").write_text(trackball)
 flags = ["-O2", "-g", "-ffunction-sections", "-fdata-sections", "-DLV_CONF_INCLUDE_SIMPLE",
          "-DRAM_SIZE=2048", "-DUSE_X11=0", "-DLV_USE_LIBINPUT=0"]
 flags += [f"-I{p}" for p in [out, lv, lv.parent, ui / "include", ui / "generated/ui_320x240"]]

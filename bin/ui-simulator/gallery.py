@@ -8,13 +8,20 @@ parser = argparse.ArgumentParser()
 parser.add_argument("directory", type=Path)
 args = parser.parse_args()
 states = [
+    ("settings-display", "Settings: display"),
+    ("settings-location", "Settings: location"), ("settings-network", "Settings: network"),
+    ("settings-sound", "Settings: sound"), ("settings-mesh", "Settings: mesh"),
+    ("settings-system", "Settings: system"), ("settings-zones", "Settings: timezone menu"),
+    ("settings-cursor", "Settings: cursor on"), ("settings-cursor-off", "Settings: cursor off"),
+    ("settings-tools", "Settings: tools"), ("settings-location-error", "Settings: GPS unavailable"),
+    ("pin-pad", "PIN: actual custom layout"), ("pin-too-short", "PIN: too short"), ("pin-wrong", "PIN: incorrect"),
     ("home", "Launcher"), ("focus", "Launcher: widget focus"),
     ("pressed", "Launcher: pressed"), ("last-page", "Launcher: long name"),
     ("calculator", "Calculator"), ("clock", "Stopwatch"), ("timer", "Timer"),
     ("alarm", "Alarm"), ("notes", "Notes: no SD card"),
     ("note-editor", "Notes: editor"), ("note-delete", "Notes: delete dialog"),
-    ("nodes", "Nodes"), ("favorites", "Favorites"), ("chats", "Chats"),
-    ("mesh", "Mesh: base home"), ("mesh-settings", "Mesh: base settings"),
+    ("node-actions", "Node actions"), ("nodes", "Nodes"), ("favorites", "Favorites"), ("chats", "Chats"),
+    ("mesh", "Mesh: base home"), ("mesh-settings", "Mesh: base settings"), ("mesh-tools", "Mesh: base tools"),
     ("lock-base", "Lock: generated base keypad"),
 ]
 sections = []
@@ -45,7 +52,7 @@ body.grids .grid { display:block; }
 p { font-size:13px; line-height:1.5; color:var(--muted-foreground,#647482); }
 </style></head><body><div class="controls"><select aria-label="Screen">OPTIONS</select><label><input type="checkbox"> 8-pixel grid</label></div>
 SECTIONS
-<p>Native LVGL component renders: original revision cd363f267 versus the PR. Matching fixtures; no hardware emulation. The base mesh/keypad views exclude firmware controller updates. Custom lock/glance, launcher Settings, Files, Maps, network apps and SD-backed flows are not reproduced here. Focus shows widget states; the legacy physical focus-navigation mode remains disabled.</p>
+<p>Native LVGL component renders: original revision cd363f267 versus the PR. Matching fixtures; no hardware emulation. The base mesh/keypad views exclude firmware controller updates. Settings renders the real layout with fixture values and no device callbacks. Lock authorization/glance, Files, Maps, network apps and SD-backed flows are not reproduced here. Focus shows widget states; the legacy physical focus-navigation mode remains disabled.</p>
 <script>
 document.querySelector('select').onchange=function(){document.querySelectorAll('section').forEach(s=>s.hidden=s.dataset.index!==this.value);};
 document.querySelector('input').onchange=function(){document.body.classList.toggle('grids',this.checked);};

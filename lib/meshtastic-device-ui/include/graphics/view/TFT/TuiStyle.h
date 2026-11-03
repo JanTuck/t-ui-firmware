@@ -42,4 +42,21 @@ inline void styleTile(lv_obj_t *tile) {
   lv_obj_add_style(tile, &pressed, LV_STATE_PRESSED);
   lv_obj_add_style(tile, &focused, LV_STATE_FOCUSED);
 }
+
+inline void headerTitle(lv_obj_t *label) {
+  lv_obj_set_size(label, 152, 28);
+  lv_obj_set_style_text_font(label, &ui_font_montserrat_14, 0);
+  lv_obj_set_style_text_color(label, lv_color_hex(Text), 0);
+  lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_style_pad_top(label, 5, 0);
+  lv_label_set_long_mode(label, LV_LABEL_LONG_DOT);
+  lv_obj_align(label, LV_ALIGN_TOP_MID, 0, 4);
+}
+
+inline void headerButton(lv_obj_t *button) {
+  styleTile(button);
+  lv_obj_set_size(button, 64, 28);
+  lv_obj_set_style_radius(button, 8, 0);
+  lv_obj_set_style_text_font(button, &ui_font_montserrat_14, 0);
+}
 } // namespace Tui
