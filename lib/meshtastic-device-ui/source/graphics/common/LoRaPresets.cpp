@@ -6,26 +6,51 @@
  * LoRa Presets
  * Note: keep order the same as in meshtastic_Config_LoRaConfig_RegionCode and as in settings_region_dropdown
  */
-LoRaPresets::RegionInfo LoRaPresets::regionInfo[] = {
-    {"UNSET", 902.0f, 928.0f},  {"US", 902.0f, 928.0f},        {"EU_433", 433.0f, 434.0f},   {"EU_868", 869.4f, 869.65f},
-    {"CN", 470.0f, 510.0f},     {"JP", 920.5f, 923.5f},        {"ANZ", 915.0f, 928.0f},      {"KR", 920.0f, 923.0f},
-    {"TW", 920.0f, 925.0f},     {"RU", 868.7f, 869.2f},        {"IN", 865.0f, 867.0f},       {"NZ_865", 864.0f, 868.0f},
-    {"TH", 920.0f, 925.0f},     {"LORA_24", 2400.0f, 2483.5f}, {"UA_433", 433.0f, 434.7f},   {"UA_868", 868.0f, 868.6f},
-    {"MY_433", 433.0f, 435.0f}, {"MY_919", 919.0f, 924.0f},    {"SG_923", 917.0f, 925.0f},   {"PH_433", 433.0f, 434.7f},
-    {"PH_868", 868.0f, 869.4f}, {"PH_915", 915.0f, 918.0f},    {"ANZ_433", 433.05f, 434.79f},
-    {"KZ_433", 433.075f, 434.775f}, {"KZ_863", 863.0f, 868.0f}, {"NP_865", 865.0f, 868.0f}, {"BR_902", 902.0f, 907.5f},
-    {"ITU1_2M", 144.0f, 146.0f, 0, .0022f, 26}, {"ITU2_2M", 144.0f, 148.0f, 0, .0022f, 51}, {"EU_866", 865.6f, 867.6f, .4f, .0375f},
-    {"EU_874", 0, 0}, {"EU_917", 0, 0}, {"EU_N_868", 869.4f, 869.65f, 0, .0104f, 1},
-    {"ITU3_2M", 144.0f, 148.0f, 0, .0022f, 33}, {"ITU1_70CM", 430.0f, 440.0f, 0, .01875f, 37}, {"ITU2_70CM", 420.0f, 450.0f, 0, .01875f, 137},
-    {"ITU3_70CM", 430.0f, 450.0f, 0, .01875f, 37}, {"ITU2_125CM", 220.0f, 225.0f, 0, .01875f, 37}};
+LoRaPresets::RegionInfo LoRaPresets::regionInfo[] = {{"UNSET", 902.0f, 928.0f},
+                                                     {"US", 902.0f, 928.0f},
+                                                     {"EU_433", 433.0f, 434.0f},
+                                                     {"EU_868", 869.4f, 869.65f},
+                                                     {"CN", 470.0f, 510.0f},
+                                                     {"JP", 920.5f, 923.5f},
+                                                     {"ANZ", 915.0f, 928.0f},
+                                                     {"KR", 920.0f, 923.0f},
+                                                     {"TW", 920.0f, 925.0f},
+                                                     {"RU", 868.7f, 869.2f},
+                                                     {"IN", 865.0f, 867.0f},
+                                                     {"NZ_865", 864.0f, 868.0f},
+                                                     {"TH", 920.0f, 925.0f},
+                                                     {"LORA_24", 2400.0f, 2483.5f},
+                                                     {"UA_433", 433.0f, 434.7f},
+                                                     {"UA_868", 868.0f, 868.6f},
+                                                     {"MY_433", 433.0f, 435.0f},
+                                                     {"MY_919", 919.0f, 924.0f},
+                                                     {"SG_923", 917.0f, 925.0f},
+                                                     {"PH_433", 433.0f, 434.7f},
+                                                     {"PH_868", 868.0f, 869.4f},
+                                                     {"PH_915", 915.0f, 918.0f},
+                                                     {"ANZ_433", 433.05f, 434.79f},
+                                                     {"KZ_433", 433.075f, 434.775f},
+                                                     {"KZ_863", 863.0f, 868.0f},
+                                                     {"NP_865", 865.0f, 868.0f},
+                                                     {"BR_902", 902.0f, 907.5f},
+                                                     {"ITU1_2M", 144.0f, 146.0f, 0, .0022f, 26},
+                                                     {"ITU2_2M", 144.0f, 148.0f, 0, .0022f, 51},
+                                                     {"EU_866", 865.6f, 867.6f, .4f, .0375f},
+                                                     {"EU_874", 0, 0},
+                                                     {"EU_917", 0, 0},
+                                                     {"EU_N_868", 869.4f, 869.65f, 0, .0104f, 1},
+                                                     {"ITU3_2M", 144.0f, 148.0f, 0, .0022f, 33},
+                                                     {"ITU1_70CM", 430.0f, 440.0f, 0, .01875f, 37},
+                                                     {"ITU2_70CM", 420.0f, 450.0f, 0, .01875f, 137},
+                                                     {"ITU3_70CM", 430.0f, 450.0f, 0, .01875f, 37},
+                                                     {"ITU2_125CM", 220.0f, 225.0f, 0, .01875f, 37}};
 
 LoRaPresets::ModemPreset LoRaPresets::modemPreset[] = {
-    {"LongFast", "250", .250f},   {"LongSlow", "125", .125f},  {"VLongSlow", "62.5", .0625f}, {"MediumSlow", "250", .250f},
-    {"MediumFast", "250", .250f}, {"ShortSlow", "250", .250f}, {"ShortFast", "250", .250f},   {"LongMod", "125", .125f},
-    {"ShortTurbo", "500", .500f}, {"LongTurbo", "500", .500f},
-    {"LiteFast", "125", .125f}, {"LiteSlow", "125", .125f},
-    {"NarrowFast", "62.5", .0625f}, {"NarrowSlow", "62.5", .0625f},
-    {"TinyFast", "15.6", .0156f}, {"TinySlow", "15.6", .0156f}, {"MediumTurbo", "500", .500f}};
+    {"LongFast", "250", .250f},     {"LongSlow", "125", .125f},     {"VLongSlow", "62.5", .0625f}, {"MediumSlow", "250", .250f},
+    {"MediumFast", "250", .250f},   {"ShortSlow", "250", .250f},    {"ShortFast", "250", .250f},   {"LongMod", "125", .125f},
+    {"ShortTurbo", "500", .500f},   {"LongTurbo", "500", .500f},    {"LiteFast", "125", .125f},    {"LiteSlow", "125", .125f},
+    {"NarrowFast", "62.5", .0625f}, {"NarrowSlow", "62.5", .0625f}, {"TinyFast", "15.6", .0156f},  {"TinySlow", "15.6", .0156f},
+    {"MediumTurbo", "500", .500f}};
 
 const LoRaPresets::RegionInfo &LoRaPresets::getRegionInfo(meshtastic_Config_LoRaConfig_RegionCode region)
 {
