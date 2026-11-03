@@ -21,8 +21,8 @@ published to comply with the GPL-3.0 license of the Meshtastic project it builds
 
 ## What this is based on
 
-- Base: [meshtastic/firmware](https://github.com/meshtastic/firmware), `develop` branch,
-  commit `8058caf` ("fix(power): correct charge/power detection preprocessor bugs (#10906)").
+- Base: [meshtastic/firmware](https://github.com/meshtastic/firmware), release
+  [`v2.8.1.8e6a88d`](https://github.com/meshtastic/firmware/releases/tag/v2.8.1.8e6a88d).
 - The stock Meshtastic UI library (`meshtastic-device-ui`) is vendored under
   `lib/meshtastic-device-ui/` with extensive T-UI modifications.
 - Lua 5.4.8 is vendored under `lib/lua/` (MIT license) for the SD-card app engine.

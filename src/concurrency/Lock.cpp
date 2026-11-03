@@ -28,6 +28,11 @@ void Lock::lock()
     lockedAtMs = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
 }
 
+bool Lock::lock(uint32_t timeout)
+{
+    return xSemaphoreTake(handle, pdMS_TO_TICKS(timeout)) == pdTRUE;
+}
+
 void Lock::unlock()
 {
     owner = nullptr;
@@ -41,6 +46,11 @@ Lock::Lock() {}
 Lock::~Lock() {}
 
 void Lock::lock() {}
+
+bool Lock::lock(uint32_t)
+{
+    return true;
+}
 
 void Lock::unlock() {}
 #endif

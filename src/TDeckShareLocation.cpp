@@ -63,6 +63,5 @@ extern "C" void tdeck_share_location_service(void)
         return;
     }
 
-    positionModule->sendOurPosition();
-    s_state = 2;
+    s_state = positionModule->sendOurPosition() ? 2 : 3;
 }

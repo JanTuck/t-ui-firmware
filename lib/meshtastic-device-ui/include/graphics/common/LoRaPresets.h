@@ -10,6 +10,9 @@ class LoRaPresets
         const char *region;
         float freqStart;
         float freqEnd;
+        float spacing = 0;
+        float padding = 0;
+        uint16_t defaultSlot = 0;
     };
 
     static const char *loRaRegionToString(meshtastic_Config_LoRaConfig_RegionCode region);
@@ -34,6 +37,8 @@ class LoRaPresets
                               uint32_t channel);
 
   private:
+    static const RegionInfo &getRegionInfo(meshtastic_Config_LoRaConfig_RegionCode region);
+    static const ModemPreset &getModemPreset(meshtastic_Config_LoRaConfig_ModemPreset preset);
     static struct RegionInfo regionInfo[];
     static struct ModemPreset modemPreset[];
 };
