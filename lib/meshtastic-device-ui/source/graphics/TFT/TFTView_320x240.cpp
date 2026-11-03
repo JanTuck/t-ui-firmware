@@ -12854,6 +12854,25 @@ void TFTView_320x240::ui_events_init(void)
     lv_obj_add_event_cb(objects.brightness_slider, ui_event_brightness_slider, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(objects.frequency_slot_slider, ui_event_frequency_slot_slider, LV_EVENT_VALUE_CHANGED, NULL);
 
+    // Populate settings from the protocol enums so newer configurations round-trip unchanged.
+    std::string regionOptions;
+    for (unsigned value = 0; value <= _meshtastic_Config_LoRaConfig_RegionCode_MAX; ++value) {
+        if (value)
+            regionOptions += '\n';
+        regionOptions += LoRaPresets::loRaRegionToString((meshtastic_Config_LoRaConfig_RegionCode)value);
+    }
+    lv_dropdown_set_options(objects.settings_region_dropdown, regionOptions.c_str());
+    lv_dropdown_set_options(objects.setup_region_dropdown, regionOptions.c_str());
+    std::string presetOptions;
+    for (unsigned value = 0; value <= _meshtastic_Config_LoRaConfig_ModemPreset_MAX; ++value) {
+        if (value == meshtastic_Config_LoRaConfig_ModemPreset_VERY_LONG_SLOW)
+            continue;
+        if (value)
+            presetOptions += '\n';
+        presetOptions += LoRaPresets::modemPresetToString((meshtastic_Config_LoRaConfig_ModemPreset)value);
+    }
+    lv_dropdown_set_options(objects.settings_modem_preset_dropdown, presetOptions.c_str());
+
     // dropdown
     lv_obj_add_event_cb(objects.settings_modem_preset_dropdown, ui_event_modem_preset_dropdown, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(objects.setup_region_dropdown, ui_event_setup_region_dropdown, LV_EVENT_VALUE_CHANGED, NULL);
@@ -13813,7 +13832,7 @@ void TFTView_320x240::ui_event_region_button(lv_event_t *e)
 {
     lv_event_code_t event_code = lv_event_get_code(e);
     if (event_code == LV_EVENT_CLICKED && THIS->activeSettings == eNone && THIS->db.config.has_lora) {
-        lv_dropdown_set_selected(objects.settings_region_dropdown, THIS->db.config.lora.region - 1);
+        lv_dropdown_set_selected(objects.settings_region_dropdown, THIS->db.config.lora.region);
         lv_obj_clear_flag(objects.settings_region_panel, LV_OBJ_FLAG_HIDDEN);
         lv_group_focus_obj(objects.settings_region_dropdown);
         THIS->disablePanel(objects.controller_panel);
@@ -15670,7 +15689,7 @@ void TFTView_320x240::ui_event_statistics_table(lv_event_t *e)
 void TFTView_320x240::requestSetup(void)
 {
     ui_set_active(objects.settings_button, objects.initial_setup_panel, objects.top_setup_panel);
-    lv_dropdown_set_selected(objects.setup_region_dropdown, 0);
+    lv_dropdown_set_selected(objects.setup_region_dropdown, meshtastic_Config_LoRaConfig_RegionCode_US);
     lv_obj_clear_flag(objects.initial_setup_panel, LV_OBJ_FLAG_HIDDEN);
     lv_group_focus_obj(objects.setup_region_dropdown);
     THIS->disablePanel(objects.controller_panel);
@@ -15719,13 +15738,12 @@ void TFTView_320x240::updateSignalStrength(int32_t rssi, float snr)
  */
 uint32_t TFTView_320x240::preset2val(meshtastic_Config_LoRaConfig_ModemPreset preset)
 {
-    int32_t val[] = {0, -1, -1, 4, 3, 7, 5, 1, 6, 2};
-
-    if (preset > (sizeof(val) / sizeof(val[0]) - 1) || val[preset] == -1) {
-        ILOG_WARN("unknown or deprecated preset value: %d", preset);
+    if ((unsigned)preset > _meshtastic_Config_LoRaConfig_ModemPreset_MAX ||
+        preset == meshtastic_Config_LoRaConfig_ModemPreset_VERY_LONG_SLOW) {
+        ILOG_WARN("unknown preset value: %d", preset);
         return 0;
     }
-    return uint32_t(val[preset]);
+    return preset > meshtastic_Config_LoRaConfig_ModemPreset_VERY_LONG_SLOW ? (uint32_t)preset - 1 : (uint32_t)preset;
 }
 
 /**
@@ -15733,16 +15751,13 @@ uint32_t TFTView_320x240::preset2val(meshtastic_Config_LoRaConfig_ModemPreset pr
  */
 meshtastic_Config_LoRaConfig_ModemPreset TFTView_320x240::val2preset(uint32_t val)
 {
-    meshtastic_Config_LoRaConfig_ModemPreset preset[] = {
-        meshtastic_Config_LoRaConfig_ModemPreset_LONG_FAST,   meshtastic_Config_LoRaConfig_ModemPreset_LONG_MODERATE,
-        meshtastic_Config_LoRaConfig_ModemPreset_LONG_TURBO,  meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_FAST,
-        meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_SLOW, meshtastic_Config_LoRaConfig_ModemPreset_SHORT_FAST,
-        meshtastic_Config_LoRaConfig_ModemPreset_SHORT_TURBO, meshtastic_Config_LoRaConfig_ModemPreset_SHORT_SLOW};
-    if (val > (sizeof(preset) / sizeof(preset[0]) - 1)) {
+    if (val >= _meshtastic_Config_LoRaConfig_ModemPreset_MAX) {
         ILOG_ERROR("unknown preset value: %d", val);
         return meshtastic_Config_LoRaConfig_ModemPreset_LONG_FAST;
     }
-    return preset[val];
+    if (val >= meshtastic_Config_LoRaConfig_ModemPreset_VERY_LONG_SLOW)
+        ++val;
+    return (meshtastic_Config_LoRaConfig_ModemPreset)val;
 }
 
 /**
@@ -16152,12 +16167,12 @@ void TFTView_320x240::ui_event_ok(lv_event_t *e)
         switch (THIS->activeSettings) {
         case eSetup: {
             meshtastic_Config_LoRaConfig_RegionCode region =
-                (meshtastic_Config_LoRaConfig_RegionCode)(lv_dropdown_get_selected(objects.setup_region_dropdown) + 1);
+                (meshtastic_Config_LoRaConfig_RegionCode)(lv_dropdown_get_selected(objects.setup_region_dropdown));
 
             uint32_t numChannels = LoRaPresets::getNumChannels(region, THIS->db.config.lora.modem_preset);
             // if (numChannels == 0) {
             //     // region not possible for selected preset, revert
-            //     lv_dropdown_set_selected(objects.settings_region_dropdown, THIS->db.config.lora.region - 1);
+            //     lv_dropdown_set_selected(objects.settings_region_dropdown, THIS->db.config.lora.region);
             //     return;
             // }
 
@@ -16241,12 +16256,12 @@ void TFTView_320x240::ui_event_ok(lv_event_t *e)
         }
         case eRegion: {
             meshtastic_Config_LoRaConfig_RegionCode region =
-                (meshtastic_Config_LoRaConfig_RegionCode)(lv_dropdown_get_selected(objects.settings_region_dropdown) + 1);
+                (meshtastic_Config_LoRaConfig_RegionCode)(lv_dropdown_get_selected(objects.settings_region_dropdown));
 
             uint32_t numChannels = LoRaPresets::getNumChannels(region, THIS->db.config.lora.modem_preset);
             if (numChannels == 0) {
                 // region not possible for selected preset, revert
-                lv_dropdown_set_selected(objects.settings_region_dropdown, THIS->db.config.lora.region - 1);
+                lv_dropdown_set_selected(objects.settings_region_dropdown, THIS->db.config.lora.region);
                 return;
             }
 
