@@ -1,6 +1,9 @@
 #pragma once
-#define snprintf lv_snprintf
 #include "files-format.inc"
+#define snprintf lv_snprintf
+#define fmtBytes fmtBytesCompact
+#include "files-format.inc"
+#undef fmtBytes
 #undef snprintf
 #include "files-empty.inc"
 #include "files-name-fit.inc"
@@ -230,10 +233,14 @@ static void filesGallery(lv_obj_t *home)
         char size[24];
         fmtBytes(30923764531ULL, size, sizeof(size));
         assert(!strcmp(size, "28.8 GB"));
+        fmtBytesCompact(30923764531ULL, size, sizeof(size));
+        assert(!strcmp(size, "28.8 GB"));
         fmtBytes(0, size, sizeof(size));
         assert(!strcmp(size, "0 B"));
         for (auto bytes : {0ULL, 1ULL, 1023ULL, 1024ULL, 1048576ULL}) {
             fmtBytes(bytes, size, sizeof(size));
+            assert(!strstr(size, "lu"));
+            fmtBytesCompact(bytes, size, sizeof(size));
             assert(!strstr(size, "lu"));
         }
         auto rootRow = lv_obj_get_child(fixture.files_list, 0);
