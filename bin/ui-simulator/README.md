@@ -133,3 +133,12 @@ python3 bin/ui-simulator/test_settings_roundtrip.py
 python3 bin/ui-simulator/test_timezone_pending.py
 python3 bin/ui-simulator/test_screenshot_storage.py
 ```
+
+To test the production `SafeFile` constructor and the Arduino file wrapper on a
+Linux host, run `python3 bin/ui-simulator/test_safe_file_esp32.py`. It uses the
+cached PlatformIO Arduino ESP32 core; pass `--arduino-core /path/to/core` to override.
+The test covers successful saves, stale temporary files, blocked temporary paths,
+missing parents, an unmounted wrapper and host descriptor exhaustion. It also
+demonstrates that Arduino's `stat()` after failed `fopen()` can overwrite the
+original error. It does not emulate ESP32 flash, allocator limits or FreeRTOS,
+and does not identify the cause of a particular device's open failure.
