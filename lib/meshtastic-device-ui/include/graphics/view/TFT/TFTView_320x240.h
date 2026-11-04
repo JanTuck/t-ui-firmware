@@ -624,6 +624,7 @@ class TFTView_320x240 : public MeshtasticView
     bool gpsEnabled = true;                  // single source of truth for the GPS toggle
     bool meshEnabled = true;                 // single source of truth (toggle + status icon read this)
     lv_obj_t *settings_screen = nullptr;
+    lv_obj_t *settings_brightness_slider = nullptr;
     lv_obj_t *mesh_status_icon = nullptr;    // dot on the grid: green = live, gray = off
     lv_obj_t *mesh_switch = nullptr;         // the on/off switch on the settings screen
     // Settings: WiFi (SSID + password typed on-device, status/IP shown live)

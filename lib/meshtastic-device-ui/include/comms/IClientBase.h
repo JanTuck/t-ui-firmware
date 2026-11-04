@@ -22,6 +22,7 @@ class IClientBase
     virtual bool connect(void) = 0;
     virtual bool disconnect(void) = 0;
     virtual bool isConnected(void) = 0;
+    virtual bool available() const { return true; }
     virtual bool isStandalone(void) = 0;
     virtual bool sleep(int16_t pin) { return false; }
 

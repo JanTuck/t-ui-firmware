@@ -37,54 +37,83 @@ constexpr uint16_t kPreferredBleTxTimeUs = (kPreferredBleTxOctets + 14) * 8;
 } // namespace
 
 #ifdef ARCH_ESP32
-// Discard NimBLE bonds left in an incompatible on-disk format. The ESP-IDF/NimBLE upgrade changed
-// the length of the fixed-size bond records (ble_store_value_sec), so the new host rejects every
-// old record on each boot ("NVS data size mismatch for obj_type 1 ...") with no auto-recovery --
-// pairing stays broken until a factory reset. Wipe the bond namespace once when a stored record's
-// size differs from this build's struct; a same-size store is left untouched, so this never loops.
-// Adapted from https://github.com/h2zero/NimBLE-Arduino/issues/740
-static void purgeIncompatibleBleBonds()
+static void repairIncompatibleBleBonds()
 {
-    esp_err_t initErr = nvs_flash_init();
+    const esp_err_t initErr = nvs_flash_init();
     if (initErr != ESP_OK) {
-        LOG_WARN("purgeIncompatibleBleBonds: nvs_flash_init failed, err=%d", (int)initErr);
-        return; // NVS should already be up; if not, nothing safe to do here
-    }
-
-    nvs_handle_t handle = 0;
-    esp_err_t err = nvs_open("nimble_bond", NVS_READWRITE, &handle);
-    if (err == ESP_ERR_NVS_NOT_FOUND) {
-        return; // no bonds stored yet
-    }
-    if (err != ESP_OK) {
-        LOG_ERROR("nimble_bond open failed, err=%d", err);
+        LOG_WARN("BLE bond storage init failed, err=%d", (int)initErr);
         return;
     }
 
-    // Probe the first record of each fixed-size object type (bonds are written from index 1); a
-    // stored size differing from this build's struct means the store predates a format change.
-    size_t sz = 0;
-    bool mismatch = (nvs_get_blob(handle, "our_sec_1", nullptr, &sz) == ESP_OK && sz != sizeof(struct ble_store_value_sec)) ||
-                    (nvs_get_blob(handle, "peer_sec_1", nullptr, &sz) == ESP_OK && sz != sizeof(struct ble_store_value_sec)) ||
-                    (nvs_get_blob(handle, "cccd_sec_1", nullptr, &sz) == ESP_OK && sz != sizeof(struct ble_store_value_cccd));
+    nvs_handle_t handle = 0;
+    esp_err_t err = nvs_open("nimble_bond", NVS_READONLY, &handle);
+    if (err == ESP_ERR_NVS_NOT_FOUND)
+        return;
+    if (err != ESP_OK) {
+        LOG_ERROR("BLE bond storage open failed, err=%d", (int)err);
+        return;
+    }
 
-    bool wiped = false;
-    if (mismatch) {
-        LOG_WARN("Wiping incompatible NimBLE bonds (format changed)");
-        wiped = nvs_erase_all(handle) == ESP_OK && nvs_commit(handle) == ESP_OK;
-        if (!wiped) {
-            LOG_ERROR("nimble_bond namespace erase failed");
+    static constexpr struct {
+        const char *prefix;
+        size_t size;
+        int slots;
+    } records[] = {
+        {"our_sec", sizeof(ble_store_value_sec), MYNEWT_VAL(BLE_STORE_MAX_BONDS)},
+        {"peer_sec", sizeof(ble_store_value_sec), MYNEWT_VAL(BLE_STORE_MAX_BONDS)},
+        {"cccd_sec", sizeof(ble_store_value_cccd), MYNEWT_VAL(BLE_STORE_MAX_CCCDS)},
+        {"csfc_sec", sizeof(ble_store_value_csfc), MYNEWT_VAL(BLE_STORE_MAX_CSFCS)},
+        {"local_irk", sizeof(ble_store_value_local_irk), MYNEWT_VAL(BLE_STORE_MAX_BONDS)},
+        {"rpa_rec", sizeof(ble_store_value_rpa_rec), MYNEWT_VAL(BLE_STORE_MAX_BONDS)},
+#if MYNEWT_VAL(ENC_ADV_DATA)
+        {"ead_sec", sizeof(ble_store_value_ead), MYNEWT_VAL(BLE_STORE_MAX_EADS)},
+#endif
+    };
+    bool writable = false;
+    bool changed = false;
+    for (const auto &record : records) {
+        for (int slot = 1; slot <= record.slots; ++slot) {
+            char key[16];
+            snprintf(key, sizeof(key), "%s_%d", record.prefix, slot);
+            size_t size = 0;
+            err = nvs_get_blob(handle, key, nullptr, &size);
+            if ((err == ESP_OK && size != record.size) || err == ESP_ERR_NVS_TYPE_MISMATCH) {
+                // The SDK stops restoring and writing at malformed slots; gaps are supported.
+                if (!writable) {
+                    nvs_close(handle);
+                    err = nvs_open("nimble_bond", NVS_READWRITE, &handle);
+                    if (err != ESP_OK) {
+                        LOG_ERROR("BLE bond repair open failed, err=%d", (int)err);
+                        return;
+                    }
+                    writable = true;
+                }
+                err = nvs_erase_key(handle, key);
+                if (err == ESP_OK) {
+                    changed = true;
+                    LOG_WARN("Removed incompatible BLE record %s", key);
+                } else {
+                    LOG_ERROR("BLE bond record repair failed, err=%d", (int)err);
+                }
+            } else if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+                LOG_WARN("BLE bond record check failed, err=%d", (int)err);
+            }
         }
     }
-
+    if (changed && (err = nvs_commit(handle)) != ESP_OK)
+        LOG_ERROR("BLE bond repair commit failed, err=%d", (int)err);
     nvs_close(handle);
-
-    if (wiped) {
-        LOG_INFO("Restarting after NimBLE bond cleanup");
-        ESP.restart();
-    }
 }
 #endif
+
+static void logBleBondCounts(const char *stage)
+{
+    int localCount = 0;
+    int peerCount = 0;
+    const int localResult = ble_store_util_count(BLE_STORE_OBJ_TYPE_OUR_SEC, &localCount);
+    const int peerResult = ble_store_util_count(BLE_STORE_OBJ_TYPE_PEER_SEC, &peerCount);
+    LOG_INFO("BLE bond records %s: local=%d rc=%d peer=%d rc=%d", stage, localCount, localResult, peerCount, peerResult);
+}
 
 // Debugging options: careful, they slow things down quite a bit!
 // #define DEBUG_NIMBLE_ON_READ_TIMING  // uncomment to time onRead duration
@@ -691,6 +720,11 @@ class NimbleBluetoothSecurityCallback : public BLESecurityCallbacks
     }
     void onAuthenticationComplete(ble_gap_conn_desc *desc) override
     {
+        if (desc) {
+            LOG_INFO("BLE security: encrypted=%u authenticated=%u bonded=%u", (unsigned)desc->sec_state.encrypted,
+                     (unsigned)desc->sec_state.authenticated, (unsigned)desc->sec_state.bonded);
+            logBleBondCounts("authentication");
+        }
         // Called on every BLE_GAP_EVENT_ENC_CHANGE, success or failure. A stale-bond reconnect
         // yields a *failed* encryption change here -- don't latch a connected/authenticated state
         // on a link that is actually being torn down.
@@ -915,12 +949,11 @@ void NimbleBluetooth::setup()
     isDeInit = false;
 
 #ifdef ARCH_ESP32
-    // Runs before BLEDevice::init() reads the bond store, but logs after the "Init" line above so
-    // any bond-cleanup output doesn't appear to precede the module init.
-    purgeIncompatibleBleBonds(); // wipe bonds left in an incompatible on-disk format (post-upgrade)
+    repairIncompatibleBleBonds();
 #endif
 
     BLEDevice::init(getDeviceName());
+    logBleBondCounts("restored");
     BLEDevice::setPower(ESP_PWR_LVL_P9);
 
     int mtuResult = BLEDevice::setMTU(kPreferredBleMtu);

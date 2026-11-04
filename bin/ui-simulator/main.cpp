@@ -187,6 +187,7 @@ extern "C" void favorites_open();
 extern "C" void channels_open();
 static void shellScreens() {
   lv_obj_t *settings_screen = nullptr;
+  lv_obj_t *settings_brightness_slider = nullptr;
   struct {
     struct {
       int screen_brightness = 153;

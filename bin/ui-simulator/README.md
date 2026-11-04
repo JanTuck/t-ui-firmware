@@ -155,3 +155,57 @@ the device's existing partition table. Compatibility recovery accepts a single
 existing SPIFFS/LittleFS data partition under another name without formatting it.
 Missing or ambiguous filesystem partitions require a compatible factory layout;
 the firmware never creates or rewrites a partition table automatically.
+
+After building the simulator once, run the production touch-input regression:
+
+```sh
+python3 bin/ui-simulator/test_touch_edges.py
+```
+
+It links the cached LVGL objects and compiles the real touch callback plus
+LovyanGFX's typed coordinate getter. The previous callback at `265ae5783` must
+reproduce a scroll jump from 879 to 0 when a top-edge sample becomes `-1`.
+The current normal and custom touch paths must pass all four edges, out-of-range
+coordinates, release/reentry, input gating and accidental-click checks.
+Use `--simulator /path/to/cache` for another simulator output directory. Touch
+controller samples are injected; the test does not emulate I2C or physical touch.
+
+`python3 bin/ui-simulator/test_scroll_surfaces.py` exercises the same production
+callback on Settings, Files, long alert text and launcher swipes, retaining the
+simulator's geometry, navigation and heap checks. Controller and storage remain
+stubbed in this test.
+
+Settings/reboot regressions:
+
+```sh
+python3 bin/ui-simulator/test_settings_reboot.py
+python3 bin/ui-simulator/test_power_reboot.py
+```
+
+The settings test executes extracted production callbacks, admin-message sending,
+configuration refresh and cached-value updates. It checks that queued or failed
+settings never claim a reboot, local send failures refresh the cached settings for
+retry, full queues defer refresh without repeated notices, and refresh completion
+preserves unrelated error messages. Standalone restart behavior is checked separately.
+The scheduler test executes the production deadline check and ESP32 reboot branch
+with a restart spy, including cancellation and timer wraparound.
+The native `test_admin_radio` suite additionally verifies that successful settings
+are committed before restart is scheduled and announced, while live-applied settings
+and failed saves do not schedule or announce a restart. These host checks do not
+replace a physical reboot or Bluetooth reconnection test.
+
+Bluetooth bond recovery regression:
+
+```sh
+python3 bin/ui-simulator/test_ble_bonds.py --sdk /root/.platformio
+```
+
+The SDK directory needs both the cached ESP-IDF source and the Arduino ESP32-S3
+compiled headers. ASan/UBSan tests compile the real SDK record lookup, writer and
+restore routines alongside the production startup repair. A retained fake NVS
+models immediate writes/erases; commit failure does not imply rollback.
+The old cleanup misses malformed records after slot 1, blocking both restoration
+and later bond writes. The repair is checked across 72 size/type/slot cases,
+repeated reloads and failures, preserving valid bonds, the local identity key and
+unrelated settings. This reproduces a concrete SDK failure path, not Joshua's
+specific iOS 26.6 reconnect. Physical pairing and flash are not emulated.

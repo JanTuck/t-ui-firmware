@@ -22,7 +22,7 @@ class PacketClient : public IClientBase
     meshtastic_FromRadio receive(void) override;
 
     virtual bool hasData() const;
-    virtual bool available() const;
+    bool available() const override;
 
     void task_handler(void) override{};
     void setNotifyCallback(NotifyCallback notifyConnectionStatus) override{};

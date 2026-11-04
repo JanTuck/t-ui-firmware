@@ -48,13 +48,24 @@ extern uint32_t hash(const char *str);
 // set of messages produced by a sequence of admin messages. This shadows test/support/MockMeshService.h's
 // release-only stub because these tests need to inspect the captured message text, not just avoid leaks.
 static std::vector<std::string> capturedWarnings;
+static unsigned capturedRebootNotices;
+static uint32_t rebootNoticeDeadline;
+static meshtastic_LocalConfig rebootNoticeSavedConfig;
+static bool rebootNoticeConfigReadable;
 
 class MockMeshService : public MeshService
 {
   public:
     void sendClientNotification(meshtastic_ClientNotification *n) override
     {
-        capturedWarnings.push_back(n->message);
+        if (strcmp(n->message, "Rebooting ...") == 0) {
+            ++capturedRebootNotices;
+            rebootNoticeDeadline = rebootAtMsec;
+            rebootNoticeConfigReadable = nodeDB && nodeDB->loadProto(configFileName, meshtastic_LocalConfig_size,
+                                                                     sizeof(rebootNoticeSavedConfig), &meshtastic_LocalConfig_msg,
+                                                                     &rebootNoticeSavedConfig) == LoadFileResult::LOAD_SUCCESS;
+        } else
+            capturedWarnings.push_back(n->message);
         releaseClientNotificationToPool(n);
     }
 };
@@ -1025,6 +1036,8 @@ static meshtastic_ChannelFile savedChannelFile;
 static Router *savedRouter;
 static Router *hamMockRouter;
 static meshtastic_DeviceUIConfig savedUIConfig;
+static uint32_t savedRebootDeadline;
+static bool savedBluetoothTornDown;
 
 // Called from setUp/tearDown for every test, not opted into by a handful. A shared NodeDB plus
 // unrestored config/owner/devicestate/channelFile means each test inherits whatever its
@@ -1039,6 +1052,10 @@ static void replaceAdminRadioGlobals()
     savedConfig = config;
     savedChannelFile = channelFile;
     savedUIConfig = uiconfig;
+    savedRebootDeadline = rebootAtMsec;
+    savedBluetoothTornDown = bluetoothTornDown;
+    rebootAtMsec = 0;
+    bluetoothTornDown = false;
     replacementNodeDB = new NodeDB();
     nodeDB = replacementNodeDB;
 }
@@ -1062,6 +1079,8 @@ static void restoreAdminRadioGlobals()
     config = savedConfig;
     channelFile = savedChannelFile;
     uiconfig = savedUIConfig;
+    rebootAtMsec = savedRebootDeadline;
+    bluetoothTornDown = savedBluetoothTornDown;
     initRegion();
 }
 
@@ -1365,6 +1384,63 @@ static void test_setDisplayConfig_persistsAcrossReload()
     TEST_ASSERT_EQUAL(125, reloaded.display.screen_on_secs);
 }
 
+static void test_setDisplayConfig_commitsBeforeAnnouncingReboot()
+{
+    config.security.is_managed = false;
+    meshtastic_Config request = meshtastic_Config_init_zero;
+    request.which_payload_variant = meshtastic_Config_display_tag;
+    request.payload_variant.display = config.display;
+    const auto timeout = config.display.screen_on_secs + 17;
+    request.payload_variant.display.screen_on_secs = timeout;
+    testAdmin->handleSetConfig(request, false);
+
+    meshtastic_LocalConfig reloaded = meshtastic_LocalConfig_init_zero;
+    TEST_ASSERT_EQUAL(LoadFileResult::LOAD_SUCCESS, nodeDB->loadProto(configFileName, meshtastic_LocalConfig_size,
+                                                                      sizeof(reloaded), &meshtastic_LocalConfig_msg, &reloaded));
+    TEST_ASSERT_EQUAL(timeout, reloaded.display.screen_on_secs);
+    TEST_ASSERT_NOT_EQUAL(0, rebootAtMsec);
+    TEST_ASSERT_TRUE(bluetoothTornDown);
+    TEST_ASSERT_EQUAL(1, capturedRebootNotices);
+    TEST_ASSERT_EQUAL(rebootAtMsec, rebootNoticeDeadline);
+    TEST_ASSERT_TRUE(rebootNoticeConfigReadable);
+    TEST_ASSERT_EQUAL(timeout, rebootNoticeSavedConfig.display.screen_on_secs);
+    TEST_ASSERT_TRUE(capturedWarnings.empty());
+}
+
+static void test_setLoraConfig_liveChangesPersistWithoutRebootNotice()
+{
+    config.security.is_managed = false;
+    for (unsigned change = 0; change < 3; ++change) {
+        config.lora = meshtastic_Config_LoRaConfig_init_zero;
+        config.lora.region = meshtastic_Config_LoRaConfig_RegionCode_US;
+        config.lora.use_preset = true;
+        config.lora.modem_preset = meshtastic_Config_LoRaConfig_ModemPreset_LONG_FAST;
+        config.lora.channel_num = 1;
+        initRegion();
+        meshtastic_Config request = meshtastic_Config_init_zero;
+        request.which_payload_variant = meshtastic_Config_lora_tag;
+        request.payload_variant.lora = config.lora;
+        if (change == 0)
+            request.payload_variant.lora.region = meshtastic_Config_LoRaConfig_RegionCode_EU_868;
+        else if (change == 1)
+            request.payload_variant.lora.modem_preset = meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_FAST;
+        else
+            request.payload_variant.lora.channel_num = 2;
+        testAdmin->handleSetConfig(request, false);
+
+        meshtastic_LocalConfig reloaded = meshtastic_LocalConfig_init_zero;
+        TEST_ASSERT_EQUAL(LoadFileResult::LOAD_SUCCESS,
+                          nodeDB->loadProto(configFileName, meshtastic_LocalConfig_size, sizeof(reloaded),
+                                            &meshtastic_LocalConfig_msg, &reloaded));
+        TEST_ASSERT_EQUAL(request.payload_variant.lora.region, reloaded.lora.region);
+        TEST_ASSERT_EQUAL(request.payload_variant.lora.modem_preset, reloaded.lora.modem_preset);
+        TEST_ASSERT_EQUAL(request.payload_variant.lora.channel_num, reloaded.lora.channel_num);
+        TEST_ASSERT_EQUAL(0, rebootAtMsec);
+        TEST_ASSERT_FALSE(bluetoothTornDown);
+        TEST_ASSERT_EQUAL(0, capturedRebootNotices);
+    }
+}
+
 static void test_customSettingsBridges_persistAcrossReload()
 {
     meshtastic_LocalConfig reloaded = meshtastic_LocalConfig_init_zero;
@@ -1525,6 +1601,8 @@ static void test_setDisplayConfig_failedWriteNaksWithoutReboot()
     TEST_ASSERT_TRUE(decodeRoutingError(testAdmin->reply(), err));
     TEST_ASSERT_EQUAL(meshtastic_Routing_Error_GOT_NAK, err);
     TEST_ASSERT_EQUAL(0, rebootAtMsec);
+    TEST_ASSERT_FALSE(bluetoothTornDown);
+    TEST_ASSERT_EQUAL(0, capturedRebootNotices);
     TEST_ASSERT_EQUAL(1, capturedWarnings.size());
     TEST_ASSERT_EQUAL_STRING("Settings not saved: cannot open temporary file.", capturedWarnings[0].c_str());
     meshtastic_LocalConfig reloaded = meshtastic_LocalConfig_init_zero;
@@ -2803,6 +2881,10 @@ void setUp(void)
     service = mockMeshService;
     testAdmin = new AdminModuleTestShim();
     capturedWarnings.clear();
+    capturedRebootNotices = 0;
+    rebootNoticeDeadline = 0;
+    rebootNoticeConfigReadable = false;
+    rebootNoticeSavedConfig = meshtastic_LocalConfig_init_zero;
     // Every test gets its own NodeDB and its own copy of the globals the admin handlers write.
     replaceAdminRadioGlobals();
 }
@@ -2832,6 +2914,8 @@ void setup()
 #endif
 #endif
     RUN_TEST(test_setDisplayConfig_persistsAcrossReload);
+    RUN_TEST(test_setDisplayConfig_commitsBeforeAnnouncingReboot);
+    RUN_TEST(test_setLoraConfig_liveChangesPersistWithoutRebootNotice);
     RUN_TEST(test_customSettingsBridges_persistAcrossReload);
     RUN_TEST(test_settingsFailureNotification_coalescesUntilMainLoop);
     RUN_TEST(test_settingsFailureNotification_preservesFirstStage);

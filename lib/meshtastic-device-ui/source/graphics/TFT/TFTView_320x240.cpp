@@ -2464,6 +2464,7 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_obj_align(briLbl, LV_ALIGN_TOP_LEFT, 16, 130);
 
     lv_obj_t *briSlider = lv_slider_create(settings_screen);
+    settings_brightness_slider = briSlider;
     lv_obj_set_style_bg_color(briSlider, lv_color_hex(Tui::Border),
                               LV_PART_MAIN);
     lv_obj_set_style_bg_color(briSlider, lv_color_hex(Tui::Accent),
@@ -16329,6 +16330,8 @@ void TFTView_320x240::setTimeout(uint32_t timeout)
  */
 void TFTView_320x240::setBrightness(uint32_t brightness)
 {
+    if (settings_brightness_slider && brightness == db.uiConfig.screen_brightness)
+        lv_slider_set_value(settings_brightness_slider, brightness, LV_ANIM_OFF);
     char buf[32];
     lv_snprintf(buf, sizeof(buf), _("Screen Brightness: %d%%"), uint16_t(round((brightness * 100) / 255.0)));
     lv_label_set_text(objects.basic_settings_brightness_label, buf);
@@ -16674,8 +16677,8 @@ void TFTView_320x240::ui_event_ok(lv_event_t *e)
         case eScreenBrightness: {
             int32_t value = lv_slider_get_value(objects.brightness_slider) * 255 / 100;
             if (value != THIS->db.uiConfig.screen_brightness) {
-                THIS->setBrightness(value);
                 THIS->db.uiConfig.screen_brightness = value;
+                THIS->setBrightness(value);
                 THIS->controller->storeUIConfig(THIS->db.uiConfig);
             }
             lv_obj_add_flag(objects.settings_brightness_panel, LV_OBJ_FLAG_HIDDEN);
@@ -18526,7 +18529,8 @@ void TFTView_320x240::notifyResync(bool show)
         if (show)
             notifyReboot(true);
     } else {
-        messageAlert(_("Resync ..."), show);
+        if (show || strcmp(lv_label_get_text(objects.alert_label), _("Resync ...")) == 0)
+            messageAlert(_("Resync ..."), show);
         if (!show) {
             lv_screen_load_anim(objects.main_screen, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
         }
@@ -18535,10 +18539,15 @@ void TFTView_320x240::notifyResync(bool show)
 
 void TFTView_320x240::notifyReboot(bool show)
 {
-    messageAlert(_("Rebooting ..."), show);
-    if (controller->isStandalone()) {
-        lv_timer_create(timer_event_reboot, 8000, NULL);
+    if (!show) {
+        messageAlert("", false);
+        return;
     }
+    // Embedded settings announce restart through the backend only after saving and scheduling it.
+    if (!controller->isStandalone())
+        return;
+    messageAlert(_("Rebooting ..."), true);
+    lv_timer_create(timer_event_reboot, 8000, NULL);
 }
 
 void TFTView_320x240::notifyShutdown(void)

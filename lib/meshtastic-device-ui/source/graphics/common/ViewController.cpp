@@ -440,7 +440,30 @@ bool ViewController::sendAdminMessage(meshtastic_AdminMessage &config, uint32_t 
 {
     meshtastic_Data_payload_t payload;
     payload.size = pb_encode_to_bytes(payload.bytes, DATA_PAYLOAD_LEN, &meshtastic_AdminMessage_msg, &config);
-    return send(nodeId, meshtastic_PortNum_ADMIN_APP, payload, true);
+    const bool sent = payload.size && send(nodeId, meshtastic_PortNum_ADMIN_APP, payload, true);
+    if (!sent) {
+        const char *message = "Request was not sent. Retry.";
+        switch (config.which_payload_variant) {
+        case meshtastic_AdminMessage_store_ui_config_tag:
+        case meshtastic_AdminMessage_set_owner_tag:
+        case meshtastic_AdminMessage_set_config_tag:
+        case meshtastic_AdminMessage_set_module_config_tag:
+        case meshtastic_AdminMessage_set_channel_tag:
+        case meshtastic_AdminMessage_set_fixed_position_tag:
+        case meshtastic_AdminMessage_set_ringtone_message_tag:
+            message = "Settings were not sent. Retry.";
+            if (setupDone && nodeId == myNodeNum)
+                requestConfigRequired = true;
+            break;
+        default:
+            break;
+        }
+        ILOG_ERROR("%s", message);
+        // Initial UI defaults may be stored before the notification widgets have been created.
+        if (view && setupDone)
+            view->notifyClientNotification(message);
+    }
+    return sent;
 }
 
 /**
@@ -449,9 +472,7 @@ bool ViewController::sendAdminMessage(meshtastic_AdminMessage &config, uint32_t 
  */
 bool ViewController::sendAdminMessage(meshtastic_AdminMessage &&config, uint32_t nodeId)
 {
-    meshtastic_Data_payload_t payload;
-    payload.size = pb_encode_to_bytes(payload.bytes, DATA_PAYLOAD_LEN, &meshtastic_AdminMessage_msg, &config);
-    return send(nodeId, meshtastic_PortNum_ADMIN_APP, payload, true);
+    return sendAdminMessage(config, nodeId);
 }
 
 void ViewController::sendHeartbeat(void)
@@ -632,10 +653,9 @@ bool ViewController::receive(void)
 void ViewController::requestConfig(void)
 {
     static uint32_t configId = 1;
-    if (client->isConnected() && requestConfigRequired) {
-        client->send(
+    if (requestConfigRequired && client->isConnected() && client->available()) {
+        requestConfigRequired = !client->send(
             meshtastic_ToRadio{.which_payload_variant = meshtastic_ToRadio_want_config_id_tag, .want_config_id = configId++});
-        requestConfigRequired = false;
     }
 }
 

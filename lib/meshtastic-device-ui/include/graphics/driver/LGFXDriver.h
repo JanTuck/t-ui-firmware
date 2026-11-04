@@ -293,20 +293,24 @@ template <class LGFX> void LGFXDriver<LGFX>::touchpad_read(lv_indev_t *indev_dri
         data->state = LV_INDEV_STATE_REL;
         return;
     }
-    uint16_t touchX = 0, touchY = 0;
+    int32_t touchX = 0, touchY = 0;
 #ifdef CUSTOM_TOUCH_DRIVER
-    bool touched = lgfx->getTouchXY(&touchX, &touchY);
+    uint16_t rawX = 0, rawY = 0;
+    bool touched = lgfx->getTouchXY(&rawX, &rawY);
+    touchX = static_cast<int16_t>(rawX);
+    touchY = static_cast<int16_t>(rawY);
 #else
     bool touched = lgfx->getTouch(&touchX, &touchY);
 #endif
     if (!touched) {
         data->state = LV_INDEV_STATE_REL;
     } else {
+        // Calibrated edge samples can be negative; never turn them into a large scroll delta.
+        const int32_t maxX = lgfx->width() - 1;
+        const int32_t maxY = lgfx->height() - 1;
         data->state = LV_INDEV_STATE_PR;
-        data->point.x = touchX;
-        data->point.y = touchY;
-
-        // ILOG_DEBUG("Touch(%hd/%hd)", touchX, touchY);
+        data->point.x = touchX < 0 ? 0 : (touchX > maxX ? maxX : touchX);
+        data->point.y = touchY < 0 ? 0 : (touchY > maxY ? maxY : touchY);
     }
 }
 
