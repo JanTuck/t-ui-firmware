@@ -44,12 +44,12 @@ class SafeFile : public Print
     bool testReadback();
 
     String filename;
+    SettingsSaveError lastError = SettingsSaveError::None;
     File f;
     bool fullAtomic;
     uint8_t hash = 0;
     size_t expectedSize = 0;
     bool writeFailed = false;
-    SettingsSaveError lastError = SettingsSaveError::None;
 };
 
 #endif

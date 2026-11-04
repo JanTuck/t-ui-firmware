@@ -3,10 +3,14 @@
 #ifdef FSCom
 
 // Only way to work on both esp32 and nrf52
-static File openFile(const char *filename, bool fullAtomic)
+static File openFile(const char *filename, bool fullAtomic, SettingsSaveError &error)
 {
     concurrency::LockGuard g(spiLock);
     LOG_DEBUG("Opening %s, fullAtomic=%d", filename, fullAtomic);
+    if (!fsEnsureMounted()) {
+        error = SettingsSaveError::MountUnavailable;
+        return File();
+    }
     if (!fullAtomic) {
         FSCom.remove(filename); // Nuke the old file to make space (ignore if it !exists)
     }
@@ -27,13 +31,17 @@ static File openFile(const char *filename, bool fullAtomic)
     }
 
     // clear any previous LFS errors
+#if defined(ARCH_ESP32)
+    return FSCom.open(filenameTmp.c_str(), FILE_O_WRITE, true);
+#else
     return FSCom.open(filenameTmp.c_str(), FILE_O_WRITE);
+#endif
 }
 
 SafeFile::SafeFile(const char *_filename, bool fullAtomic)
-    : filename(_filename), f(openFile(_filename, fullAtomic)), fullAtomic(fullAtomic)
+    : filename(_filename), f(openFile(_filename, fullAtomic, lastError)), fullAtomic(fullAtomic)
 {
-    if (!f)
+    if (!f && lastError == SettingsSaveError::None)
         lastError = SettingsSaveError::Open;
 }
 

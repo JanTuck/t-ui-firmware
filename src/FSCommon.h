@@ -55,6 +55,8 @@ size_t fsTotalBytes();
 size_t fsUsedBytes();
 
 void fsInit();
+// Caller must hold spiLock. Never formats; a failed boot mount blocks writes until restart.
+bool fsEnsureMounted();
 bool renameFile(const char *pathFrom, const char *pathTo);
 bool fsFormat();
 std::vector<meshtastic_FileInfo> getFiles(const char *dirname, uint8_t levels, size_t maxCount = 64, bool *wasLimited = nullptr);

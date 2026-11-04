@@ -142,3 +142,11 @@ missing parents, an unmounted wrapper and host descriptor exhaustion. It also
 demonstrates that Arduino's `stat()` after failed `fopen()` can overwrite the
 original error. It does not emulate ESP32 flash, allocator limits or FreeRTOS,
 and does not identify the cause of a particular device's open failure.
+
+`python3 bin/ui-simulator/test_littlefs_mount.py` also compiles the actual Arduino
+LittleFS wrapper and production mount recovery, with injected ESP-IDF registration
+results. It checks boot retries, detached wrappers, failed recovery, parent creation
+and protection of unread preferences after a failed boot. Normal saves do not
+remount; added recovery attempts never format. Initial boot retains the existing
+`begin(true)` behavior. The device log identified an unmounted wrapper; its original
+boot-time mount failure still needs startup logs to diagnose.

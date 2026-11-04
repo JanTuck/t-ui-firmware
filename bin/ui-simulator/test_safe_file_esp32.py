@@ -8,26 +8,12 @@ import subprocess
 import tempfile
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--arduino-core",
-        type=Path,
-        default=Path.home() / ".platformio/packages/framework-arduinoespressif32",
-    )
-    args = parser.parse_args()
-    root = Path(__file__).resolve().parents[2]
-    sdk = args.arduino_core / "libraries/FS/src"
-    compiler = shutil.which("g++") or shutil.which("clang++")
-    if not compiler or not (sdk / "vfs_api.cpp").is_file():
-        raise SystemExit("A C++ compiler and cached Arduino ESP32 core are required")
-    with tempfile.TemporaryDirectory(prefix="safe-file-esp32-") as scratch:
-        path = Path(scratch)
-        for name in ("SafeFile.h", "SafeFile.cpp", "SettingsSaveError.h"):
-            shutil.copyfile(root / "src" / name, path / name)
-        for name in ("FS.h", "FSImpl.h", "FS.cpp", "vfs_api.h", "vfs_api.cpp"):
-            shutil.copyfile(sdk / name, path / name)
-        (path / "Arduino.h").write_text(r'''#pragma once
+def prepare_sources(path, root, sdk):
+    for name in ("SafeFile.h", "SafeFile.cpp", "SettingsSaveError.h"):
+        shutil.copyfile(root / "src" / name, path / name)
+    for name in ("FS.h", "FSImpl.h", "FS.cpp", "vfs_api.h", "vfs_api.cpp"):
+        shutil.copyfile(sdk / name, path / name)
+    (path / "Arduino.h").write_text(r'''#pragma once
 #include <cstdint>
 #include <cstddef>
 #include <cstdio>
@@ -71,25 +57,44 @@ inline char *arduinoStrchr(const char *text, int character) {
 #define log_e(...) ((void)0)
 #define log_w(...) ((void)0)
 ''')
-        (path / "FSCommon.h").write_text('''#pragma once
+    (path / "FSCommon.h").write_text('''#pragma once
 #include "FS.h"
 extern fs::FS filesystem;
 #define FSCom filesystem
 #define FILE_O_READ "r"
 #define FILE_O_WRITE "w"
 bool renameFile(const char *, const char *);
+bool fsEnsureMounted();
 ''')
-        (path / "configuration.h").write_text('''#pragma once
+    (path / "configuration.h").write_text('''#pragma once
 #define LOG_DEBUG(...) ((void)0)
 #define LOG_ERROR(...) ((void)0)
 ''')
-        (path / "SPILock.h").write_text('''#pragma once
+    (path / "SPILock.h").write_text('''#pragma once
 struct TestLock { void lock() {} void unlock() {} };
 extern TestLock *spiLock;
 namespace concurrency {
 struct LockGuard { explicit LockGuard(TestLock *) {} };
 }
 ''')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--arduino-core",
+        type=Path,
+        default=Path.home() / ".platformio/packages/framework-arduinoespressif32",
+    )
+    args = parser.parse_args()
+    root = Path(__file__).resolve().parents[2]
+    sdk = args.arduino_core / "libraries/FS/src"
+    compiler = shutil.which("g++") or shutil.which("clang++")
+    if not compiler or not (sdk / "vfs_api.cpp").is_file():
+        raise SystemExit("A C++ compiler and cached Arduino ESP32 core are required")
+    with tempfile.TemporaryDirectory(prefix="safe-file-esp32-") as scratch:
+        path = Path(scratch)
+        prepare_sources(path, root, sdk)
         (path / "test.cpp").write_text(r'''#include "SafeFile.h"
 #include "vfs_api.h"
 #include <cassert>
@@ -117,6 +122,8 @@ extern "C" FILE *__wrap_fopen(const char *path, const char *mode) {
     return file;
 }
 bool renameFile(const char *from, const char *to) { return filesystem.rename(from, to); }
+// The companion mount test exercises the production mount policy.
+bool fsEnsureMounted() { return true; }
 std::string readFile(const std::filesystem::path &path) {
     std::ifstream input(path);
     return {std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};

@@ -401,15 +401,48 @@ void rmDir(const char *dirname)
  */
 __attribute__((weak, noinline)) void preFSBegin() {}
 
+#if defined(ARCH_ESP32)
+static bool fsBootStorageAvailable = true;
+#endif
+
+bool fsEnsureMounted()
+{
+#if defined(ARCH_ESP32)
+    if (!fsBootStorageAvailable)
+        return false;
+    if (FSCom.mountpoint())
+        return true;
+
+    bool mounted = FSCom.begin(false);
+    if (mounted && !FSCom.mountpoint()) {
+        // Arduino can return success for an existing backend without attaching its wrapper.
+        FSCom.end();
+        mounted = FSCom.begin(false);
+    }
+    if (!mounted || !FSCom.mountpoint()) {
+        LOG_ERROR("Filesystem remount failed; preserving stored data");
+        return false;
+    }
+#endif
+    return true;
+}
+
 void fsInit()
 {
 #ifdef FSCom
     concurrency::LockGuard g(spiLock);
     preFSBegin();
-    if (!FSBegin()) {
-        LOG_ERROR("Filesystem mount failed");
-        // assert(0); This auto-formats the partition, so no need to fail here.
+    bool mounted = FSBegin();
+#if defined(ARCH_ESP32)
+    mounted = mounted && FSCom.mountpoint();
+    for (int attempt = 0; !mounted && attempt < 2; ++attempt) {
+        delay(50);
+        mounted = fsEnsureMounted();
     }
+    fsBootStorageAvailable = mounted;
+#endif
+    if (!mounted)
+        LOG_ERROR("Filesystem mount failed");
 #if defined(ARCH_ESP32)
     LOG_DEBUG("Filesystem files (%d/%d Bytes):", FSCom.usedBytes(), FSCom.totalBytes());
 #else

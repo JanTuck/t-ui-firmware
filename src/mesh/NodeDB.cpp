@@ -3479,6 +3479,15 @@ bool NodeDB::saveToDisk(int saveWhat)
         // Probe, format and resave run back-to-back from here with no retry loop left to feed it.
         watchdog_update();
 #endif
+#if defined(ARCH_ESP32)
+        {
+            concurrency::LockGuard guard(spiLock);
+            if (!fsEnsureMounted()) {
+                lastSaveError.store(SettingsSaveError::MountUnavailable, std::memory_order_relaxed);
+                return false;
+            }
+        }
+#endif
         // The format below takes every file with it, so spend one read proving it is warranted.
         if (filesystemStillReadable()) {
             LOG_ERROR("Save to disk failed but the filesystem still reads, not formatting (full or busy?)");
