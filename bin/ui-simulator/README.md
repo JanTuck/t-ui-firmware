@@ -148,5 +148,10 @@ LittleFS wrapper and production mount recovery, with injected ESP-IDF registrati
 results. It checks boot retries, detached wrappers, failed recovery, parent creation
 and protection of unread preferences after a failed boot. Normal saves do not
 remount; added recovery attempts never format. Initial boot retains the existing
-`begin(true)` behavior. The device log identified an unmounted wrapper; its original
-boot-time mount failure still needs startup logs to diagnose.
+`begin(true)` behavior for the canonical partition. Joshua's startup log identified
+the original failure: `partition "spiffs" could not be found` (error 261).
+The released factory image contains that partition; an app-only update preserves
+the device's existing partition table. Compatibility recovery accepts a single
+existing SPIFFS/LittleFS data partition under another name without formatting it.
+Missing or ambiguous filesystem partitions require a compatible factory layout;
+the firmware never creates or rewrites a partition table automatically.

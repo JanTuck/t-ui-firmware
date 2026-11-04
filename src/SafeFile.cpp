@@ -8,7 +8,7 @@ static File openFile(const char *filename, bool fullAtomic, SettingsSaveError &e
     concurrency::LockGuard g(spiLock);
     LOG_DEBUG("Opening %s, fullAtomic=%d", filename, fullAtomic);
     if (!fsEnsureMounted()) {
-        error = SettingsSaveError::MountUnavailable;
+        error = fsMountError();
         return File();
     }
     if (!fullAtomic) {

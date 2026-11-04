@@ -28,6 +28,10 @@ def main():
     start = source.rfind("#if defined(ARCH_ESP32)", 0, source.index("static bool fsBootStorageAvailable"))
     end = source.index("\n}", source.index("void fsInit()")) + 2
     helper = source[start:end]
+    state_start = source.index("#if defined(ARCH_ESP32)")
+    state = source[state_start:source.index("#endif", state_start) + len("#endif")]
+    format_start = source.index("bool fsFormat()")
+    format_body = source[format_start:source.index("\n}", format_start) + 2]
     database_source = (root / "src/mesh/NodeDB.cpp").read_text()
     start = database_source.index("bool NodeDB::saveToDisk(int saveWhat)")
     database_save = database_source[start:database_source.index("\n}", start) + 2]
@@ -49,6 +53,7 @@ typedef int esp_log_level_t;
 #define ESP_FAIL -1
 #define ESP_ERR_INVALID_STATE 0x103
 #define ESP_ERR_NO_MEM 0x101
+#define ESP_ERR_NOT_FOUND 0x105
 #define ESP_LOG_NONE 0
 typedef struct {
     const char *base_path;
@@ -66,20 +71,46 @@ esp_err_t esp_littlefs_format(const char *);
 esp_err_t esp_littlefs_info(const char *, size_t *, size_t *);
 void esp_log_level_set(const char *, esp_log_level_t);
 ''')
+        (path / "esp_partition.h").write_text(r'''#pragma once
+#include <cstdint>
+typedef uint8_t esp_partition_type_t;
+typedef uint8_t esp_partition_subtype_t;
+constexpr uint8_t ESP_PARTITION_TYPE_APP = 0, ESP_PARTITION_TYPE_DATA = 1;
+constexpr uint8_t ESP_PARTITION_SUBTYPE_DATA_NVS = 2, ESP_PARTITION_SUBTYPE_DATA_SPIFFS = 0x82,
+                  ESP_PARTITION_SUBTYPE_DATA_LITTLEFS = 0x83, ESP_PARTITION_SUBTYPE_ANY = 0xff;
+struct esp_partition_t {
+    uint8_t type, subtype;
+    char label[17];
+    uint32_t address = 0x10000, size = 0x100000;
+};
+struct PartitionIterator;
+typedef PartitionIterator *esp_partition_iterator_t;
+const esp_partition_t *esp_partition_find_first(esp_partition_type_t, esp_partition_subtype_t, const char *);
+esp_partition_iterator_t esp_partition_find(esp_partition_type_t, esp_partition_subtype_t, const char *);
+const esp_partition_t *esp_partition_get(esp_partition_iterator_t);
+esp_partition_iterator_t esp_partition_next(esp_partition_iterator_t);
+void esp_partition_iterator_release(esp_partition_iterator_t);
+''')
         (path / "FSCommon.h").write_text(r'''#pragma once
 #include "LittleFS.h"
+#include "SettingsSaveError.h"
 extern std::string mountBase;
 class HostLittleFS : public fs::LittleFSFS {
 public:
-    bool begin(bool formatOnFail) { return LittleFSFS::begin(formatOnFail, mountBase.c_str()); }
+    bool begin(bool formatOnFail, const char * = "/littlefs", uint8_t maxOpen = 10, const char *label = "spiffs") {
+        return LittleFSFS::begin(formatOnFail, mountBase.c_str(), maxOpen, label);
+    }
 };
 extern HostLittleFS filesystem;
 #define FSCom filesystem
-#define FSBegin() filesystem.begin(true)
+#define FSBegin() fsBegin()
 #define FILE_O_READ "r"
 #define FILE_O_WRITE "w"
 bool renameFile(const char *, const char *);
 bool fsEnsureMounted();
+bool fsBegin();
+bool fsFormat();
+SettingsSaveError fsMountError();
 void fsInit();
 void resetBootState();
 ''')
@@ -102,7 +133,9 @@ struct LockGuard {
         (path / "mount.cpp").write_text(
             '#include "FSCommon.h"\n#include "configuration.h"\n#include "SPILock.h"\n'
             'void preFSBegin() {}\nvoid listDir(const char *, int) {}\n'
-            + helper + '\nvoid resetBootState() { fsBootStorageAvailable = true; }\n'
+            + state + '\n' + helper + '\n' + format_body
+            + '\nvoid resetBootState() { fsBootStorageAvailable = true; fsStoragePartition = nullptr; '
+            'fsStorageCanonical = false; fsMountFailure = SettingsSaveError::MountUnavailable; }\n'
         )
         (path / "NodeDBTest.h").write_text(r'''#pragma once
 #include "SafeFile.h"
@@ -126,11 +159,11 @@ constexpr int SEGMENT_CONFIG = 1, SEGMENT_MODULECONFIG = 2, SEGMENT_DEVICESTATE 
               SEGMENT_CHANNELS = 8, SEGMENT_NODEDATABASE = 16;
 bool powerHAL_isPowerLevelSafe() { return true; }
 bool filesystemStillReadable() { return false; }
-bool fsFormat() { return filesystem.format(); }
 #define RECORD_CRITICALERROR(...) ((void)0)
 ''' + database_save)
         (path / "test.cpp").write_text(r'''#include "SafeFile.h"
 #include "NodeDBTest.h"
+#include "esp_partition.h"
 extern "C" {
 #include "esp_littlefs.h"
 }
@@ -138,27 +171,65 @@ extern "C" {
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <vector>
 TestLock lock;
 TestLock *spiLock = &lock;
 std::string mountBase;
 HostLittleFS filesystem;
 bool backendMounted = false;
-int registerError = ESP_OK, unregisterError = ESP_OK;
+std::string backendLabel = "spiffs", lastRegisteredLabel;
+std::vector<esp_partition_t> partitions{{ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "spiffs"}};
+struct PartitionIterator { size_t index; uint8_t type, subtype; std::string label; };
+unsigned liveIterators = 0;
+bool matches(const esp_partition_t &p, uint8_t type, uint8_t subtype, const char *label) {
+    return p.type == type && (subtype == ESP_PARTITION_SUBTYPE_ANY || p.subtype == subtype) &&
+           (!label || strcmp(p.label, label) == 0);
+}
+const esp_partition_t *esp_partition_find_first(uint8_t type, uint8_t subtype, const char *label) {
+    for (const auto &p : partitions) if (matches(p, type, subtype, label)) return &p;
+    return nullptr;
+}
+esp_partition_iterator_t esp_partition_find(uint8_t type, uint8_t subtype, const char *label) {
+    for (size_t i = 0; i < partitions.size(); ++i) {
+        if (matches(partitions[i], type, subtype, label)) {
+            ++liveIterators;
+            return new PartitionIterator{i, type, subtype, label ? label : ""};
+        }
+    }
+    return nullptr;
+}
+const esp_partition_t *esp_partition_get(esp_partition_iterator_t iterator) { return &partitions.at(iterator->index); }
+void esp_partition_iterator_release(esp_partition_iterator_t iterator) {
+    if (iterator) { assert(liveIterators > 0); --liveIterators; delete iterator; }
+}
+esp_partition_iterator_t esp_partition_next(esp_partition_iterator_t iterator) {
+    while (++iterator->index < partitions.size()) {
+        if (matches(partitions[iterator->index], iterator->type, iterator->subtype,
+                    iterator->label.empty() ? nullptr : iterator->label.c_str())) return iterator;
+    }
+    esp_partition_iterator_release(iterator);
+    return nullptr;
+}
+int registerError = ESP_OK, unregisterError = ESP_OK, lastRegistrationError = ESP_OK;
 unsigned registerCalls = 0, unregisterCalls = 0, formatCalls = 0;
 unsigned failuresRemaining = 0, retryDelays = 0, saveRetryDelays = 0;
 void delay(unsigned long milliseconds) {
     assert(milliseconds == 50 || milliseconds == 150);
     if (milliseconds == 50) ++retryDelays; else ++saveRetryDelays;
 }
-extern "C" bool esp_littlefs_mounted(const char *) { return backendMounted; }
+extern "C" bool esp_littlefs_mounted(const char *label) { return backendMounted && label && backendLabel == label; }
 extern "C" esp_err_t esp_vfs_littlefs_register(const esp_vfs_littlefs_conf_t *config) {
     assert(lock.depth > 0);
     assert(!config->format_if_mount_failed && !config->read_only && !config->dont_mount);
     ++registerCalls;
+    lastRegisteredLabel = config->partition_label ? config->partition_label : "";
+    const auto *partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, config->partition_label);
+    if (!partition) return lastRegistrationError = ESP_ERR_NOT_FOUND;
     if (failuresRemaining > 0) { --failuresRemaining; return ESP_ERR_NO_MEM; }
     if (registerError != ESP_OK) return registerError;
     if (backendMounted) return ESP_ERR_INVALID_STATE;
     backendMounted = true;
+    backendLabel = config->partition_label;
     return ESP_OK;
 }
 extern "C" esp_err_t esp_vfs_littlefs_unregister(const char *) {
@@ -326,6 +397,91 @@ int main(int argc, char **argv) {
     save("/prefs/uiconfig.proto", "REBOOT REBOUND");
     assert(readFile(original) == "REBOOT REBOUND" && formatCalls == beforeBootFormats);
     puts("PASS: new boot resets lockout and rebinds an already-mounted backend without formatting");
+
+    auto layout = [&](std::initializer_list<esp_partition_t> entries) {
+        if (filesystem.mountpoint() || backendMounted) unmount();
+        resetBootState();
+        partitions = entries;
+        registerError = ESP_OK;
+        backendLabel = "spiffs";
+        lastRegisteredLabel.clear();
+        assert(liveIterators == 0);
+    };
+    layout({{ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, "nvs"},
+            {ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_LITTLEFS, "otherfs"},
+            {ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "spiffs"}});
+    const unsigned beforeLayoutFormats = formatCalls;
+    fsInit();
+    assert(filesystem.mountpoint() && lastRegisteredLabel == "spiffs" && liveIterators == 0);
+    save("/prefs/uiconfig.proto", "CANONICAL");
+    assert(readFile(original) == "CANONICAL" && formatCalls == beforeLayoutFormats);
+    puts("PASS: eligible canonical spiffs partition wins over other filesystem candidates");
+
+    layout({{ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "app"},
+            {ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, "nvs"},
+            {ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "storage"}});
+    {
+        concurrency::LockGuard guard(spiLock);
+        assert(!filesystem.begin(false));
+    }
+    assert(lastRegistrationError == 261 && !filesystem.mountpoint());
+    fsInit();
+    assert(filesystem.mountpoint() && lastRegisteredLabel == "storage" && liveIterators == 0);
+    save("/prefs/uiconfig.proto", "RENAMED SPIFFS");
+    {
+        concurrency::LockGuard guard(spiLock);
+        assert(!fsFormat());
+    }
+    assert(readFile(original) == "RENAMED SPIFFS" && formatCalls == beforeLayoutFormats);
+    puts("PASS: raw SDK reproduces missing-spiffs error 261; unique renamed SPIFFS mounts and saves without formatting");
+
+    layout({{ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, "spiffs"},
+            {ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_LITTLEFS, "littlefs"}});
+    fsInit();
+    assert(filesystem.mountpoint() && lastRegisteredLabel == "littlefs" && liveIterators == 0);
+    save("/prefs/uiconfig.proto", "RENAMED LITTLEFS");
+    assert(readFile(original) == "RENAMED LITTLEFS" && formatCalls == beforeLayoutFormats);
+    puts("PASS: unique LITTLEFS fallback ignores an unrelated NVS partition named spiffs");
+
+    layout({{ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_LITTLEFS, "littlefs"}});
+    registerError = ESP_FAIL;
+    fsInit();
+    assert(!filesystem.mountpoint() && fsMountError() == SettingsSaveError::MountUnavailable);
+    assert(formatCalls == beforeLayoutFormats && liveIterators == 0);
+    assert(!database.saveToDisk(1));
+    assert(readFile(original) == "RENAMED LITTLEFS" && formatCalls == beforeLayoutFormats);
+    puts("PASS: fallback registration ESP_FAIL never triggers boot or NodeDB formatting");
+
+    auto expectLayoutRejection = [&]() {
+        const unsigned registrations = registerCalls, delays = retryDelays;
+        fsInit();
+        assert(!filesystem.mountpoint() && fsMountError() == SettingsSaveError::FilesystemLayout);
+        assert(registerCalls == registrations && retryDelays == delays && liveIterators == 0);
+        SafeFile file("/prefs/uiconfig.proto", false);
+        assert(file.error() == SettingsSaveError::FilesystemLayout && !file.close());
+        assert(!database.saveToDisk(1));
+        assert(database.lastSaveError.load() == SettingsSaveError::FilesystemLayout);
+        assert(readFile(original) == "RENAMED LITTLEFS" && formatCalls == beforeLayoutFormats);
+    };
+    layout({{ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "app"},
+            {ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, "nvs"}});
+    expectLayoutRejection();
+    layout({{ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, "spiffs"}});
+    expectLayoutRejection();
+    puts("PASS: absent filesystem and wrong-subtype canonical label reject without mount, format or data deletion");
+
+    layout({{ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "first"},
+            {ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_LITTLEFS, "second"}});
+    expectLayoutRejection();
+    puts("PASS: ambiguous filesystem partitions reject without guessing or leaking iterator state");
+
+    layout({{ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, "spiffs"},
+            {ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "spiffs"}});
+    expectLayoutRejection();
+    layout({{ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, "storage"},
+            {ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "storage"}});
+    expectLayoutRejection();
+    puts("PASS: duplicate labels resolving to NVS reject, preserving all stored data");
 }
 ''')
         executable = path / "test"

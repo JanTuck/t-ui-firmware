@@ -16,6 +16,7 @@ enum class SettingsSaveError : uint8_t {
     Encryption,
     Unavailable,
     MountUnavailable,
+    FilesystemLayout,
     NvsOpen,
     NvsWrite
 };
@@ -47,6 +48,8 @@ inline const char *settingsSaveErrorMessage(SettingsSaveError error)
         return "Settings not saved: storage service unavailable.";
     case SettingsSaveError::MountUnavailable:
         return "Settings not saved: restart to retry internal storage.";
+    case SettingsSaveError::FilesystemLayout:
+        return "Settings not saved: storage layout incompatible. Install factory image.";
     case SettingsSaveError::NvsOpen:
         return "Settings not saved: cannot open NVS preferences.";
     case SettingsSaveError::NvsWrite:

@@ -59,12 +59,14 @@ inline char *arduinoStrchr(const char *text, int character) {
 ''')
     (path / "FSCommon.h").write_text('''#pragma once
 #include "FS.h"
+#include "SettingsSaveError.h"
 extern fs::FS filesystem;
 #define FSCom filesystem
 #define FILE_O_READ "r"
 #define FILE_O_WRITE "w"
 bool renameFile(const char *, const char *);
 bool fsEnsureMounted();
+SettingsSaveError fsMountError();
 ''')
     (path / "configuration.h").write_text('''#pragma once
 #define LOG_DEBUG(...) ((void)0)
@@ -124,6 +126,7 @@ extern "C" FILE *__wrap_fopen(const char *path, const char *mode) {
 bool renameFile(const char *from, const char *to) { return filesystem.rename(from, to); }
 // The companion mount test exercises the production mount policy.
 bool fsEnsureMounted() { return true; }
+SettingsSaveError fsMountError() { return SettingsSaveError::MountUnavailable; }
 std::string readFile(const std::filesystem::path &path) {
     std::ifstream input(path);
     return {std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};

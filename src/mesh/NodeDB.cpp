@@ -3483,7 +3483,7 @@ bool NodeDB::saveToDisk(int saveWhat)
         {
             concurrency::LockGuard guard(spiLock);
             if (!fsEnsureMounted()) {
-                lastSaveError.store(SettingsSaveError::MountUnavailable, std::memory_order_relaxed);
+                lastSaveError.store(fsMountError(), std::memory_order_relaxed);
                 return false;
             }
         }

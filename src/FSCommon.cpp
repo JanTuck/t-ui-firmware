@@ -12,6 +12,13 @@
 #include "SPILock.h"
 #include "configuration.h"
 
+#if defined(ARCH_ESP32)
+#include <esp_partition.h>
+static const esp_partition_t *fsStoragePartition = nullptr;
+static bool fsStorageCanonical = false;
+static SettingsSaveError fsMountFailure = SettingsSaveError::MountUnavailable;
+#endif
+
 #if defined(ARCH_PORTDUINO)
 #include <filesystem>
 #endif
@@ -159,6 +166,12 @@ bool fsFormat()
 #if defined(ARCH_PORTDUINO)
     rmDir("/prefs");
     return FSBegin();
+#elif defined(ARCH_ESP32)
+    if (!fsStoragePartition || !fsStorageCanonical) {
+        LOG_ERROR("Refusing to format a compatibility storage partition");
+        return false;
+    }
+    return FSCom.format();
 #else
     return FSCom.format();
 #endif
@@ -403,7 +416,80 @@ __attribute__((weak, noinline)) void preFSBegin() {}
 
 #if defined(ARCH_ESP32)
 static bool fsBootStorageAvailable = true;
+
+static bool isFilesystemPartition(const esp_partition_t *partition)
+{
+    return partition && partition->type == ESP_PARTITION_TYPE_DATA &&
+           (partition->subtype == ESP_PARTITION_SUBTYPE_DATA_SPIFFS || partition->subtype == ESP_PARTITION_SUBTYPE_DATA_LITTLEFS);
+}
+
+static const esp_partition_t *fsSelectStoragePartition()
+{
+    if (fsStoragePartition || fsMountFailure == SettingsSaveError::FilesystemLayout)
+        return fsStoragePartition;
+
+    const auto *expected = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "spiffs");
+    if (isFilesystemPartition(expected)) {
+        fsStoragePartition = expected;
+        fsStorageCanonical = true;
+        return fsStoragePartition;
+    }
+
+    const esp_partition_t *candidate = nullptr;
+    bool ambiguous = false;
+    auto iterator = esp_partition_find(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, nullptr);
+    while (iterator) {
+        const auto *partition = esp_partition_get(iterator);
+        LOG_WARN("Storage partition %s: subtype=0x%02x address=0x%08x size=0x%08x", partition->label, partition->subtype,
+                 partition->address, partition->size);
+        if (isFilesystemPartition(partition)) {
+            if (candidate)
+                ambiguous = true;
+            else
+                candidate = partition;
+        }
+        iterator = esp_partition_next(iterator);
+    }
+    esp_partition_iterator_release(iterator);
+    if (!candidate || ambiguous) {
+        fsMountFailure = SettingsSaveError::FilesystemLayout;
+        LOG_ERROR("Storage layout incompatible: %s filesystem partition", ambiguous ? "ambiguous" : "missing");
+        return nullptr;
+    }
+    if (esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, candidate->label) != candidate) {
+        fsMountFailure = SettingsSaveError::FilesystemLayout;
+        LOG_ERROR("Storage layout incompatible: duplicate label %s", candidate->label);
+        return nullptr;
+    }
+    fsStoragePartition = candidate;
+    fsStorageCanonical = false;
+    LOG_WARN("Using existing storage partition %s without formatting", candidate->label);
+    return fsStoragePartition;
+}
+
+static bool fsMount(bool formatOnFail)
+{
+    const auto *partition = fsSelectStoragePartition();
+    if (!partition)
+        return false;
+    const bool allowFormat = formatOnFail && fsStorageCanonical;
+    return FSCom.begin(allowFormat, "/littlefs", 10, partition->label);
+}
+
+bool fsBegin()
+{
+    return fsMount(true);
+}
 #endif
+
+SettingsSaveError fsMountError()
+{
+#if defined(ARCH_ESP32)
+    return fsMountFailure;
+#else
+    return SettingsSaveError::Unavailable;
+#endif
+}
 
 bool fsEnsureMounted()
 {
@@ -413,11 +499,11 @@ bool fsEnsureMounted()
     if (FSCom.mountpoint())
         return true;
 
-    bool mounted = FSCom.begin(false);
+    bool mounted = fsMount(false);
     if (mounted && !FSCom.mountpoint()) {
         // Arduino can return success for an existing backend without attaching its wrapper.
         FSCom.end();
-        mounted = FSCom.begin(false);
+        mounted = fsMount(false);
     }
     if (!mounted || !FSCom.mountpoint()) {
         LOG_ERROR("Filesystem remount failed; preserving stored data");
@@ -435,7 +521,7 @@ void fsInit()
     bool mounted = FSBegin();
 #if defined(ARCH_ESP32)
     mounted = mounted && FSCom.mountpoint();
-    for (int attempt = 0; !mounted && attempt < 2; ++attempt) {
+    for (int attempt = 0; !mounted && fsMountFailure != SettingsSaveError::FilesystemLayout && attempt < 2; ++attempt) {
         delay(50);
         mounted = fsEnsureMounted();
     }
