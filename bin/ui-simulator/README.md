@@ -82,8 +82,8 @@ The gallery labels its coverage limits; it is not a complete device walkthrough.
 On this 64-bit host, the identical fixture used 43,592 bytes of LVGL heap before
 and 38,792 after (4,800 bytes / 11% less). These are component heap measurements,
 not the ESP32's total memory or hardware CPU measurements. The Files screen fixture uses
-8,328 bytes versus 8,392 before; shared row styles avoid repeating their property
-allocations for every directory entry. The new style removes
+8,168 bytes versus 8,392 before; shared row styles avoid repeating their property
+allocations for every directory entry. These immutable row styles live in flash. The new style removes
 launcher gradients, shadow drawing and per-tile style duplication; it adds no
 images, fonts, framebuffers or animation timers to firmware.
 

@@ -10348,27 +10348,24 @@ void filesEmptyLabel(lv_obj_t *list, const char *text)
 
 void filesStyleRow(lv_obj_t *btn, uint32_t iconColor)
 {
-    static lv_style_t row, focused, disabled;
-    static bool initialized = false;
-    if (!initialized) {
-        initialized = true;
-        lv_style_init(&row);
-        lv_style_set_width(&row, LV_PCT(100));
-        lv_style_set_height(&row, 36);
-        lv_style_set_layout(&row, LV_LAYOUT_FLEX);
-        lv_style_set_flex_flow(&row, LV_FLEX_FLOW_ROW);
-        lv_style_set_flex_main_place(&row, LV_FLEX_ALIGN_START);
-        lv_style_set_flex_cross_place(&row, LV_FLEX_ALIGN_CENTER);
-        lv_style_set_flex_track_place(&row, LV_FLEX_ALIGN_CENTER);
-        lv_style_set_pad_hor(&row, 8);
-        lv_style_set_pad_column(&row, 8);
-        lv_style_set_text_font(&row, &ui_font_montserrat_14);
-        lv_style_set_radius(&row, 8);
-        lv_style_init(&focused);
-        lv_style_set_outline_pad(&focused, -2);
-        lv_style_init(&disabled);
-        lv_style_set_opa(&disabled, LV_OPA_50);
-    }
+    static const lv_style_const_prop_t rowProps[] = {{LV_STYLE_WIDTH, {.num = LV_PCT(100)}},
+                                                     {LV_STYLE_HEIGHT, {.num = 36}},
+                                                     {LV_STYLE_LAYOUT, {.num = LV_LAYOUT_FLEX}},
+                                                     {LV_STYLE_FLEX_FLOW, {.num = LV_FLEX_FLOW_ROW}},
+                                                     {LV_STYLE_FLEX_MAIN_PLACE, {.num = LV_FLEX_ALIGN_START}},
+                                                     {LV_STYLE_FLEX_CROSS_PLACE, {.num = LV_FLEX_ALIGN_CENTER}},
+                                                     {LV_STYLE_FLEX_TRACK_PLACE, {.num = LV_FLEX_ALIGN_CENTER}},
+                                                     {LV_STYLE_PAD_LEFT, {.num = 8}},
+                                                     {LV_STYLE_PAD_RIGHT, {.num = 8}},
+                                                     {LV_STYLE_PAD_COLUMN, {.num = 8}},
+                                                     {LV_STYLE_TEXT_FONT, {.ptr = &ui_font_montserrat_14}},
+                                                     {LV_STYLE_RADIUS, {.num = 8}},
+                                                     LV_STYLE_CONST_PROPS_END};
+    static const lv_style_const_prop_t focusProps[] = {{LV_STYLE_OUTLINE_PAD, {.num = -2}}, LV_STYLE_CONST_PROPS_END};
+    static const lv_style_const_prop_t disabledProps[] = {{LV_STYLE_OPA, {.num = LV_OPA_50}}, LV_STYLE_CONST_PROPS_END};
+    static LV_STYLE_CONST_INIT(row, rowProps);
+    static LV_STYLE_CONST_INIT(focused, focusProps);
+    static LV_STYLE_CONST_INIT(disabled, disabledProps);
     Tui::styleTile(btn);
     lv_obj_add_style(btn, &row, 0);
     lv_obj_add_style(btn, &focused, LV_STATE_FOCUSED);
