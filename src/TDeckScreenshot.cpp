@@ -423,7 +423,7 @@ extern "C" void tdeck_shot_service(void)
 
     const uint32_t total = FSCom.totalBytes();
     const uint32_t used = FSCom.usedBytes();
-    if (total > used && (total - used) < kMinFreeBytes) {
+    if (total <= used || (total - used) < kMinFreeBytes) {
         // Say so rather than half-writing a file and leaving the filesystem full.
         snprintf(s_lastPath, sizeof(s_lastPath), "%s", "");
         s_failed = true;

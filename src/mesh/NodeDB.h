@@ -1,9 +1,11 @@
 #pragma once
 
 #include "Observer.h"
+#include "SettingsSaveError.h"
 #include <Arduino.h>
 #include <algorithm>
 #include <assert.h>
+#include <atomic>
 #include <cstring>
 #include <map>
 #include <pb_encode.h>
@@ -307,6 +309,7 @@ class NodeDB
     // Note: these two references just point into our static array we serialize to/from disk
 
   public:
+    SettingsSaveError getLastSaveError() const { return lastSaveError.load(std::memory_order_relaxed); }
     std::vector<meshtastic_NodeInfoLite> *meshNodes;
     bool updateGUI = false; // we think the gui should definitely be redrawn, screen will clear this once handled
     meshtastic_NodeInfoLite *updateGUIforNode = NULL; // if currently showing this node, we think you should update the GUI
@@ -693,6 +696,7 @@ class NodeDB
 #endif
 
   private:
+    std::atomic<SettingsSaveError> lastSaveError{SettingsSaveError::Unknown};
     mutable concurrency::Lock satelliteMutex;
     bool duplicateWarned = false;
     bool localPositionUpdatedSinceBoot = false;

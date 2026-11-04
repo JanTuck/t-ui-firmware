@@ -1367,21 +1367,40 @@ static void test_setDisplayConfig_persistsAcrossReload()
 
 static void test_customSettingsBridges_persistAcrossReload()
 {
-    tdeck_clock_set_12h(true);
-    tdeck_clock_service();
-    tdeck_units_set_metric(true);
-    tdeck_units_service();
-    tdeck_tz_set(9);
-    tdeck_tz_service();
-    tdeck_sound_set_enabled(false);
-    tdeck_sound_service();
     meshtastic_LocalConfig reloaded = meshtastic_LocalConfig_init_zero;
-    TEST_ASSERT_EQUAL(LoadFileResult::LOAD_SUCCESS, nodeDB->loadProto(configFileName, meshtastic_LocalConfig_size,
-                                                                      sizeof(reloaded), &meshtastic_LocalConfig_msg, &reloaded));
-    TEST_ASSERT_TRUE(reloaded.display.use_12h_clock);
-    TEST_ASSERT_EQUAL(meshtastic_Config_DisplayConfig_DisplayUnits_METRIC, reloaded.display.units);
-    TEST_ASSERT_EQUAL_STRING("CET-1CEST,M3.5.0,M10.5.0/3", reloaded.device.tzdef);
-    TEST_ASSERT_EQUAL(meshtastic_Config_DeviceConfig_BuzzerMode_DISABLED, reloaded.device.buzzer_mode);
+    auto reloadConfig = [&]() {
+        reloaded = meshtastic_LocalConfig_init_zero;
+        return nodeDB->loadProto(configFileName, meshtastic_LocalConfig_size, sizeof(reloaded), &meshtastic_LocalConfig_msg,
+                                 &reloaded) == LoadFileResult::LOAD_SUCCESS;
+    };
+    const bool clock12h = !config.display.use_12h_clock;
+    tdeck_clock_set_12h(clock12h);
+    tdeck_clock_service();
+    TEST_ASSERT_TRUE(reloadConfig());
+    TEST_ASSERT_EQUAL(clock12h, reloaded.display.use_12h_clock);
+
+    const bool metric = config.display.units != meshtastic_Config_DisplayConfig_DisplayUnits_METRIC;
+    tdeck_units_set_metric(metric);
+    tdeck_units_service();
+    TEST_ASSERT_TRUE(reloadConfig());
+    TEST_ASSERT_EQUAL(metric ? meshtastic_Config_DisplayConfig_DisplayUnits_METRIC
+                             : meshtastic_Config_DisplayConfig_DisplayUnits_IMPERIAL,
+                      reloaded.display.units);
+
+    const char *centralEurope = "CET-1CEST,M3.5.0,M10.5.0/3";
+    const bool useEurope = strcmp(config.device.tzdef, centralEurope) != 0;
+    tdeck_tz_set(useEurope ? 9 : 0);
+    tdeck_tz_service();
+    TEST_ASSERT_TRUE(reloadConfig());
+    TEST_ASSERT_EQUAL_STRING(useEurope ? centralEurope : "PST8PDT,M3.2.0,M11.1.0", reloaded.device.tzdef);
+
+    const bool sound = config.device.buzzer_mode == meshtastic_Config_DeviceConfig_BuzzerMode_DISABLED;
+    tdeck_sound_set_enabled(sound);
+    tdeck_sound_service();
+    TEST_ASSERT_TRUE(reloadConfig());
+    TEST_ASSERT_EQUAL(sound ? meshtastic_Config_DeviceConfig_BuzzerMode_ALL_ENABLED
+                            : meshtastic_Config_DeviceConfig_BuzzerMode_DISABLED,
+                      reloaded.device.buzzer_mode);
     tdeck_settings_service();
     TEST_ASSERT_TRUE(capturedWarnings.empty());
 }
@@ -1389,12 +1408,12 @@ static void test_customSettingsBridges_persistAcrossReload()
 static void test_settingsFailureNotification_coalescesUntilMainLoop()
 {
     tdeck_settings_save_failed();
-    tdeck_settings_save_failed();
+    tdeck_settings_save_failed(SettingsSaveError::None);
     TEST_ASSERT_TRUE(capturedWarnings.empty());
     tdeck_settings_service();
     tdeck_settings_service();
     TEST_ASSERT_EQUAL(1, capturedWarnings.size());
-    TEST_ASSERT_EQUAL_STRING("Settings were not saved. Check internal storage.", capturedWarnings[0].c_str());
+    TEST_ASSERT_EQUAL_STRING("Settings not saved: save operation failed.", capturedWarnings[0].c_str());
 }
 
 static void test_saveProto_encodingFailurePreservesCommittedSettings()
@@ -1405,11 +1424,50 @@ static void test_saveProto_encodingFailurePreservesCommittedSettings()
     invalid.display.screen_on_secs = previousTimeout + 5;
     memset(invalid.network.wifi_ssid, 'x', sizeof(invalid.network.wifi_ssid));
     TEST_ASSERT_FALSE(nodeDB->saveProto(configFileName, meshtastic_LocalConfig_size, &meshtastic_LocalConfig_msg, &invalid));
+    TEST_ASSERT_EQUAL(SettingsSaveError::Encode, nodeDB->getLastSaveError());
     meshtastic_LocalConfig reloaded = meshtastic_LocalConfig_init_zero;
     TEST_ASSERT_EQUAL(LoadFileResult::LOAD_SUCCESS, nodeDB->loadProto(configFileName, meshtastic_LocalConfig_size,
                                                                       sizeof(reloaded), &meshtastic_LocalConfig_msg, &reloaded));
     TEST_ASSERT_EQUAL(previousTimeout, reloaded.display.screen_on_secs);
     TEST_ASSERT_FALSE(FSCom.exists("/prefs/config.proto.tmp"));
+}
+
+static void test_settingsFailureNotification_preservesFirstStage()
+{
+    tdeck_settings_save_failed(SettingsSaveError::NvsOpen);
+    tdeck_settings_save_failed(SettingsSaveError::NvsWrite);
+    tdeck_settings_service();
+    TEST_ASSERT_EQUAL(1, capturedWarnings.size());
+    TEST_ASSERT_EQUAL_STRING("Settings not saved: cannot open NVS preferences.", capturedWarnings[0].c_str());
+}
+
+static void test_nodeDatabase_encodingFailurePreservesCommittedFile()
+{
+    auto *node = nodeDB->getOrCreateMeshNode(0xfeed1234);
+    const auto previous = *node;
+    owner.is_licensed = true;
+    TEST_ASSERT_TRUE(nodeDB->saveToDisk(SEGMENT_NODEDATABASE));
+    auto readNodes = []() {
+        File file = FSCom.open(nodeDatabaseFileName, FILE_O_READ);
+        std::vector<uint8_t> bytes(file.size());
+        file.read(bytes.data(), bytes.size());
+        file.close();
+        return bytes;
+    };
+    const auto committed = readNodes();
+    TEST_ASSERT_FALSE(committed.empty());
+    memset(node->long_name, 'x', sizeof(node->long_name));
+    const bool saved = nodeDB->saveToDisk(SEGMENT_NODEDATABASE);
+    const auto error = nodeDB->getLastSaveError();
+    *node = previous;
+    const auto after = readNodes();
+    TEST_ASSERT_FALSE(saved);
+    TEST_ASSERT_EQUAL(SettingsSaveError::Encode, error);
+    TEST_ASSERT_TRUE(committed == after);
+    TEST_ASSERT_TRUE(nodeDatabase.positions.empty());
+    TEST_ASSERT_TRUE(nodeDatabase.telemetry.empty());
+    TEST_ASSERT_TRUE(nodeDatabase.environment.empty());
+    TEST_ASSERT_TRUE(nodeDatabase.status.empty());
 }
 
 static void test_safeFile_rejectsLengthMismatchDespiteMatchingXor()
@@ -1468,7 +1526,7 @@ static void test_setDisplayConfig_failedWriteNaksWithoutReboot()
     TEST_ASSERT_EQUAL(meshtastic_Routing_Error_GOT_NAK, err);
     TEST_ASSERT_EQUAL(0, rebootAtMsec);
     TEST_ASSERT_EQUAL(1, capturedWarnings.size());
-    TEST_ASSERT_EQUAL_STRING("Settings were not saved. Check internal storage.", capturedWarnings[0].c_str());
+    TEST_ASSERT_EQUAL_STRING("Settings not saved: cannot open temporary file.", capturedWarnings[0].c_str());
     meshtastic_LocalConfig reloaded = meshtastic_LocalConfig_init_zero;
     TEST_ASSERT_EQUAL(LoadFileResult::LOAD_SUCCESS, nodeDB->loadProto(configFileName, meshtastic_LocalConfig_size,
                                                                       sizeof(reloaded), &meshtastic_LocalConfig_msg, &reloaded));
@@ -2776,7 +2834,9 @@ void setup()
     RUN_TEST(test_setDisplayConfig_persistsAcrossReload);
     RUN_TEST(test_customSettingsBridges_persistAcrossReload);
     RUN_TEST(test_settingsFailureNotification_coalescesUntilMainLoop);
+    RUN_TEST(test_settingsFailureNotification_preservesFirstStage);
     RUN_TEST(test_saveProto_encodingFailurePreservesCommittedSettings);
+    RUN_TEST(test_nodeDatabase_encodingFailurePreservesCommittedFile);
     RUN_TEST(test_safeFile_rejectsLengthMismatchDespiteMatchingXor);
 #if defined(ARCH_PORTDUINO)
     RUN_TEST(test_setDisplayConfig_failedWriteNaksWithoutReboot);

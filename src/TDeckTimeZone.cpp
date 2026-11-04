@@ -17,6 +17,7 @@
 #include "TDeckSettingsPersistence.h"
 #include "configuration.h"
 #include "mesh/NodeDB.h"
+#include <atomic>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -36,13 +37,13 @@ static const char *kTdeckZones[] = {
 };
 static const int kTdeckZoneCount = sizeof(kTdeckZones) / sizeof(kTdeckZones[0]);
 
-static volatile int s_tdeckTzPending = -1; // index the UI asked for; -1 = nothing waiting
+static std::atomic<int> s_tdeckTzPending{-1}; // index the UI asked for; -1 = nothing waiting
 
 // Called from the UI (LVGL) task. Records intent ONLY — no flash, no tzset here.
 extern "C" void tdeck_tz_set(int idx)
 {
     if (idx >= 0 && idx < kTdeckZoneCount)
-        s_tdeckTzPending = idx;
+        s_tdeckTzPending.store(idx, std::memory_order_relaxed);
 }
 
 // Which entry is currently in effect, or -1 if the device has no zone we recognise
@@ -62,10 +63,11 @@ extern "C" int tdeck_tz_get(void)
 // Called from the main Meshtastic loop() — the safe context for touching flash.
 extern "C" void tdeck_tz_service(void)
 {
-    int idx = s_tdeckTzPending;
+    if (s_tdeckTzPending.load(std::memory_order_relaxed) < 0)
+        return;
+    const int idx = s_tdeckTzPending.exchange(-1, std::memory_order_relaxed);
     if (idx < 0)
         return;
-    s_tdeckTzPending = -1;
 
     strncpy(config.device.tzdef, kTdeckZones[idx], sizeof(config.device.tzdef) - 1);
     config.device.tzdef[sizeof(config.device.tzdef) - 1] = 0;

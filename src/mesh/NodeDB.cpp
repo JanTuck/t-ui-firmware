@@ -3082,6 +3082,7 @@ bool NodeDB::saveProto(const char *filename, size_t protoSize, const pb_msgdesc_
     // and all writes will fail anyway. Device should be sleeping at this point anyway.
     if (!powerHAL_isPowerLevelSafe()) {
         LOG_ERROR("saveProto() on unsafe device power level");
+        lastSaveError.store(SettingsSaveError::Power, std::memory_order_relaxed);
         return false;
     }
 
@@ -3098,12 +3099,14 @@ bool NodeDB::saveProto(const char *filename, size_t protoSize, const pb_msgdesc_
         auto pbBuf = meshtastic_security::make_zeroizing_array(protoSize);
         if (!pbBuf) {
             LOG_ERROR("OOM encoding %s for encryption", filename);
+            lastSaveError.store(SettingsSaveError::Memory, std::memory_order_relaxed);
             return false;
         }
 
         pb_ostream_t stream = pb_ostream_from_buffer(pbBuf.get(), protoSize);
         if (!pb_encode(&stream, fields, dest_struct)) {
             LOG_ERROR("Can't encode protobuf %s", PB_GET_ERROR(&stream));
+            lastSaveError.store(SettingsSaveError::Encode, std::memory_order_relaxed);
             return false;
         }
 
@@ -3112,6 +3115,7 @@ bool NodeDB::saveProto(const char *filename, size_t protoSize, const pb_msgdesc_
 
         if (!ok) {
             LOG_ERROR("EncryptedStorage: encrypt+write %s failed", filename);
+            lastSaveError.store(SettingsSaveError::Encryption, std::memory_order_relaxed);
         }
         return ok;
     }
@@ -3126,6 +3130,7 @@ bool NodeDB::saveProto(const char *filename, size_t protoSize, const pb_msgdesc_
 
     if (!pb_encode(&stream, fields, dest_struct)) {
         LOG_ERROR("Can't encode protobuf %s", PB_GET_ERROR(&stream));
+        lastSaveError.store(SettingsSaveError::Encode, std::memory_order_relaxed);
     } else {
         okay = true;
     }
@@ -3134,10 +3139,13 @@ bool NodeDB::saveProto(const char *filename, size_t protoSize, const pb_msgdesc_
 
     if (!okay || !writeSucceeded) {
         LOG_ERROR("Can't write prefs");
+        if (f.error() != SettingsSaveError::None)
+            lastSaveError.store(f.error(), std::memory_order_relaxed);
     }
     okay &= writeSucceeded;
 #else
     LOG_ERROR("Filesystem not implemented");
+    lastSaveError.store(SettingsSaveError::Unavailable, std::memory_order_relaxed);
 #endif
     return okay;
 }
@@ -3149,6 +3157,7 @@ bool NodeDB::saveChannelsToDisk()
     // and all writes will fail anyway.
     if (!powerHAL_isPowerLevelSafe()) {
         LOG_ERROR("saveChannelsToDisk() on unsafe device power level");
+        lastSaveError.store(SettingsSaveError::Power, std::memory_order_relaxed);
         return false;
     }
 
@@ -3168,6 +3177,7 @@ bool NodeDB::saveDeviceStateToDisk()
     // and all writes will fail anyway. Device should be sleeping at this point anyway.
     if (!powerHAL_isPowerLevelSafe()) {
         LOG_ERROR("saveDeviceStateToDisk() on unsafe device power level");
+        lastSaveError.store(SettingsSaveError::Power, std::memory_order_relaxed);
         return false;
     }
 
@@ -3196,6 +3206,7 @@ bool NodeDB::saveNodeDatabaseToDisk()
     // and all writes will fail anyway. Device should be sleeping at this point anyway.
     if (!powerHAL_isPowerLevelSafe()) {
         LOG_ERROR("saveNodeDatabaseToDisk() on unsafe device power level");
+        lastSaveError.store(SettingsSaveError::Power, std::memory_order_relaxed);
         return false;
     }
 
@@ -3273,9 +3284,14 @@ bool NodeDB::saveNodeDatabaseToDisk()
     nodeDatabase.status.clear();
 #endif
 
-    size_t nodeDatabaseSize;
-    pb_get_encoded_size(&nodeDatabaseSize, meshtastic_NodeDatabase_fields, &nodeDatabase);
-    bool ok = saveProto(nodeDatabaseFileName, nodeDatabaseSize, &meshtastic_NodeDatabase_msg, &nodeDatabase, false);
+    size_t nodeDatabaseSize = 0;
+    bool ok = pb_get_encoded_size(&nodeDatabaseSize, meshtastic_NodeDatabase_fields, &nodeDatabase);
+    if (ok) {
+        ok = saveProto(nodeDatabaseFileName, nodeDatabaseSize, &meshtastic_NodeDatabase_msg, &nodeDatabase, false);
+    } else {
+        LOG_ERROR("Cannot size node database protobuf");
+        lastSaveError.store(SettingsSaveError::Encode, std::memory_order_relaxed);
+    }
 
     nodeDatabase.positions.clear();
     nodeDatabase.positions.shrink_to_fit();
@@ -3305,6 +3321,7 @@ bool NodeDB::saveToDiskNoRetry(int saveWhat)
     // and all writes will fail anyway. Device should be sleeping at this point anyway.
     if (!powerHAL_isPowerLevelSafe()) {
         LOG_ERROR("saveToDiskNoRetry() on unsafe device power level");
+        lastSaveError.store(SettingsSaveError::Power, std::memory_order_relaxed);
         return false;
     }
 
@@ -3423,12 +3440,14 @@ static bool filesystemStillReadable()
 
 bool NodeDB::saveToDisk(int saveWhat)
 {
+    lastSaveError.store(SettingsSaveError::Unknown, std::memory_order_relaxed);
     LOG_DEBUG("Save to disk %d", saveWhat);
 
     // do not try to save anything if power level is not safe. In many cases flash will be lock-protected
     // and all writes will fail anyway. Device should be sleeping at this point anyway.
     if (!powerHAL_isPowerLevelSafe()) {
         LOG_ERROR("saveToDisk() on unsafe device power level");
+        lastSaveError.store(SettingsSaveError::Power, std::memory_order_relaxed);
         return false;
     }
 
@@ -3443,6 +3462,7 @@ bool NodeDB::saveToDisk(int saveWhat)
 #endif
         if (!powerHAL_isPowerLevelSafe()) {
             LOG_ERROR("saveToDisk() on unsafe device power level");
+            lastSaveError.store(SettingsSaveError::Power, std::memory_order_relaxed);
             return false;
         }
         LOG_WARN("Save to disk failed, retry %d", attempt);
@@ -3452,6 +3472,7 @@ bool NodeDB::saveToDisk(int saveWhat)
     if (!success) {
         if (!powerHAL_isPowerLevelSafe()) {
             LOG_ERROR("saveToDisk() on unsafe device power level");
+            lastSaveError.store(SettingsSaveError::Power, std::memory_order_relaxed);
             return false;
         }
 #ifdef ARCH_RP2040

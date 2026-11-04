@@ -115,3 +115,21 @@ no-op. A successful filtered run reports `RESULT: FILTERED`, not a full-suite gr
 The second command tests the real checked Preferences wrapper with failed and short NVS
 writes injected through a fake ESP32 Preferences API. Neither test emulates physical
 flash faults, NVS wear, SPI contention, or the device's available storage.
+
+UI10 saving follow-up: Notes has an explicit Save action; failed saves keep the
+editor and text. Actual Notes storage functions are tested for write/commit failures
+and interrupted saves in the app-owned `/notes` directory. Arbitrary text files
+opened through Files preserve existing transaction sidecars; an interrupted save
+there may need manual recovery from `.tui-bak` rather than automatic cleanup.
+Save errors identify the failed step instead of assuming
+full/bad storage. The all-settings failure reported on a physical T-Deck has not
+been reproduced locally; stage-specific device feedback is still required.
+
+Additional regressions:
+```sh
+python3 bin/ui-simulator/test_notes_storage.py
+python3 bin/ui-simulator/test_safe_file_readback.py
+python3 bin/ui-simulator/test_settings_roundtrip.py
+python3 bin/ui-simulator/test_timezone_pending.py
+python3 bin/ui-simulator/test_screenshot_storage.py
+```

@@ -1887,7 +1887,7 @@ void AdminModule::saveChanges(int saveWhat, bool shouldReboot)
         LOG_INFO("Save changes to disk");
         if (!service->reloadConfig(saveWhat)) {
             saveFailed = true;
-            sendWarning("Settings were not saved. Check internal storage.");
+            sendWarning(settingsSaveErrorMessage(nodeDB->getLastSaveError()));
             return;
         }
     } else {
@@ -1909,7 +1909,7 @@ bool AdminModule::handleStoreDeviceUIConfig(const meshtastic_DeviceUIConfig &uic
         return true;
     }
     LOG_ERROR("Failed to save device-ui config");
-    sendWarning("Settings were not saved. Check internal storage.");
+    sendWarning(settingsSaveErrorMessage(nodeDB->getLastSaveError()));
 #endif
     return false;
 }

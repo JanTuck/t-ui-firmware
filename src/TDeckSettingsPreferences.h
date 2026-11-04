@@ -9,7 +9,7 @@ class TDeckSettingsPreferences : public Preferences
     {
         const bool opened = Preferences::begin(name, readOnly, partition);
         if (!opened && !readOnly)
-            tdeck_settings_save_failed();
+            tdeck_settings_save_failed(SettingsSaveError::NvsOpen);
         return opened;
     }
 
@@ -24,7 +24,7 @@ class TDeckSettingsPreferences : public Preferences
     static size_t checked(size_t written, size_t expected)
     {
         if (written != expected)
-            tdeck_settings_save_failed();
+            tdeck_settings_save_failed(SettingsSaveError::NvsWrite);
         return written;
     }
 };

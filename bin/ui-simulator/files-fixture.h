@@ -1,4 +1,5 @@
 #pragma once
+#include "SettingsSaveError.h"
 #include "files-format.inc"
 #define snprintf lv_snprintf
 #define fmtBytes fmtBytesCompact
@@ -142,7 +143,7 @@ static void filesGallery(lv_obj_t *home)
         assert(lv_obj_has_state(unavailable, LV_STATE_DISABLED));
         tapObject(unavailable);
         assert(fixture.filesVol == FilesHarness::VOL_ROOT);
-        fixture.messageAlert("Settings were not saved. Check internal storage.", true);
+        fixture.messageAlert(settingsSaveErrorMessage(SettingsSaveError::Open), true);
         step();
         checkDialog(objects.alert_panel);
         capture("settings-save-error.ppm");
@@ -170,11 +171,11 @@ static void filesGallery(lv_obj_t *home)
         checkDialog(objects.alert_panel);
         capture("settings-long-error.ppm");
         tap("OK");
-        fixture.notifyClientNotification("Settings were not saved. Check internal storage.");
+        fixture.notifyClientNotification(settingsSaveErrorMessage(SettingsSaveError::Open));
         step();
         size_t noticeHeap = used();
         for (int i = 0; i < 100; ++i)
-            fixture.notifyClientNotification("Settings were not saved. Check internal storage.");
+            fixture.notifyClientNotification(settingsSaveErrorMessage(SettingsSaveError::Open));
         step();
         assert(used() == noticeHeap);
         tap("OK");
@@ -184,7 +185,7 @@ static void filesGallery(lv_obj_t *home)
     fixture.filesRefresh();
     step();
     if (baseline) {
-        fixture.messageAlert("Settings were not saved. Check internal storage.", true);
+        fixture.messageAlert(settingsSaveErrorMessage(SettingsSaveError::Open), true);
         step();
         capture("settings-save-error.ppm");
         capture("settings-long-error.ppm");

@@ -2,6 +2,7 @@
 
 #include "FSCommon.h"
 #include "SPILock.h"
+#include "SettingsSaveError.h"
 #include "configuration.h"
 
 #ifdef FSCom
@@ -36,6 +37,7 @@ class SafeFile : public Print
      * @return false for failure
      */
     bool close(bool commit = true);
+    SettingsSaveError error() const { return lastError; }
 
   private:
     /// Read our (closed) tempfile back in and compare the hash
@@ -47,6 +49,7 @@ class SafeFile : public Print
     uint8_t hash = 0;
     size_t expectedSize = 0;
     bool writeFailed = false;
+    SettingsSaveError lastError = SettingsSaveError::None;
 };
 
 #endif

@@ -84,6 +84,7 @@ end = source.index("        int count = 0;", start)
 start = source.index("    bool onSd = (filesVol == VOL_SD);", source.index("// ---------- browsing a volume"))
 end = source.index("    // entry tap:", start)
 (out / "files-capacity.inc").write_text(source[start:end])
+(out / "SettingsSaveError.h").write_text((root / "src/SettingsSaveError.h").read_text())
 flags = ["-O2", "-g", "-ffunction-sections", "-fdata-sections", "-DLV_CONF_INCLUDE_SIMPLE",
          "-DRAM_SIZE=2048", "-DUSE_X11=0", "-DLV_USE_LIBINPUT=0"]
 flags += [f"-I{p}" for p in [out, lv, lv.parent, ui / "include", ui / "generated/ui_320x240"]]

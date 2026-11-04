@@ -8,7 +8,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("directory", type=Path)
 args = parser.parse_args()
 states = [
-    ("files-storage", "Files: storage"), ("settings-save-error", "Settings: storage write failure"),
+    ("files-storage", "Files: storage"), ("settings-save-error", "Settings: save failure"),
     ("settings-long-error", "Settings: long error scrolled to end"),
     ("files-focused", "Files: focus"), ("files-pressed", "Files: pressed"), ("files-folder-held", "Files: folder held"),
     ("files-no-sd", "Files: no SD card"), ("files-full", "Files: internal storage full"),

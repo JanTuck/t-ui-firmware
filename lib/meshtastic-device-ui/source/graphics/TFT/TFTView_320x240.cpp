@@ -3026,7 +3026,7 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_obj_set_width(shot_hint_label, 288);
     lv_label_set_long_mode(shot_hint_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_font(shot_hint_label, &ui_font_montserrat_12, LV_PART_MAIN);
-    lv_label_set_text(shot_hint_label, "Tap, then go to the screen you want. Saved to /shots on the card.");
+    lv_label_set_text(shot_hint_label, "Tap, then choose a screen. Saves to internal /shots.");
     lv_obj_set_style_text_color(shot_hint_label, lv_color_hex(Tui::Muted),
                                 LV_PART_MAIN);
     lv_obj_align(shot_hint_label, LV_ALIGN_TOP_LEFT, 16, 1230);
@@ -11314,8 +11314,7 @@ void TFTView_320x240::startScreenshotCountdown(void)
                             return;
                         const char *p = tdeck_shot_last_path();
                         if (tdeck_shot_failed() || !p || !p[0])
-                            lv_label_set_text(THIS->shot_hint_label,
-                                              "Could not save the screenshot. Is the card in?");
+                            lv_label_set_text(THIS->shot_hint_label, "Screenshot could not be saved to internal storage.");
                         else {
                             static char msg[80];
                             snprintf(msg, sizeof(msg), "Saved %s", p);

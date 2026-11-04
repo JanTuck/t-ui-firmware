@@ -39,7 +39,7 @@ public:
             """#include "TDeckSettingsPreferences.h"
 #include <cassert>
 static int errors = 0;
-void tdeck_settings_save_failed() { ++errors; }
+void tdeck_settings_save_failed(SettingsSaveError) { ++errors; }
 void writeSettings(TDeckSettingsPreferences &p) {
     p.putBool("nav", true);
     p.putUChar("spd", 4);

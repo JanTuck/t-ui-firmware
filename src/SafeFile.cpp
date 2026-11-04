@@ -33,6 +33,8 @@ static File openFile(const char *filename, bool fullAtomic)
 SafeFile::SafeFile(const char *_filename, bool fullAtomic)
     : filename(_filename), f(openFile(_filename, fullAtomic)), fullAtomic(fullAtomic)
 {
+    if (!f)
+        lastError = SettingsSaveError::Open;
 }
 
 size_t SafeFile::write(uint8_t ch)
@@ -44,6 +46,8 @@ size_t SafeFile::write(uint8_t ch)
     expectedSize++;
     const size_t written = f.write(ch);
     writeFailed |= written != 1;
+    if (written != 1)
+        lastError = SettingsSaveError::Write;
     return written;
 }
 
@@ -58,6 +62,8 @@ size_t SafeFile::write(const uint8_t *buffer, size_t size)
     expectedSize += size;
     const size_t written = f.write((uint8_t const *)buffer, size);
     writeFailed |= written != size;
+    if (written != size)
+        lastError = SettingsSaveError::Write;
     return written;
 }
 
@@ -86,6 +92,7 @@ bool SafeFile::close(bool commit)
     // Rename or overwrite (atomic operation)
     if (!renameFile(filenameTmp.c_str(), filename.c_str())) {
         LOG_ERROR("Can't rename new pref file");
+        lastError = SettingsSaveError::Rename;
         concurrency::LockGuard g(spiLock);
         FSCom.remove(filenameTmp.c_str());
         return false;
@@ -104,14 +111,9 @@ bool SafeFile::testReadback()
     auto f2 = FSCom.open(filenameTmp.c_str(), FILE_O_READ);
     if (!f2) {
         LOG_ERROR("Can't open tmp file for readback");
+        lastError = SettingsSaveError::ReadbackOpen;
         return false;
     }
-    if (f2.size() != expectedSize) {
-        LOG_ERROR("Readback failed length mismatch");
-        f2.close();
-        return false;
-    }
-
     int c = 0;
     uint8_t test_hash = 0;
     size_t bytesRead = 0;
@@ -121,8 +123,14 @@ bool SafeFile::testReadback()
     }
     f2.close();
 
-    if (bytesRead != expectedSize || test_hash != hash) {
+    if (bytesRead != expectedSize) {
+        LOG_ERROR("Readback failed length mismatch");
+        lastError = SettingsSaveError::ReadbackLength;
+        return false;
+    }
+    if (test_hash != hash) {
         LOG_ERROR("Readback failed hash mismatch");
+        lastError = SettingsSaveError::ReadbackHash;
         return false;
     }
 

@@ -651,6 +651,14 @@ int main() {
   auto title = lv_group_get_focused(keys);
   assert(lv_obj_check_type(title, &lv_textarea_class));
   assert(!strcmp(lv_textarea_get_text(title), "Hi"));
+  tap("Save");
+  assert(lv_screen_active() == editor);
+  assert(findLabel(editor, "Save failed"));
+  assert(!strcmp(lv_textarea_get_text(title), "Hi"));
+  tap("Back");
+  assert(lv_screen_active() == editor);
+  assert(!strcmp(lv_textarea_get_text(title), "Hi"));
+  checkDialog(editor);
   tap("Delete");
   assert(findLabel(editor, "Delete this note?"));
   tap("Cancel");
