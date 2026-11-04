@@ -35,7 +35,7 @@ class SafeFile : public Print
      *
      * @return false for failure
      */
-    bool close();
+    bool close(bool commit = true);
 
   private:
     /// Read our (closed) tempfile back in and compare the hash
@@ -45,6 +45,8 @@ class SafeFile : public Print
     File f;
     bool fullAtomic;
     uint8_t hash = 0;
+    size_t expectedSize = 0;
+    bool writeFailed = false;
 };
 
 #endif

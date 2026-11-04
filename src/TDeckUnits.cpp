@@ -19,6 +19,7 @@
 // the time-zone dropdown first tried it (see TDeckTimeZone.cpp). The UI-facing setter records
 // intent only; tdeck_units_service(), called from loop(), does the write on the safe thread.
 // -----------------------------------------------------------------------------
+#include "TDeckSettingsPersistence.h"
 #include "main.h"
 #include "mesh/NodeDB.h" // the global `config` + nodeDB->saveToDisk
 
@@ -46,5 +47,5 @@ extern "C" void tdeck_units_service(void)
     s_unitsPending = false;
     config.display.units = s_unitsWantMetric ? meshtastic_Config_DisplayConfig_DisplayUnits_METRIC
                                              : meshtastic_Config_DisplayConfig_DisplayUnits_IMPERIAL;
-    nodeDB->saveToDisk(SEGMENT_CONFIG); // persists without a reboot
+    tdeck_save_settings(SEGMENT_CONFIG); // persists without a reboot
 }

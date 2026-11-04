@@ -21,6 +21,7 @@
 // -----------------------------------------------------------------------------
 #if !MESHTASTIC_EXCLUDE_GPS
 #include "DebugConfiguration.h" // LOG_INFO
+#include "TDeckSettingsPersistence.h"
 #include "gps/GPS.h"
 #include "mesh/NodeDB.h"
 
@@ -150,7 +151,7 @@ extern "C" void tdeck_gps_control_service(void)
     // Persist so the choice survives a reboot. Unlike the admin config path, this
     // does NOT force a device restart.
     if (nodeDB)
-        nodeDB->saveToDisk(SEGMENT_CONFIG);
+        tdeck_save_settings(SEGMENT_CONFIG);
 }
 
 #else // GPS excluded from this build — provide no-op stubs so callers still link.

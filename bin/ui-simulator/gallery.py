@@ -8,6 +8,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument("directory", type=Path)
 args = parser.parse_args()
 states = [
+    ("files-storage", "Files: storage"), ("settings-save-error", "Settings: storage write failure"),
+    ("settings-long-error", "Settings: long error scrolled to end"),
+    ("files-focused", "Files: focus"), ("files-pressed", "Files: pressed"), ("files-folder-held", "Files: folder held"),
+    ("files-no-sd", "Files: no SD card"), ("files-full", "Files: internal storage full"),
+    ("files-unavailable", "Files: internal storage unavailable"),
+    ("files-newfolder", "Files: new folder"), ("files-folder", "Files: folder"),
+    ("files-selected", "Files: selected"), ("files-paste", "Files: paste"), ("files-trash", "Files: trash"),
     ("settings-display", "Settings: display"),
     ("settings-location", "Settings: location"), ("settings-network", "Settings: network"),
     ("settings-sound", "Settings: sound"), ("settings-mesh", "Settings: mesh"),
@@ -52,7 +59,7 @@ body.grids .grid { display:block; }
 p { font-size:13px; line-height:1.5; color:var(--muted-foreground,#647482); }
 </style></head><body><div class="controls"><select aria-label="Screen">OPTIONS</select><label><input type="checkbox"> 8-pixel grid</label></div>
 SECTIONS
-<p>Native LVGL component renders: original revision cd363f267 versus the PR. Matching fixtures; no hardware emulation. The base mesh/keypad views exclude firmware controller updates. Settings renders the real layout with fixture values and no device callbacks. Lock authorization/glance, Files, Maps, network apps and SD-backed flows are not reproduced here. Focus shows widget states; the legacy physical focus-navigation mode remains disabled.</p>
+<p>Native LVGL component renders: original revision cd363f267 versus the PR. Matching fixtures; no hardware emulation. The base mesh/keypad views exclude firmware controller updates. Settings renders the real layout with fixture values and no device callbacks. Lock authorization/glance, Maps, network apps and SD-backed flows are not reproduced here. Files uses actual layout/action callbacks with storage operations stubbed. Focus shows widget states; the legacy physical focus-navigation mode remains disabled.</p>
 <script>
 document.querySelector('select').onchange=function(){document.querySelectorAll('section').forEach(s=>s.hidden=s.dataset.index!==this.value);};
 document.querySelector('input').onchange=function(){document.body.classList.toggle('grids',this.checked);};

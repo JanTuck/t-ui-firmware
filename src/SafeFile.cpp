@@ -41,7 +41,10 @@ size_t SafeFile::write(uint8_t ch)
         return 0;
 
     hash ^= ch;
-    return f.write(ch);
+    expectedSize++;
+    const size_t written = f.write(ch);
+    writeFailed |= written != 1;
+    return written;
 }
 
 size_t SafeFile::write(const uint8_t *buffer, size_t size)
@@ -52,8 +55,10 @@ size_t SafeFile::write(const uint8_t *buffer, size_t size)
     for (size_t i = 0; i < size; i++) {
         hash ^= buffer[i];
     }
-    return f.write((uint8_t const *)buffer, size); // This nasty cast is _IMPORTANT_ otherwise the correct adafruit method does
-                                                   // not get used (they made a mistake in their typing)
+    expectedSize += size;
+    const size_t written = f.write((uint8_t const *)buffer, size);
+    writeFailed |= written != size;
+    return written;
 }
 
 /**
@@ -61,7 +66,7 @@ size_t SafeFile::write(const uint8_t *buffer, size_t size)
  *
  * @return false for failure
  */
-bool SafeFile::close()
+bool SafeFile::close(bool commit)
 {
     if (!f)
         return false;
@@ -70,14 +75,19 @@ bool SafeFile::close()
     f.close();
     spiLock->unlock();
 
-    if (!testReadback())
-        return false;
-
-    // Rename or overwrite (atomic operation)
     String filenameTmp = filename;
     filenameTmp += ".tmp";
+    if (!commit || writeFailed || !testReadback()) {
+        concurrency::LockGuard g(spiLock);
+        FSCom.remove(filenameTmp.c_str());
+        return false;
+    }
+
+    // Rename or overwrite (atomic operation)
     if (!renameFile(filenameTmp.c_str(), filename.c_str())) {
         LOG_ERROR("Can't rename new pref file");
+        concurrency::LockGuard g(spiLock);
+        FSCom.remove(filenameTmp.c_str());
         return false;
     }
 
@@ -96,15 +106,22 @@ bool SafeFile::testReadback()
         LOG_ERROR("Can't open tmp file for readback");
         return false;
     }
+    if (f2.size() != expectedSize) {
+        LOG_ERROR("Readback failed length mismatch");
+        f2.close();
+        return false;
+    }
 
     int c = 0;
     uint8_t test_hash = 0;
+    size_t bytesRead = 0;
     while ((c = f2.read()) >= 0) {
         test_hash ^= (uint8_t)c;
+        bytesRead++;
     }
     f2.close();
 
-    if (test_hash != hash) {
+    if (bytesRead != expectedSize || test_hash != hash) {
         LOG_ERROR("Readback failed hash mismatch");
         return false;
     }

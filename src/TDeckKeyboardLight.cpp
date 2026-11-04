@@ -20,8 +20,8 @@
 // so it's opt-in from Settings rather than a surprise change. Flag lives in NVS for
 // the same reason as the lock switch — see TDeckLockControl.cpp.
 // -----------------------------------------------------------------------------
+#include "TDeckSettingsPreferences.h"
 #include "configuration.h"
-#include <Preferences.h>
 #include <Wire.h>
 
 // Mid-scale: bright enough to read the keys in the dark without lighting up a room
@@ -51,7 +51,7 @@ static void kbdLightWrite(uint8_t brightness)
 extern "C" bool tdeck_kbdlight_enabled(void)
 {
     if (s_kbdLightEnabled < 0) {
-        Preferences p;
+        TDeckSettingsPreferences p;
         if (p.begin("tdeckkbl", true)) { // read-only
             s_kbdLightEnabled = p.getBool("en", false) ? 1 : 0;
             p.end();
@@ -65,7 +65,7 @@ extern "C" bool tdeck_kbdlight_enabled(void)
 extern "C" void tdeck_kbdlight_set_enabled(bool en)
 {
     s_kbdLightEnabled = en ? 1 : 0;
-    Preferences p;
+    TDeckSettingsPreferences p;
     if (p.begin("tdeckkbl", false)) { // read-write
         p.putBool("en", en);
         p.end();

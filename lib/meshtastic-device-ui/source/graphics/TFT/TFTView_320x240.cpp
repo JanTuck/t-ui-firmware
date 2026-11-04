@@ -9543,14 +9543,21 @@ namespace
 // "12.3 GB" / "512 KB" / "97 B" into buf
 void fmtBytes(uint64_t b, char *buf, size_t cap)
 {
-    if (b >= 1024ULL * 1024 * 1024)
-        snprintf(buf, cap, "%.1f GB", (double)b / (1024.0 * 1024.0 * 1024.0));
-    else if (b >= 1024ULL * 1024)
-        snprintf(buf, cap, "%llu MB", b / (1024 * 1024));
+    if (b >= 1024ULL * 1024 * 1024) {
+        constexpr uint64_t gb = 1024ULL * 1024 * 1024;
+        unsigned whole = (unsigned)(b / gb);
+        unsigned tenth = (unsigned)(((b % gb) * 10 + gb / 2) / gb);
+        if (tenth == 10) {
+            ++whole;
+            tenth = 0;
+        }
+        snprintf(buf, cap, "%u.%u GB", whole, tenth);
+    } else if (b >= 1024ULL * 1024)
+        snprintf(buf, cap, "%u MB", (unsigned)(b / (1024 * 1024)));
     else if (b >= 1024)
-        snprintf(buf, cap, "%llu KB", b / 1024);
+        snprintf(buf, cap, "%u KB", (unsigned)(b / 1024));
     else
-        snprintf(buf, cap, "%llu B", b);
+        snprintf(buf, cap, "%u B", (unsigned)b);
 }
 
 // join dir + name -> dst ("/" + "foo" -> "/foo"; "/maps" + "0" -> "/maps/0")
@@ -9560,6 +9567,11 @@ void joinPath(char *dst, size_t cap, const char *dir, const char *name)
         snprintf(dst, cap, "/%s", name);
     else
         snprintf(dst, cap, "%s/%s", dir, name);
+}
+
+bool filesNameFits(const char *name, size_t capacity, bool hasMarker)
+{
+    return name && name[0] && strlen(name) + (hasMarker ? 1 : 0) < capacity;
 }
 
 #if defined(HAS_SDCARD) && !defined(HAS_SD_MMC) && !defined(ARCH_PORTDUINO)
@@ -9606,12 +9618,9 @@ bool volExists(bool onSd, const char *path)
 {
     return onSd ? SDFs.exists(path) : fileSystem.exists(path);
 }
-void volRemove(bool onSd, const char *path)
+bool volRemove(bool onSd, const char *path)
 {
-    if (onSd)
-        SDFs.remove(path);
-    else
-        fileSystem.remove(path);
+    return onSd ? SDFs.remove(path) : fileSystem.remove(path);
 }
 bool volMkdir(bool onSd, const char *path)
 {
@@ -9638,12 +9647,18 @@ bool volRemoveTree(bool onSd, const char *path, int depth)
     bool dirs[kMax];
     int n = 0;
 
+    bool complete = true;
     if (onSd) {
         FsFile dir = SDFs.open(path, O_RDONLY);
-        if (dir && dir.isDirectory()) {
+        if (!dir || !dir.isDirectory())
+            return false;
+        {
             FsFile e;
-            while ((e = dir.openNextFile()) && n < kMax) {
-                e.getName(names[n], sizeof(names[0]));
+            while ((e = dir.openNextFile())) {
+                if (n == kMax || !e.getName(names[n], sizeof(names[0])) || strlen(names[n]) >= sizeof(names[0]) - 1) {
+                    complete = false;
+                    break;
+                }
                 dirs[n] = e.isDirectory();
                 e.close();
                 if (names[n][0])
@@ -9655,12 +9670,18 @@ bool volRemoveTree(bool onSd, const char *path, int depth)
         }
     } else {
         fs::File dir = fileSystem.open(path);
-        if (dir && dir.isDirectory()) {
+        if (!dir || !dir.isDirectory())
+            return false;
+        {
             fs::File e;
-            while ((e = dir.openNextFile()) && n < kMax) {
+            while ((e = dir.openNextFile())) {
                 const char *full = e.name();
                 const char *nm = strrchr(full, '/');
                 nm = nm ? nm + 1 : full;
+                if (n == kMax || strlen(nm) >= sizeof(names[0])) {
+                    complete = false;
+                    break;
+                }
                 snprintf(names[n], sizeof(names[0]), "%s", nm);
                 dirs[n] = e.isDirectory();
                 e.close();
@@ -9673,16 +9694,14 @@ bool volRemoveTree(bool onSd, const char *path, int depth)
         }
     }
 
+    if (!complete)
+        return false;
     for (int i = 0; i < n; i++) {
         char child[256];
-        if (strcmp(path, "/") == 0)
-            snprintf(child, sizeof(child), "/%s", names[i]);
-        else
-            snprintf(child, sizeof(child), "%s/%s", path, names[i]);
-        if (dirs[i])
-            volRemoveTree(onSd, child, depth + 1);
-        else
-            volRemove(onSd, child);
+        if (snprintf(child, sizeof(child), "%s/%s", path, names[i]) >= (int)sizeof(child))
+            return false;
+        if (!(dirs[i] ? volRemoveTree(onSd, child, depth + 1) : volRemove(onSd, child)))
+            return false;
     }
     return onSd ? SDFs.rmdir(path) : fileSystem.rmdir(path);
 }
@@ -9693,15 +9712,33 @@ void trashNotePath(char *dst, size_t cap, const char *trashName)
 {
     snprintf(dst, cap, "/.trash/%s.where", trashName);
 }
-void writeTrashNote(bool onSd, const char *trashName, const char *origPath)
+bool writeTrashNote(bool onSd, const char *trashName, const char *origPath)
 {
     char notePath[280];
     trashNotePath(notePath, sizeof(notePath), trashName);
+    if (volExists(onSd, notePath))
+        return false;
+    const size_t length = strlen(origPath);
     VolFile w;
-    if (w.openWrite(onSd, notePath)) {
-        w.write((const uint8_t *)origPath, strlen(origPath));
+    bool ok = w.openWrite(onSd, notePath);
+    if (ok) {
+        ok = w.write((const uint8_t *)origPath, length) == (int)length;
         w.close();
     }
+    VolFile check;
+    if (ok) {
+        ok = check.openRead(onSd, notePath) && check.size() == length;
+        uint8_t bytes[64];
+        for (size_t offset = 0; ok && offset < length;) {
+            size_t count = length - offset < sizeof(bytes) ? length - offset : sizeof(bytes);
+            ok = check.read(bytes, count) == (int)count && memcmp(bytes, origPath + offset, count) == 0;
+            offset += count;
+        }
+        check.close();
+    }
+    if (!ok)
+        volRemove(onSd, notePath);
+    return ok;
 }
 void readTrashNote(bool onSd, const char *trashName, char *out, size_t cap)
 {
@@ -9730,13 +9767,16 @@ void readTrashNote(bool onSd, const char *trashName, char *out, size_t cap)
 uint64_t TFTView_320x240::filesFreeBytes(bool onSd)
 {
 #if defined(HAS_SDCARD) && !defined(HAS_SD_MMC) && !defined(ARCH_PORTDUINO)
-    int i = onSd ? 0 : 1;
-    if (!filesFreeKnown[i]) {
-        filesFreeCache[i] = onSd ? (sdCard ? sdCard->freeBytes() : 0)
-                                 : (uint64_t)(LittleFS.totalBytes() - LittleFS.usedBytes());
-        filesFreeKnown[i] = true;
+    if (!onSd) {
+        const uint64_t total = LittleFS.totalBytes();
+        const uint64_t used = LittleFS.usedBytes();
+        return total > used ? total - used : 0;
     }
-    return filesFreeCache[i];
+    if (!filesFreeKnown[0]) {
+        filesFreeCache[0] = sdCard ? sdCard->freeBytes() : 0;
+        filesFreeKnown[0] = true;
+    }
+    return filesFreeCache[0];
 #else
     return 0;
 #endif
@@ -9755,19 +9795,22 @@ void TFTView_320x240::openFiles(void)
         lv_label_set_text(title, "Files");
         lv_obj_set_style_text_color(title, lv_color_hex(Tui::Text),
                                     LV_PART_MAIN);
-        lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 6);
+        Tui::headerTitle(title);
 
         files_path_label = lv_label_create(files_screen);
         lv_obj_set_style_text_color(files_path_label, lv_color_hex(Tui::Muted),
                                     LV_PART_MAIN);
-        lv_obj_set_width(files_path_label, 300);
-        lv_label_set_long_mode(files_path_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
-        lv_obj_align(files_path_label, LV_ALIGN_TOP_LEFT, 10, 28);
+        lv_obj_set_size(files_path_label, 212, 18);
+        lv_obj_set_style_text_font(files_path_label, &ui_font_montserrat_12, 0);
+        lv_label_set_long_mode(files_path_label, LV_LABEL_LONG_DOT);
+        lv_obj_align(files_path_label, LV_ALIGN_TOP_LEFT, 8, 40);
 
         files_list = lv_list_create(files_screen);
-        lv_obj_set_size(files_list, 320, 152);
-        lv_obj_align(files_list, LV_ALIGN_TOP_MID, 0, 46);
-        lv_obj_set_style_bg_color(files_list, lv_color_hex(0x0d0d0f), LV_PART_MAIN);
+        lv_obj_set_size(files_list, 304, 116);
+        lv_obj_set_style_pad_all(files_list, 0, 0);
+        lv_obj_set_style_pad_row(files_list, 4, 0);
+        lv_obj_align(files_list, LV_ALIGN_TOP_MID, 0, 60);
+        lv_obj_set_style_bg_color(files_list, lv_color_hex(Tui::Background), LV_PART_MAIN);
         lv_obj_set_style_border_width(files_list, 0, LV_PART_MAIN);
 
         // bottom bar: free space (left) · Back (center) · Copy/Paste + X (right)
@@ -9775,12 +9818,17 @@ void TFTView_320x240::openFiles(void)
         lv_label_set_text(files_free_label, "");
         lv_obj_set_style_text_color(files_free_label, lv_color_hex(Tui::Muted),
                                     LV_PART_MAIN);
-        lv_obj_align(files_free_label, LV_ALIGN_BOTTOM_LEFT, 10, -12);
+        lv_obj_set_size(files_free_label, 84, 18);
+        lv_label_set_long_mode(files_free_label, LV_LABEL_LONG_DOT);
+        lv_obj_set_style_text_font(files_free_label, &ui_font_montserrat_12, 0);
+        lv_obj_set_style_text_align(files_free_label, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_align(files_free_label, LV_ALIGN_TOP_RIGHT, -8, 40);
 
         // Back: up one folder -> volume root -> storage picker -> launcher
         lv_obj_t *backBtn = lv_btn_create(files_screen);
-        lv_obj_set_size(backBtn, 70, 30);
-        lv_obj_align(backBtn, LV_ALIGN_BOTTOM_MID, -14, -4);
+        Tui::headerButton(backBtn);
+        lv_obj_set_size(backBtn, 64, 28);
+        lv_obj_align(backBtn, LV_ALIGN_TOP_LEFT, 8, 4);
         lv_obj_set_style_radius(backBtn, 10, LV_PART_MAIN);
         lv_obj_add_event_cb(
             backBtn,
@@ -9809,11 +9857,11 @@ void TFTView_320x240::openFiles(void)
 
         // Copy (a file is selected) / Paste here (a copy is armed)
         files_copy_btn = lv_btn_create(files_screen);
+        Tui::headerButton(files_copy_btn);
         lv_obj_set_size(files_copy_btn, 100, 30);
-        lv_obj_align(files_copy_btn, LV_ALIGN_BOTTOM_RIGHT, -34, -4);
+        lv_obj_align(files_copy_btn, LV_ALIGN_BOTTOM_RIGHT, -80, -8);
         lv_obj_set_style_radius(files_copy_btn, 10, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(files_copy_btn, lv_color_hex(Tui::Accent),
-                                  LV_PART_MAIN);
+        lv_obj_set_style_bg_color(files_copy_btn, lv_color_hex(0x294c54), LV_PART_MAIN);
         lv_obj_add_event_cb(
             files_copy_btn,
             [](lv_event_t *e) {
@@ -9840,10 +9888,11 @@ void TFTView_320x240::openFiles(void)
         // Trash (browsing: move file to /.trash, instantly undoable) /
         // Delete (in the trash view: permanent, needs a second "Sure?" tap)
         files_del_btn = lv_btn_create(files_screen);
+        Tui::headerButton(files_del_btn);
         lv_obj_set_size(files_del_btn, 64, 30);
-        lv_obj_align(files_del_btn, LV_ALIGN_BOTTOM_RIGHT, -2, -4);
+        lv_obj_align(files_del_btn, LV_ALIGN_BOTTOM_RIGHT, -8, -8);
         lv_obj_set_style_radius(files_del_btn, 10, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(files_del_btn, lv_color_hex(0xff453a), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(files_del_btn, lv_color_hex(0x6d2e32), LV_PART_MAIN);
         lv_obj_add_event_cb(
             files_del_btn,
             [](lv_event_t *e) {
@@ -9868,10 +9917,11 @@ void TFTView_320x240::openFiles(void)
 
         // X — cancel a pending copy
         files_cancel_btn = lv_btn_create(files_screen);
+        Tui::headerButton(files_cancel_btn);
         lv_obj_set_size(files_cancel_btn, 30, 30);
-        lv_obj_align(files_cancel_btn, LV_ALIGN_BOTTOM_RIGHT, -2, -4);
+        lv_obj_align(files_cancel_btn, LV_ALIGN_BOTTOM_RIGHT, -8, -8);
         lv_obj_set_style_radius(files_cancel_btn, 10, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(files_cancel_btn, lv_color_hex(0x3a3a3c), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(files_cancel_btn, lv_color_hex(Tui::Surface), LV_PART_MAIN);
         lv_obj_add_event_cb(
             files_cancel_btn,
             [](lv_event_t *e) {
@@ -9886,10 +9936,11 @@ void TFTView_320x240::openFiles(void)
 
         // + Folder — make a new folder here (only shown when nothing is selected)
         files_newfolder_btn = lv_btn_create(files_screen);
+        Tui::headerButton(files_newfolder_btn);
         lv_obj_set_size(files_newfolder_btn, 100, 30);
-        lv_obj_align(files_newfolder_btn, LV_ALIGN_BOTTOM_RIGHT, -2, -4);
+        lv_obj_align(files_newfolder_btn, LV_ALIGN_BOTTOM_RIGHT, -8, -8);
         lv_obj_set_style_radius(files_newfolder_btn, 10, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(files_newfolder_btn, lv_color_hex(0x48484a), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(files_newfolder_btn, lv_color_hex(Tui::Surface), LV_PART_MAIN);
         lv_obj_add_event_cb(
             files_newfolder_btn, [](lv_event_t *) { THIS->filesNewFolderPrompt(); }, LV_EVENT_CLICKED, NULL);
         files_newfolder_lbl = lv_label_create(files_newfolder_btn);
@@ -9907,7 +9958,7 @@ void TFTView_320x240::filesUpdateActionBar(void)
     // any re-render resets a pending "Sure?" back to a plain Delete
     filesDelConfirm = false;
     lv_label_set_text(files_del_lbl, filesVol == VOL_TRASH ? "Delete" : "Trash");
-    lv_obj_set_style_bg_color(files_del_btn, lv_color_hex(0xff453a), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(files_del_btn, lv_color_hex(0x6d2e32), LV_PART_MAIN);
     lv_obj_add_flag(files_newfolder_btn, LV_OBJ_FLAG_HIDDEN); // shown only in the idle branch below
 
     if (filesVol == VOL_TRASH) { // Restore + permanent Delete for the selected item
@@ -9915,9 +9966,9 @@ void TFTView_320x240::filesUpdateActionBar(void)
         if (filesSelName[0]) {
             lv_obj_clear_flag(files_copy_btn, LV_OBJ_FLAG_HIDDEN);
             lv_obj_set_size(files_copy_btn, 84, 30);
-            lv_obj_align(files_copy_btn, LV_ALIGN_BOTTOM_RIGHT, -70, -4);
+            lv_obj_align(files_copy_btn, LV_ALIGN_BOTTOM_RIGHT, -80, -8);
             lv_label_set_text(files_copy_lbl, "Restore");
-            lv_obj_set_style_bg_color(files_copy_btn, lv_color_hex(0x30d158), LV_PART_MAIN);
+            lv_obj_set_style_bg_color(files_copy_btn, lv_color_hex(0x294c54), LV_PART_MAIN);
             lv_obj_clear_flag(files_del_btn, LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_obj_add_flag(files_copy_btn, LV_OBJ_FLAG_HIDDEN);
@@ -9930,9 +9981,9 @@ void TFTView_320x240::filesUpdateActionBar(void)
         else
             lv_obj_clear_flag(files_copy_btn, LV_OBJ_FLAG_HIDDEN);
         lv_obj_set_size(files_copy_btn, 100, 30);
-        lv_obj_align(files_copy_btn, LV_ALIGN_BOTTOM_RIGHT, -36, -4);
+        lv_obj_align(files_copy_btn, LV_ALIGN_BOTTOM_RIGHT, -46, -8);
         lv_label_set_text(files_copy_lbl, "Paste here");
-        lv_obj_set_style_bg_color(files_copy_btn, lv_color_hex(0x30d158), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(files_copy_btn, lv_color_hex(0x294c54), LV_PART_MAIN);
         lv_obj_clear_flag(files_cancel_btn, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(files_del_btn, LV_OBJ_FLAG_HIDDEN);
     } else if (filesSelName[0]) { // a file or folder is selected
@@ -9942,10 +9993,9 @@ void TFTView_320x240::filesUpdateActionBar(void)
         } else {
             lv_obj_clear_flag(files_copy_btn, LV_OBJ_FLAG_HIDDEN);
             lv_obj_set_size(files_copy_btn, 64, 30);
-            lv_obj_align(files_copy_btn, LV_ALIGN_BOTTOM_RIGHT, -70, -4);
+            lv_obj_align(files_copy_btn, LV_ALIGN_BOTTOM_RIGHT, -80, -8);
             lv_label_set_text(files_copy_lbl, "Copy");
-            lv_obj_set_style_bg_color(files_copy_btn, lv_color_hex(Tui::Accent),
-                                      LV_PART_MAIN);
+            lv_obj_set_style_bg_color(files_copy_btn, lv_color_hex(0x294c54), LV_PART_MAIN);
         }
         lv_obj_add_flag(files_cancel_btn, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(files_del_btn, LV_OBJ_FLAG_HIDDEN);
@@ -10004,7 +10054,9 @@ void TFTView_320x240::filesCopyNow(void)
         messageAlert(_("File too big to copy on-device"), true);
         return;
     }
-    // destination must have room (flash especially — it holds device data)
+    // Other apps can write between visits; check current space before creating
+    // a file.
+    filesFreeKnown[dstSd ? 0 : 1] = false;
     uint64_t freeBytes = filesFreeBytes(dstSd);
     if (total + 4096 > freeBytes) {
         src.close();
@@ -10020,19 +10072,23 @@ void TFTView_320x240::filesCopyNow(void)
     }
 
     bool ok = true;
+    uint64_t copied = 0;
     int n;
     while ((n = src.read(copyBuf, 4096)) > 0) {
-        if (out.write(copyBuf, n) != n) {
+        if (copied + n > total || out.write(copyBuf, n) != n) {
             ok = false;
             break;
         }
+        copied += n;
     }
+    ok = ok && n == 0 && copied == total;
     src.close();
     out.close();
 
     if (!ok) {
-        volRemove(dstSd, dst); // don't leave a half-written file behind
-        messageAlert(_("Copy failed"), true);
+        bool removed = volRemove(dstSd, dst);
+        filesFreeKnown[dstSd ? 0 : 1] = false;
+        messageAlert(removed ? _("Copy failed") : _("Copy failed; incomplete file remains"), true);
         return;
     }
     filesCopyArmed = false;
@@ -10059,23 +10115,40 @@ void TFTView_320x240::filesTrashSelected(void)
     }
 
     // pick a free name inside the trash (same name may have been trashed before)
-    char trashName[80], dst[280];
-    snprintf(trashName, sizeof(trashName), "%s", filesSelName);
+    char trashName[sizeof(filesNames[0]) - 1], dst[280];
+    snprintf(trashName, sizeof(trashName), "%.*s", (int)sizeof(trashName) - 1, filesSelName);
+    size_t nameLen = strlen(trashName);
+    if (nameLen >= 6 && strcmp(trashName + nameLen - 6, ".where") == 0)
+        snprintf(trashName, sizeof(trashName), "%.*s~1", (int)sizeof(trashName) - 3, filesSelName);
     snprintf(dst, sizeof(dst), "/.trash/%s", trashName);
-    for (int i = 2; volExists(onSd, dst) && i < 100; i++) {
-        snprintf(trashName, sizeof(trashName), "%s~%d", filesSelName, i);
+    auto nameTaken = [&]() {
+        char notePath[280];
+        trashNotePath(notePath, sizeof(notePath), trashName);
+        return volExists(onSd, dst) || volExists(onSd, notePath);
+    };
+    for (unsigned i = 2; i < 100 && nameTaken(); i++) {
+        snprintf(trashName, sizeof(trashName), "%.*s~%u", (int)sizeof(trashName) - 4, filesSelName, i);
         snprintf(dst, sizeof(dst), "/.trash/%s", trashName);
     }
-    if (volExists(onSd, dst)) {
+    if (nameTaken()) {
         messageAlert(_("Trash already has too many copies of this"), true);
         return;
     }
 
+    // Keep the original in place until its restore path has been saved and
+    // checked.
+    filesFreeKnown[onSd ? 0 : 1] = false;
+    if (!writeTrashNote(onSd, trashName, src)) {
+        messageAlert(_("Couldn't save restore information"), true);
+        return;
+    }
     if (!volRename(onSd, src, dst)) {
+        char notePath[280];
+        trashNotePath(notePath, sizeof(notePath), trashName);
+        volRemove(onSd, notePath);
         messageAlert(_("Couldn't move it to the trash"), true);
         return;
     }
-    writeTrashNote(onSd, trashName, src);
 
     // if this file was armed as a copy source, the source is gone — disarm
     if (filesCopyArmed && copySrcVol == filesVol && strcmp(copySrcPath, src) == 0) {
@@ -10127,10 +10200,13 @@ void TFTView_320x240::filesDeleteForever(void)
 
     char path[280];
     snprintf(path, sizeof(path), "/.trash/%s", name);
-    if (filesSelIsDir)
-        volRemoveTree(onSd, path, 0); // a folder: wipe it and everything inside
-    else
-        volRemove(onSd, path);
+    bool removed = filesSelIsDir ? volRemoveTree(onSd, path, 0) : volRemove(onSd, path);
+    filesFreeKnown[onSd ? 0 : 1] = false;
+    if (!removed) {
+        filesUpdateActionBar();
+        messageAlert(_("Couldn't delete everything"), true);
+        return;
+    }
     trashNotePath(path, sizeof(path), name);
     volRemove(onSd, path);
     filesFreeKnown[onSd ? 0 : 1] = false; // usage changed — re-measure lazily
@@ -10198,23 +10274,23 @@ void TFTView_320x240::filesNewFolderPrompt(void)
     lv_obj_clear_flag(files_newfolder_ovl, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *title = lv_label_create(files_newfolder_ovl);
-    lv_label_set_text(title, "New folder name");
+    lv_label_set_text(title, "New folder");
     lv_obj_set_style_text_color(title, lv_color_hex(Tui::Text), LV_PART_MAIN);
-    lv_obj_align(title, LV_ALIGN_TOP_LEFT, 12, 8);
-
-    lv_obj_t *hint = lv_label_create(files_newfolder_ovl);
-    lv_obj_set_width(hint, 296);
-    lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_font(hint, &ui_font_montserrat_12, LV_PART_MAIN);
-    lv_label_set_text(hint, "Type on the keyboard, then Enter or OK");
-    lv_obj_set_style_text_color(hint, lv_color_hex(Tui::Muted), LV_PART_MAIN);
-    lv_obj_align(hint, LV_ALIGN_TOP_LEFT, 12, 32);
+    Tui::headerTitle(title);
 
     files_newfolder_ta = lv_textarea_create(files_newfolder_ovl);
     lv_textarea_set_one_line(files_newfolder_ta, true);
     lv_textarea_set_max_length(files_newfolder_ta, 38);
-    lv_obj_set_width(files_newfolder_ta, 292);
-    lv_obj_align(files_newfolder_ta, LV_ALIGN_TOP_MID, 0, 60);
+    lv_obj_set_size(files_newfolder_ta, 304, 36);
+    lv_textarea_set_placeholder_text(files_newfolder_ta, "Name");
+    lv_obj_set_style_bg_color(files_newfolder_ta, lv_color_hex(Tui::Surface), 0);
+    lv_obj_set_style_text_color(files_newfolder_ta, lv_color_hex(Tui::Text), 0);
+    lv_obj_set_style_text_color(files_newfolder_ta, lv_color_hex(Tui::Muted), LV_PART_TEXTAREA_PLACEHOLDER);
+    lv_obj_set_style_text_font(files_newfolder_ta, &ui_font_montserrat_14, 0);
+    lv_obj_set_style_border_color(files_newfolder_ta, lv_color_hex(Tui::Border), 0);
+    lv_obj_set_style_pad_all(files_newfolder_ta, 8, 0);
+    lv_obj_set_scrollbar_mode(files_newfolder_ta, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_align(files_newfolder_ta, LV_ALIGN_TOP_MID, 0, 48);
     lv_obj_add_event_cb(
         files_newfolder_ta,
         [](lv_event_t *) {
@@ -10226,8 +10302,9 @@ void TFTView_320x240::filesNewFolderPrompt(void)
         LV_EVENT_READY, NULL);
 
     lv_obj_t *okBtn = lv_btn_create(files_newfolder_ovl);
-    lv_obj_set_size(okBtn, 120, 46);
-    lv_obj_align(okBtn, LV_ALIGN_BOTTOM_LEFT, 20, -24);
+    Tui::headerButton(okBtn);
+    lv_obj_set_size(okBtn, 144, 36);
+    lv_obj_align(okBtn, LV_ALIGN_BOTTOM_LEFT, 8, -8);
     lv_obj_t *okl = lv_label_create(okBtn);
     lv_label_set_text(okl, "OK");
     lv_obj_center(okl);
@@ -10242,9 +10319,10 @@ void TFTView_320x240::filesNewFolderPrompt(void)
         LV_EVENT_CLICKED, NULL);
 
     lv_obj_t *cxBtn = lv_btn_create(files_newfolder_ovl);
-    lv_obj_set_size(cxBtn, 120, 46);
-    lv_obj_align(cxBtn, LV_ALIGN_BOTTOM_RIGHT, -20, -24);
-    lv_obj_set_style_bg_color(cxBtn, lv_color_hex(0x3a3a3c), LV_PART_MAIN);
+    Tui::headerButton(cxBtn);
+    lv_obj_set_size(cxBtn, 144, 36);
+    lv_obj_align(cxBtn, LV_ALIGN_BOTTOM_RIGHT, -8, -8);
+    lv_obj_set_style_bg_color(cxBtn, lv_color_hex(Tui::Surface), LV_PART_MAIN);
     lv_obj_t *cxl = lv_label_create(cxBtn);
     lv_label_set_text(cxl, "Cancel");
     lv_obj_center(cxl);
@@ -10258,15 +10336,51 @@ namespace
 {
 // style a list row for the dark theme + make its icon glyph actually render
 // (the app's default font lacks the symbol glyphs; the built-in one has them)
+void filesEmptyLabel(lv_obj_t *list, const char *text)
+{
+    lv_obj_t *label = lv_list_add_text(list, text);
+    lv_obj_set_style_bg_opa(label, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_text_font(label, &ui_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(Tui::Muted), 0);
+    lv_obj_set_style_pad_all(label, 8, 0);
+    lv_obj_set_height(label, 36);
+}
+
 void filesStyleRow(lv_obj_t *btn, uint32_t iconColor)
 {
-    lv_obj_set_style_bg_color(btn, lv_color_hex(0x0d0d0f), LV_PART_MAIN);
-    lv_obj_set_style_text_color(btn, lv_color_hex(Tui::Text), LV_PART_MAIN);
+    static lv_style_t row, focused, disabled;
+    static bool initialized = false;
+    if (!initialized) {
+        initialized = true;
+        lv_style_init(&row);
+        lv_style_set_width(&row, LV_PCT(100));
+        lv_style_set_height(&row, 36);
+        lv_style_set_layout(&row, LV_LAYOUT_FLEX);
+        lv_style_set_flex_flow(&row, LV_FLEX_FLOW_ROW);
+        lv_style_set_flex_main_place(&row, LV_FLEX_ALIGN_START);
+        lv_style_set_flex_cross_place(&row, LV_FLEX_ALIGN_CENTER);
+        lv_style_set_flex_track_place(&row, LV_FLEX_ALIGN_CENTER);
+        lv_style_set_pad_hor(&row, 8);
+        lv_style_set_pad_column(&row, 8);
+        lv_style_set_text_font(&row, &ui_font_montserrat_14);
+        lv_style_set_radius(&row, 8);
+        lv_style_init(&focused);
+        lv_style_set_outline_pad(&focused, -2);
+        lv_style_init(&disabled);
+        lv_style_set_opa(&disabled, LV_OPA_50);
+    }
+    Tui::styleTile(btn);
+    lv_obj_add_style(btn, &row, 0);
+    lv_obj_add_style(btn, &focused, LV_STATE_FOCUSED);
+    lv_obj_add_style(btn, &disabled, LV_STATE_DISABLED);
     lv_obj_t *icon = lv_obj_get_child(btn, 0);
     if (icon) {
         lv_obj_set_style_text_font(icon, &lv_font_montserrat_14, LV_PART_MAIN);
         lv_obj_set_style_text_color(icon, lv_color_hex(iconColor), LV_PART_MAIN);
     }
+    lv_obj_t *label = lv_obj_get_child(btn, -1);
+    lv_label_set_long_mode(label, LV_LABEL_LONG_DOT);
+    lv_obj_set_height(label, 18);
 }
 } // namespace
 
@@ -10299,13 +10413,18 @@ void TFTView_320x240::filesRefresh(void)
             filesStyleRow(btn, 0x0a84ff);
             lv_obj_add_event_cb(btn, pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)VOL_SD);
         } else {
-            lv_list_add_text(files_list, "No SD card found");
+            filesEmptyLabel(files_list, "No SD card found");
         }
 
         fmtBytes(filesFreeBytes(false), freeBuf, sizeof(freeBuf));
+        const bool flashReady = LittleFS.totalBytes() != 0;
         snprintf(line, sizeof(line), "T-Deck memory  —  %s free", freeBuf);
         lv_obj_t *btn = lv_list_add_button(files_list, LV_SYMBOL_SAVE, line);
         filesStyleRow(btn, 0x30d158);
+        if (!flashReady) {
+            lv_label_set_text(lv_obj_get_child(btn, -1), "Internal storage unavailable");
+            lv_obj_add_state(btn, LV_STATE_DISABLED);
+        }
         lv_obj_add_event_cb(btn, pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)VOL_FLASH);
 
         lv_obj_t *tbtn = lv_list_add_button(files_list, LV_SYMBOL_TRASH, "Trash");
@@ -10323,8 +10442,8 @@ void TFTView_320x240::filesRefresh(void)
             intptr_t idx = (intptr_t)lv_event_get_user_data(e);
             lv_obj_t *row = (lv_obj_t *)lv_event_get_current_target(e);
             if (THIS->files_sel_row)
-                lv_obj_set_style_bg_color(THIS->files_sel_row, lv_color_hex(0x0d0d0f), LV_PART_MAIN);
-            lv_obj_set_style_bg_color(row, lv_color_hex(0x2c2c54), LV_PART_MAIN);
+                lv_obj_set_style_bg_color(THIS->files_sel_row, lv_color_hex(Tui::Surface), LV_PART_MAIN);
+            lv_obj_set_style_bg_color(row, lv_color_hex(0x294c54), LV_PART_MAIN);
             THIS->files_sel_row = row;
             snprintf(THIS->filesSelName, sizeof(THIS->filesSelName), "%s", THIS->filesNames[idx]);
             THIS->filesSelIsDir = THIS->filesNameIsDir[idx];
@@ -10343,8 +10462,9 @@ void TFTView_320x240::filesRefresh(void)
                     continue;
                 FsFile entry;
                 while ((entry = dir.openNextFile()) && count < kFilesMaxEntries) {
-                    char name[64];
-                    entry.getName(name, sizeof(name));
+                    char name[66] = {};
+                    if (!entry.getName(name, sizeof(name)))
+                        name[0] = 0;
                     size_t len = strlen(name);
                     bool isdir = entry.isDirectory();
                     if (!isdir && len > 6 && strcmp(name + len - 6, ".where") == 0) {
@@ -10361,7 +10481,12 @@ void TFTView_320x240::filesRefresh(void)
                     }
                     lv_obj_t *btn = lv_list_add_button(files_list, isdir ? LV_SYMBOL_DIRECTORY : LV_SYMBOL_FILE, line);
                     filesStyleRow(btn, isdir ? 0xffd60a : 0x0a84ff);
-                    lv_obj_add_event_cb(btn, trash_cb, LV_EVENT_CLICKED, (void *)(intptr_t)count);
+                    if (filesNameFits(name, sizeof(filesNames[0]), true))
+                        lv_obj_add_event_cb(btn, trash_cb, LV_EVENT_CLICKED, (void *)(intptr_t)count);
+                    else {
+                        filesNames[count][0] = 0;
+                        lv_obj_add_state(btn, LV_STATE_DISABLED);
+                    }
                     count++;
                     entry.close();
                 }
@@ -10393,7 +10518,12 @@ void TFTView_320x240::filesRefresh(void)
                     }
                     lv_obj_t *btn = lv_list_add_button(files_list, isdir ? LV_SYMBOL_DIRECTORY : LV_SYMBOL_FILE, line);
                     filesStyleRow(btn, isdir ? 0xffd60a : 0x30d158);
-                    lv_obj_add_event_cb(btn, trash_cb, LV_EVENT_CLICKED, (void *)(intptr_t)count);
+                    if (filesNameFits(name, sizeof(filesNames[0]), true))
+                        lv_obj_add_event_cb(btn, trash_cb, LV_EVENT_CLICKED, (void *)(intptr_t)count);
+                    else {
+                        filesNames[count][0] = 0;
+                        lv_obj_add_state(btn, LV_STATE_DISABLED);
+                    }
                     count++;
                     entry.close();
                 }
@@ -10403,7 +10533,7 @@ void TFTView_320x240::filesRefresh(void)
             }
         }
         if (count == 0)
-            lv_list_add_text(files_list, "(trash is empty)");
+            filesEmptyLabel(files_list, "(trash is empty)");
         return;
     }
 
@@ -10419,10 +10549,6 @@ void TFTView_320x240::filesRefresh(void)
     // entry tap: folders descend; a file becomes the highlighted selection.
     // (a long-press selected the row instead — swallow the release-click that follows)
     auto entry_cb = [](lv_event_t *e) {
-        if (THIS->filesSuppressClick) {
-            THIS->filesSuppressClick = false;
-            return;
-        }
         intptr_t idx = (intptr_t)lv_event_get_user_data(e);
         const char *name = THIS->filesNames[idx];
         if (name[0] == '/') { // '/' prefix marks a folder
@@ -10447,8 +10573,8 @@ void TFTView_320x240::filesRefresh(void)
         }
         // select the file (tap again elsewhere to move the highlight)
         if (THIS->files_sel_row)
-            lv_obj_set_style_bg_color(THIS->files_sel_row, lv_color_hex(0x0d0d0f), LV_PART_MAIN);
-        lv_obj_set_style_bg_color(row, lv_color_hex(0x2c2c54), LV_PART_MAIN);
+            lv_obj_set_style_bg_color(THIS->files_sel_row, lv_color_hex(Tui::Surface), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(row, lv_color_hex(0x294c54), LV_PART_MAIN);
         THIS->files_sel_row = row;
         snprintf(THIS->filesSelName, sizeof(THIS->filesSelName), "%s", name);
         THIS->filesSelIsDir = false;
@@ -10463,12 +10589,11 @@ void TFTView_320x240::filesRefresh(void)
         const char *plain = (name[0] == '/') ? name + 1 : name; // strip the folder marker
         lv_obj_t *row = (lv_obj_t *)lv_event_get_current_target(e);
         if (THIS->files_sel_row)
-            lv_obj_set_style_bg_color(THIS->files_sel_row, lv_color_hex(0x0d0d0f), LV_PART_MAIN);
-        lv_obj_set_style_bg_color(row, lv_color_hex(0x2c2c54), LV_PART_MAIN);
+            lv_obj_set_style_bg_color(THIS->files_sel_row, lv_color_hex(Tui::Surface), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(row, lv_color_hex(0x294c54), LV_PART_MAIN);
         THIS->files_sel_row = row;
         snprintf(THIS->filesSelName, sizeof(THIS->filesSelName), "%s", plain);
         THIS->filesSelIsDir = THIS->filesNameIsDir[idx];
-        THIS->filesSuppressClick = true; // don't let the release-click descend/re-select
         THIS->filesUpdateActionBar();
     };
 
@@ -10477,18 +10602,19 @@ void TFTView_320x240::filesRefresh(void)
 
     if (onSd) {
         if (!sdCard) {
-            lv_list_add_text(files_list, "No SD card found");
+            filesEmptyLabel(files_list, "No SD card found");
             return;
         }
         FsFile dir = SDFs.open(filesPath, O_RDONLY);
         if (!dir || !dir.isDirectory()) {
-            lv_list_add_text(files_list, "Can't open this folder");
+            filesEmptyLabel(files_list, "Can't open this folder");
             return;
         }
         FsFile entry;
         while ((entry = dir.openNextFile()) && count < kFilesMaxEntries) {
-            char name[48];
-            entry.getName(name, sizeof(name));
+            char name[66] = {};
+            if (!entry.getName(name, sizeof(name)))
+                name[0] = 0;
             if (name[0] == '.') { // skip hidden/system entries
                 entry.close();
                 continue;
@@ -10507,8 +10633,13 @@ void TFTView_320x240::filesRefresh(void)
                 btn = lv_list_add_button(files_list, LV_SYMBOL_FILE, line);
                 filesStyleRow(btn, 0x8e8e93);
             }
-            lv_obj_add_event_cb(btn, entry_cb, LV_EVENT_CLICKED, (void *)(intptr_t)count);
-            lv_obj_add_event_cb(btn, entry_long_cb, LV_EVENT_LONG_PRESSED, (void *)(intptr_t)count);
+            if (filesNameFits(name, sizeof(filesNames[0]), filesNameIsDir[count])) {
+                lv_obj_add_event_cb(btn, entry_cb, LV_EVENT_SHORT_CLICKED, (void *)(intptr_t)count);
+                lv_obj_add_event_cb(btn, entry_long_cb, LV_EVENT_LONG_PRESSED, (void *)(intptr_t)count);
+            } else {
+                filesNames[count][0] = 0;
+                lv_obj_add_state(btn, LV_STATE_DISABLED);
+            }
             count++;
             entry.close();
         }
@@ -10520,7 +10651,7 @@ void TFTView_320x240::filesRefresh(void)
     } else { // internal flash
         fs::File dir = fileSystem.open(filesPath);
         if (!dir || !dir.isDirectory()) {
-            lv_list_add_text(files_list, "Can't open this folder");
+            filesEmptyLabel(files_list, "Can't open this folder");
             return;
         }
         fs::File entry;
@@ -10545,8 +10676,13 @@ void TFTView_320x240::filesRefresh(void)
                 btn = lv_list_add_button(files_list, LV_SYMBOL_FILE, line);
                 filesStyleRow(btn, 0x8e8e93);
             }
-            lv_obj_add_event_cb(btn, entry_cb, LV_EVENT_CLICKED, (void *)(intptr_t)count);
-            lv_obj_add_event_cb(btn, entry_long_cb, LV_EVENT_LONG_PRESSED, (void *)(intptr_t)count);
+            if (filesNameFits(name, sizeof(filesNames[0]), filesNameIsDir[count])) {
+                lv_obj_add_event_cb(btn, entry_cb, LV_EVENT_SHORT_CLICKED, (void *)(intptr_t)count);
+                lv_obj_add_event_cb(btn, entry_long_cb, LV_EVENT_LONG_PRESSED, (void *)(intptr_t)count);
+            } else {
+                filesNames[count][0] = 0;
+                lv_obj_add_state(btn, LV_STATE_DISABLED);
+            }
             count++;
             entry.close();
         }
@@ -10558,14 +10694,14 @@ void TFTView_320x240::filesRefresh(void)
     }
 
     if (count == 0 && !truncated)
-        lv_list_add_text(files_list, "(empty)");
+        filesEmptyLabel(files_list, "(empty)");
     if (truncated) {
         snprintf(line, sizeof(line), "... showing first %d only", kFilesMaxEntries);
-        lv_list_add_text(files_list, line);
+        filesEmptyLabel(files_list, line);
     }
 #else
     lv_label_set_text(files_path_label, "Storage");
-    lv_list_add_text(files_list, "No storage support in this build");
+    filesEmptyLabel(files_list, "No storage support in this build");
 #endif
 }
 
@@ -10581,6 +10717,9 @@ void TFTView_320x240::filesRefresh(void)
 // -----------------------------------------------------------------------------
 void TFTView_320x240::handleHomeGesture(void)
 {
+    if (files_newfolder_ovl)
+        closeNewFolder();
+
     // A pins overlay (from the Maps app) must never linger over the launcher.
     if (pins_overlay)
         closePinsList();
@@ -10681,6 +10820,10 @@ void TFTView_320x240::handleBackGesture(void)
 
     // Overlays sit on top of the screen behind them, so close the thing actually in front
     // of the user rather than jumping straight past it to Home.
+    if (files_newfolder_ovl) {
+        closeNewFolder();
+        return;
+    }
     if (arrange_overlay) {
         closeArrange();
         return;
@@ -10954,6 +11097,9 @@ void TFTView_320x240::restoreAfterUnlock(void)
 
 void TFTView_320x240::lockDevice(void)
 {
+    if (files_newfolder_ovl)
+        closeNewFolder();
+
     // Remember where we were, BEFORE any lock screen replaces it. Guarded on "not already a lock
     // screen" because this is also called from the PIN pad's own idle timeout to drop back to
     // black - and letting that overwrite the answer with "the lock screen" is how the feature
@@ -18243,11 +18389,47 @@ bool TFTView_320x240::applyNodesFilter(uint32_t nodeNum, bool reset)
     return hide; // TODO || filter.active;
 }
 
+void TFTView_320x240::notifyClientNotification(const char *message)
+{
+    if (lv_obj_get_parent(objects.alert_panel) != lv_layer_top()) {
+        lv_obj_set_parent(objects.alert_panel, lv_layer_top());
+        Tui::styleTile(objects.alert_panel);
+        lv_obj_set_size(objects.alert_panel, 288, 184);
+        lv_obj_set_style_pad_all(objects.alert_panel, 12, 0);
+        lv_obj_center(objects.alert_panel);
+        lv_obj_set_size(objects.alert_label, 262, 110);
+        lv_label_set_long_mode(objects.alert_label, LV_LABEL_LONG_WRAP);
+        lv_obj_add_flag(objects.alert_label, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(objects.alert_label, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_scroll_dir(objects.alert_label, LV_DIR_VER);
+        lv_obj_set_scrollbar_mode(objects.alert_label, LV_SCROLLBAR_MODE_AUTO);
+        lv_obj_set_style_text_font(objects.alert_label, &ui_font_montserrat_14, 0);
+        lv_obj_set_style_text_color(objects.alert_label, lv_color_hex(Tui::Text), 0);
+        lv_obj_align(objects.alert_label, LV_ALIGN_TOP_LEFT, 0, 0);
+        lv_obj_t *ok = lv_btn_create(objects.alert_panel);
+        Tui::headerButton(ok);
+        lv_obj_set_width(ok, 262);
+        lv_obj_align(ok, LV_ALIGN_BOTTOM_MID, 0, 0);
+        lv_obj_t *label = lv_label_create(ok);
+        lv_label_set_text(label, "OK");
+        lv_obj_center(label);
+        lv_obj_add_event_cb(
+            ok,
+            [](lv_event_t *e) {
+                lv_obj_add_flag(lv_obj_get_parent((lv_obj_t *)lv_event_get_current_target(e)), LV_OBJ_FLAG_HIDDEN);
+            },
+            LV_EVENT_CLICKED, nullptr);
+    }
+    lv_label_set_text(objects.alert_label, message);
+    lv_obj_scroll_to_y(objects.alert_label, 0, LV_ANIM_OFF);
+    lv_obj_clear_flag(objects.alert_panel, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(objects.alert_panel);
+}
+
 void TFTView_320x240::messageAlert(const char *alert, bool show)
 {
-    lv_label_set_text(objects.alert_label, alert);
     if (show)
-        lv_obj_clear_flag(objects.alert_panel, LV_OBJ_FLAG_HIDDEN);
+        notifyClientNotification(alert);
     else
         lv_obj_add_flag(objects.alert_panel, LV_OBJ_FLAG_HIDDEN);
 }

@@ -15,6 +15,7 @@
 #include "PowerMon.h"
 #include "RadioLibInterface.h"
 #include "ReliableRouter.h"
+#include "TDeckSettingsPersistence.h"
 #include "TransmitHistory.h"
 #include "UptimeClock.h"
 #include "airtime.h"
@@ -1565,6 +1566,7 @@ void loop()
         tdeck_tls_watch_allocs();
     }
     TDECK_LOOP_STEP("tz", tdeck_tz_service())
+    TDECK_LOOP_STEP("settings_save", tdeck_settings_service())
     TDECK_LOOP_STEP("channel_import", tdeck_channel_import_service())
     tdeck_loop_where = "loop-misc"; // upstream loop body until the scheduler
     // The single writer of the monotonic wrap carry; every other caller only reads it.

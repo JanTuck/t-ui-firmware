@@ -357,6 +357,7 @@ static void shellScreens() {
       }
   }
 }
+#include "files-fixture.h"
 static void gallery(lv_obj_t *home) {
   lv_screen_load(home);
   step();
@@ -456,6 +457,7 @@ static void gallery(lv_obj_t *home) {
   step();
   capture("lock-base.ppm");
   shellScreens();
+  filesGallery(home);
 }
 int main() {
   baseline = getenv("SIM_BASELINE") && *getenv("SIM_BASELINE");

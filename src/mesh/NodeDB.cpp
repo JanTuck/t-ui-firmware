@@ -3130,7 +3130,7 @@ bool NodeDB::saveProto(const char *filename, size_t protoSize, const pb_msgdesc_
         okay = true;
     }
 
-    bool writeSucceeded = f.close();
+    bool writeSucceeded = f.close(okay);
 
     if (!okay || !writeSucceeded) {
         LOG_ERROR("Can't write prefs");

@@ -4,6 +4,7 @@
 // much louder than the gentle default. Same linker-resolved pattern as
 // TDeckMeshSwitch / TDeckGpsBridge / TDeckMemInfo.
 // -----------------------------------------------------------------------------
+#include "TDeckSettingsPersistence.h"
 #include "main.h"
 #include "mesh/NodeDB.h" // config.device.buzzer_mode + nodeDB->saveToDisk
 
@@ -54,5 +55,5 @@ extern "C" void tdeck_sound_service(void)
     s_soundPending = false;
     config.device.buzzer_mode = s_soundWantOn ? meshtastic_Config_DeviceConfig_BuzzerMode_ALL_ENABLED
                                               : meshtastic_Config_DeviceConfig_BuzzerMode_DISABLED;
-    nodeDB->saveToDisk(SEGMENT_CONFIG); // persists without a reboot
+    tdeck_save_settings(SEGMENT_CONFIG); // persists without a reboot
 }

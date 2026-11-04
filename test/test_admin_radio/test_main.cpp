@@ -18,6 +18,8 @@
 #include "MeshService.h"
 #include "NodeDB.h"
 #include "RadioInterface.h"
+#include "SafeFile.h"
+#include "TDeckSettingsPersistence.h"
 #include "TestUtil.h"
 #include "graphics/draw/MenuHandler.h"
 #include "mesh/Channels.h"
@@ -31,6 +33,9 @@
 #include <string>
 #include <unity.h>
 #include <vector>
+#if defined(ARCH_PORTDUINO)
+#include <unistd.h>
+#endif
 
 #include "meshtastic/config.pb.h"
 #include "support/AdminModuleTestShim.h"
@@ -55,6 +60,19 @@ class MockMeshService : public MeshService
 };
 
 static MockMeshService *mockMeshService;
+
+extern "C" void tdeck_clock_set_12h(bool on);
+extern "C" void tdeck_clock_service();
+extern "C" void tdeck_units_set_metric(bool metric);
+extern "C" void tdeck_units_service();
+extern "C" void tdeck_tz_set(int index);
+extern "C" void tdeck_tz_service();
+extern "C" void tdeck_sound_set_enabled(bool on);
+extern "C" void tdeck_sound_service();
+
+#ifdef TUI_SETTINGS_HOST_TEST
+extern "C" void tdeck_remote_feed(uint8_t) {}
+#endif
 
 // -----------------------------------------------------------------------
 // getRegion() tests
@@ -1006,6 +1024,7 @@ static meshtastic_ChannelFile savedChannelFile;
 // Saved/torn down for every test so a failed assertion's longjmp cannot leave one dangling.
 static Router *savedRouter;
 static Router *hamMockRouter;
+static meshtastic_DeviceUIConfig savedUIConfig;
 
 // Called from setUp/tearDown for every test, not opted into by a handful. A shared NodeDB plus
 // unrestored config/owner/devicestate/channelFile means each test inherits whatever its
@@ -1019,6 +1038,7 @@ static void replaceAdminRadioGlobals()
     savedOwner = owner;
     savedConfig = config;
     savedChannelFile = channelFile;
+    savedUIConfig = uiconfig;
     replacementNodeDB = new NodeDB();
     nodeDB = replacementNodeDB;
 }
@@ -1041,6 +1061,7 @@ static void restoreAdminRadioGlobals()
     owner = savedOwner;
     config = savedConfig;
     channelFile = savedChannelFile;
+    uiconfig = savedUIConfig;
     initRegion();
 }
 
@@ -1247,6 +1268,214 @@ static bool decodeRoutingError(meshtastic_MeshPacket *reply, meshtastic_Routing_
     out = routing.error_reason;
     return true;
 }
+
+#if HAS_SCREEN
+static void test_storeUIConfig_updatesReadbackAndPersists()
+{
+    config.security.is_managed = false;
+    hamMockRouter = new HamModeMockRouter();
+    router = hamMockRouter;
+    meshtastic_MeshPacket mp = meshtastic_MeshPacket_init_zero;
+    mp.which_payload_variant = meshtastic_MeshPacket_decoded_tag;
+    mp.decoded.want_response = true;
+    meshtastic_AdminMessage m = meshtastic_AdminMessage_init_zero;
+    m.which_payload_variant = meshtastic_AdminMessage_store_ui_config_tag;
+    m.store_ui_config.version = 1;
+    m.store_ui_config.screen_brightness = 204;
+    m.store_ui_config.screen_timeout = 95;
+    testAdmin->handleReceivedProtobuf(mp, &m);
+
+    meshtastic_Routing_Error err = meshtastic_Routing_Error_GOT_NAK;
+    TEST_ASSERT_TRUE(decodeRoutingError(testAdmin->reply(), err));
+    TEST_ASSERT_EQUAL(meshtastic_Routing_Error_NONE, err);
+    testAdmin->drainReply();
+
+    m.which_payload_variant = meshtastic_AdminMessage_get_ui_config_request_tag;
+    m.get_ui_config_request = true;
+    testAdmin->handleReceivedProtobuf(mp, &m);
+    TEST_ASSERT_NOT_NULL(testAdmin->reply());
+    meshtastic_AdminMessage response = meshtastic_AdminMessage_init_zero;
+    TEST_ASSERT_TRUE(pb_decode_from_bytes(testAdmin->reply()->decoded.payload.bytes, testAdmin->reply()->decoded.payload.size,
+                                          &meshtastic_AdminMessage_msg, &response));
+    TEST_ASSERT_EQUAL(meshtastic_AdminMessage_get_ui_config_response_tag, response.which_payload_variant);
+    TEST_ASSERT_EQUAL(204, response.get_ui_config_response.screen_brightness);
+    TEST_ASSERT_EQUAL(95, response.get_ui_config_response.screen_timeout);
+    testAdmin->drainReply();
+
+    meshtastic_DeviceUIConfig reloaded = meshtastic_DeviceUIConfig_init_zero;
+    TEST_ASSERT_EQUAL(LoadFileResult::LOAD_SUCCESS,
+                      nodeDB->loadProto(uiconfigFileName, meshtastic_DeviceUIConfig_size, sizeof(reloaded),
+                                        &meshtastic_DeviceUIConfig_msg, &reloaded));
+    TEST_ASSERT_EQUAL(1, reloaded.version);
+    TEST_ASSERT_EQUAL(204, reloaded.screen_brightness);
+    TEST_ASSERT_EQUAL(95, reloaded.screen_timeout);
+}
+
+#if defined(ARCH_PORTDUINO)
+static void test_storeUIConfig_failedWriteNaksAndPreservesReadback()
+{
+    config.security.is_managed = false;
+    hamMockRouter = new HamModeMockRouter();
+    router = hamMockRouter;
+    const auto before = uiconfig;
+    TEST_ASSERT_TRUE(
+        nodeDB->saveProto(uiconfigFileName, meshtastic_DeviceUIConfig_size, &meshtastic_DeviceUIConfig_msg, &before));
+    const char *tmpPath = "/prefs/uiconfig.proto.tmp";
+    TEST_ASSERT_TRUE(FSCom.mkdir(tmpPath));
+    meshtastic_MeshPacket mp = meshtastic_MeshPacket_init_zero;
+    mp.which_payload_variant = meshtastic_MeshPacket_decoded_tag;
+    mp.decoded.want_response = true;
+    meshtastic_AdminMessage m = meshtastic_AdminMessage_init_zero;
+    m.which_payload_variant = meshtastic_AdminMessage_store_ui_config_tag;
+    m.store_ui_config = before;
+    m.store_ui_config.screen_timeout = before.screen_timeout + 5;
+    testAdmin->handleReceivedProtobuf(mp, &m);
+    const std::string hostPath = std::string(getenv("HOME")) + "/.portduino/default" + tmpPath;
+    const int removed = ::rmdir(hostPath.c_str());
+
+    TEST_ASSERT_EQUAL(0, removed);
+    meshtastic_Routing_Error err = meshtastic_Routing_Error_NONE;
+    TEST_ASSERT_TRUE(decodeRoutingError(testAdmin->reply(), err));
+    TEST_ASSERT_EQUAL(meshtastic_Routing_Error_GOT_NAK, err);
+    TEST_ASSERT_EQUAL(before.screen_timeout, uiconfig.screen_timeout);
+    meshtastic_DeviceUIConfig reloaded = meshtastic_DeviceUIConfig_init_zero;
+    TEST_ASSERT_EQUAL(LoadFileResult::LOAD_SUCCESS,
+                      nodeDB->loadProto(uiconfigFileName, meshtastic_DeviceUIConfig_size, sizeof(reloaded),
+                                        &meshtastic_DeviceUIConfig_msg, &reloaded));
+    TEST_ASSERT_EQUAL(before.screen_timeout, reloaded.screen_timeout);
+    testAdmin->drainReply();
+}
+#endif
+#endif
+
+static void test_setDisplayConfig_persistsAcrossReload()
+{
+    config.security.is_managed = false;
+    meshtastic_MeshPacket mp = meshtastic_MeshPacket_init_zero;
+    mp.which_payload_variant = meshtastic_MeshPacket_decoded_tag;
+    meshtastic_AdminMessage m = meshtastic_AdminMessage_init_zero;
+    m.which_payload_variant = meshtastic_AdminMessage_set_config_tag;
+    m.set_config.which_payload_variant = meshtastic_Config_display_tag;
+    m.set_config.payload_variant.display = config.display;
+    m.set_config.payload_variant.display.screen_on_secs = 125;
+    testAdmin->handleReceivedProtobuf(mp, &m);
+    meshtastic_LocalConfig reloaded = meshtastic_LocalConfig_init_zero;
+    TEST_ASSERT_EQUAL(LoadFileResult::LOAD_SUCCESS, nodeDB->loadProto(configFileName, meshtastic_LocalConfig_size,
+                                                                      sizeof(reloaded), &meshtastic_LocalConfig_msg, &reloaded));
+    TEST_ASSERT_EQUAL(125, reloaded.display.screen_on_secs);
+}
+
+static void test_customSettingsBridges_persistAcrossReload()
+{
+    tdeck_clock_set_12h(true);
+    tdeck_clock_service();
+    tdeck_units_set_metric(true);
+    tdeck_units_service();
+    tdeck_tz_set(9);
+    tdeck_tz_service();
+    tdeck_sound_set_enabled(false);
+    tdeck_sound_service();
+    meshtastic_LocalConfig reloaded = meshtastic_LocalConfig_init_zero;
+    TEST_ASSERT_EQUAL(LoadFileResult::LOAD_SUCCESS, nodeDB->loadProto(configFileName, meshtastic_LocalConfig_size,
+                                                                      sizeof(reloaded), &meshtastic_LocalConfig_msg, &reloaded));
+    TEST_ASSERT_TRUE(reloaded.display.use_12h_clock);
+    TEST_ASSERT_EQUAL(meshtastic_Config_DisplayConfig_DisplayUnits_METRIC, reloaded.display.units);
+    TEST_ASSERT_EQUAL_STRING("CET-1CEST,M3.5.0,M10.5.0/3", reloaded.device.tzdef);
+    TEST_ASSERT_EQUAL(meshtastic_Config_DeviceConfig_BuzzerMode_DISABLED, reloaded.device.buzzer_mode);
+    tdeck_settings_service();
+    TEST_ASSERT_TRUE(capturedWarnings.empty());
+}
+
+static void test_settingsFailureNotification_coalescesUntilMainLoop()
+{
+    tdeck_settings_save_failed();
+    tdeck_settings_save_failed();
+    TEST_ASSERT_TRUE(capturedWarnings.empty());
+    tdeck_settings_service();
+    tdeck_settings_service();
+    TEST_ASSERT_EQUAL(1, capturedWarnings.size());
+    TEST_ASSERT_EQUAL_STRING("Settings were not saved. Check internal storage.", capturedWarnings[0].c_str());
+}
+
+static void test_saveProto_encodingFailurePreservesCommittedSettings()
+{
+    const auto previousTimeout = config.display.screen_on_secs;
+    auto invalid = config;
+    invalid.has_network = true;
+    invalid.display.screen_on_secs = previousTimeout + 5;
+    memset(invalid.network.wifi_ssid, 'x', sizeof(invalid.network.wifi_ssid));
+    TEST_ASSERT_FALSE(nodeDB->saveProto(configFileName, meshtastic_LocalConfig_size, &meshtastic_LocalConfig_msg, &invalid));
+    meshtastic_LocalConfig reloaded = meshtastic_LocalConfig_init_zero;
+    TEST_ASSERT_EQUAL(LoadFileResult::LOAD_SUCCESS, nodeDB->loadProto(configFileName, meshtastic_LocalConfig_size,
+                                                                      sizeof(reloaded), &meshtastic_LocalConfig_msg, &reloaded));
+    TEST_ASSERT_EQUAL(previousTimeout, reloaded.display.screen_on_secs);
+    TEST_ASSERT_FALSE(FSCom.exists("/prefs/config.proto.tmp"));
+}
+
+static void test_safeFile_rejectsLengthMismatchDespiteMatchingXor()
+{
+    const char *path = "/prefs/safe-test.dat";
+    const char *tmpPath = "/prefs/safe-test.dat.tmp";
+    File previous = FSCom.open(path, FILE_O_WRITE);
+    TEST_ASSERT_TRUE(previous);
+    previous.write(reinterpret_cast<const uint8_t *>("OLD"), 3);
+    previous.close();
+    SafeFile file(path, true);
+    TEST_ASSERT_EQUAL(2, file.write(reinterpret_cast<const uint8_t *>("AA"), 2));
+    File corrupt = FSCom.open(tmpPath, FILE_O_WRITE);
+    TEST_ASSERT_TRUE(corrupt);
+    const uint8_t padding[] = {0, 0, 0, 0};
+    corrupt.write(padding, sizeof(padding));
+    corrupt.close();
+    const bool committed = file.close();
+    const bool temporaryRemains = FSCom.exists(tmpPath);
+    char saved[4] = {};
+    previous = FSCom.open(path, FILE_O_READ);
+    previous.read(reinterpret_cast<uint8_t *>(saved), 3);
+    previous.close();
+    FSCom.remove(path);
+    FSCom.remove(tmpPath);
+    TEST_ASSERT_FALSE(committed);
+    TEST_ASSERT_FALSE(temporaryRemains);
+    TEST_ASSERT_EQUAL_STRING("OLD", saved);
+}
+
+#if defined(ARCH_PORTDUINO)
+static void test_setDisplayConfig_failedWriteNaksWithoutReboot()
+{
+    config.security.is_managed = false;
+    hamMockRouter = new HamModeMockRouter();
+    router = hamMockRouter;
+    rebootAtMsec = 0;
+    const auto before = config.display.screen_on_secs;
+    const char *tmpPath = "/prefs/config.proto.tmp";
+    TEST_ASSERT_TRUE(FSCom.mkdir(tmpPath));
+    meshtastic_MeshPacket mp = meshtastic_MeshPacket_init_zero;
+    mp.which_payload_variant = meshtastic_MeshPacket_decoded_tag;
+    mp.decoded.want_response = true;
+    meshtastic_AdminMessage m = meshtastic_AdminMessage_init_zero;
+    m.which_payload_variant = meshtastic_AdminMessage_set_config_tag;
+    m.set_config.which_payload_variant = meshtastic_Config_display_tag;
+    m.set_config.payload_variant.display = config.display;
+    m.set_config.payload_variant.display.screen_on_secs = 135;
+    testAdmin->handleReceivedProtobuf(mp, &m);
+    const std::string hostPath = std::string(getenv("HOME")) + "/.portduino/default" + tmpPath;
+    const int removed = ::rmdir(hostPath.c_str());
+
+    TEST_ASSERT_EQUAL(0, removed);
+    meshtastic_Routing_Error err = meshtastic_Routing_Error_NONE;
+    TEST_ASSERT_TRUE(decodeRoutingError(testAdmin->reply(), err));
+    TEST_ASSERT_EQUAL(meshtastic_Routing_Error_GOT_NAK, err);
+    TEST_ASSERT_EQUAL(0, rebootAtMsec);
+    TEST_ASSERT_EQUAL(1, capturedWarnings.size());
+    TEST_ASSERT_EQUAL_STRING("Settings were not saved. Check internal storage.", capturedWarnings[0].c_str());
+    meshtastic_LocalConfig reloaded = meshtastic_LocalConfig_init_zero;
+    TEST_ASSERT_EQUAL(LoadFileResult::LOAD_SUCCESS, nodeDB->loadProto(configFileName, meshtastic_LocalConfig_size,
+                                                                      sizeof(reloaded), &meshtastic_LocalConfig_msg, &reloaded));
+    TEST_ASSERT_EQUAL(before, reloaded.display.screen_on_secs);
+    testAdmin->drainReply();
+}
+#endif
 
 // Handler-level rejection is invisible to a want_response client on its own: with no reply queued,
 // handleReceivedProtobuf() falls through to its generic "ACK" and answers Routing_Error_NONE, so the
@@ -2537,6 +2766,21 @@ void setup()
     initializeTestEnvironment();
 
     UNITY_BEGIN();
+
+#if HAS_SCREEN
+    RUN_TEST(test_storeUIConfig_updatesReadbackAndPersists);
+#if defined(ARCH_PORTDUINO)
+    RUN_TEST(test_storeUIConfig_failedWriteNaksAndPreservesReadback);
+#endif
+#endif
+    RUN_TEST(test_setDisplayConfig_persistsAcrossReload);
+    RUN_TEST(test_customSettingsBridges_persistAcrossReload);
+    RUN_TEST(test_settingsFailureNotification_coalescesUntilMainLoop);
+    RUN_TEST(test_saveProto_encodingFailurePreservesCommittedSettings);
+    RUN_TEST(test_safeFile_rejectsLengthMismatchDespiteMatchingXor);
+#if defined(ARCH_PORTDUINO)
+    RUN_TEST(test_setDisplayConfig_failedWriteNaksWithoutReboot);
+#endif
 
     // getRegion()
     RUN_TEST(test_handleSetOwner_persistsLicensedChannelSanitation);

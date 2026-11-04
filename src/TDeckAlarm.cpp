@@ -21,10 +21,10 @@
 // With no fix and no RTC there is no valid time, and an alarm that does not know what time it
 // is must stay silent rather than guess.
 // -----------------------------------------------------------------------------
-#include "main.h"
+#include "TDeckSettingsPreferences.h"
 #include "gps/RTC.h" // getValidTime + RTCQuality
+#include "main.h"
 #include "mesh/NodeDB.h"
-#include <Preferences.h>
 #include <time.h>
 
 // Waking the screen. Declared in the UI layer (TFTView_320x240.cpp); the UI poll timer
@@ -66,7 +66,7 @@ static void load()
     if (s_loaded)
         return;
     s_loaded = true;
-    Preferences p;
+    TDeckSettingsPreferences p;
     if (p.begin("tdeckalarm", true)) {
         s_hour = (int)p.getUChar("h", 7);
         s_min = (int)p.getUChar("m", 0);
@@ -127,7 +127,7 @@ extern "C" void tdeck_alarm_service(void)
     if (s_pendingFiredSave && !s_pendingSave) {
         // Record "rang today" on its own, without rewriting the whole setting.
         s_pendingFiredSave = false;
-        Preferences p;
+        TDeckSettingsPreferences p;
         if (p.begin("tdeckalarm", false)) {
             p.putShort("fired", (int16_t)s_firedYday);
             p.end();
@@ -136,7 +136,7 @@ extern "C" void tdeck_alarm_service(void)
     if (s_pendingSave) {
         s_pendingSave = false;
         s_pendingFiredSave = false;
-        Preferences p;
+        TDeckSettingsPreferences p;
         if (p.begin("tdeckalarm", false)) {
             p.putUChar("h", (uint8_t)s_hour);
             p.putUChar("m", (uint8_t)s_min);

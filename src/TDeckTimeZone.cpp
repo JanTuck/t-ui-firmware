@@ -14,6 +14,7 @@
 // UTC. The strings below are POSIX TZ rules including the daylight-saving
 // changeover dates, so the clock follows DST by itself.
 // -----------------------------------------------------------------------------
+#include "TDeckSettingsPersistence.h"
 #include "configuration.h"
 #include "mesh/NodeDB.h"
 #include <stdlib.h>
@@ -71,6 +72,6 @@ extern "C" void tdeck_tz_service(void)
     setenv("TZ", config.device.tzdef, 1);
     tzset(); // localtime() is correct from here on, everywhere
     if (nodeDB)
-        nodeDB->saveToDisk(SEGMENT_CONFIG);
+        tdeck_save_settings(SEGMENT_CONFIG);
     LOG_INFO("T-Deck time zone set to %s", config.device.tzdef);
 }

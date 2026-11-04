@@ -51,6 +51,39 @@ trackball_start = source.index("{", source.index("void TFTView_320x240::updateTr
 trackball = source[trackball_start:source.index("\n}", trackball_start)]
 trackball = trackball.replace("tdeck_trackball_nav_enabled()", "fixtureCursor").replace("tdeck_trackball_speed()", "1").replace("tdeck_trackball_style()", "0")
 (out / "trackball.inc").write_text(trackball)
+for name, signature in (("files-build", "void TFTView_320x240::openFiles(void)"),
+                        ("files-actions", "void TFTView_320x240::filesUpdateActionBar(void)"),
+                        ("files-newfolder", "void TFTView_320x240::filesNewFolderPrompt(void)"),
+                        ("files-closefolder", "void TFTView_320x240::closeNewFolder(void)"),
+                        ("files-back", "void TFTView_320x240::handleBackGesture(void)"),
+                        ("files-notice", "void TFTView_320x240::notifyClientNotification(const char *message)"),
+                        ("files-message", "void TFTView_320x240::messageAlert(const char *alert, bool show)"),
+                        ("files-name-fit", "bool filesNameFits("), ("files-empty", "void filesEmptyLabel("), ("files-format", "void fmtBytes("), ("files-row", "void filesStyleRow(")):
+    if name == "files-name-fit" and signature not in source:
+        (out / (name + ".inc")).write_text('bool filesNameFits(const char *, size_t, bool) { return true; }')
+        continue
+    if name == "files-empty" and signature not in source:
+        (out / (name + ".inc")).write_text('void filesEmptyLabel(lv_obj_t *list, const char *text) { lv_list_add_text(list, text); }')
+        continue
+    if name == "files-notice" and signature not in source:
+        (out / (name + ".inc")).write_text('void notifyClientNotification(const char *) {}')
+        continue
+    start = source.index(signature)
+    end = source.index("\n}", start) + 2
+    fragment = source[start:end].replace("TFTView_320x240::", "")
+    (out / (name + ".inc")).write_text(fragment)
+start = source.index("    if (filesVol == VOL_ROOT)", source.index("void TFTView_320x240::filesRefresh"))
+end = source.index("        return;", start) + len("        return;\n    }")
+(out / "files-root.inc").write_text(source[start:end])
+start = source.index("    auto entry_cb =", source.index("void TFTView_320x240::filesRefresh"))
+end = source.index("    int count = 0;", start)
+(out / "files-entries.inc").write_text(source[start:end])
+start = source.index("        auto trash_cb =", source.index("void TFTView_320x240::filesRefresh"))
+end = source.index("        int count = 0;", start)
+(out / "files-trash-select.inc").write_text(source[start:end])
+start = source.index("    bool onSd = (filesVol == VOL_SD);", source.index("// ---------- browsing a volume"))
+end = source.index("    // entry tap:", start)
+(out / "files-capacity.inc").write_text(source[start:end])
 flags = ["-O2", "-g", "-ffunction-sections", "-fdata-sections", "-DLV_CONF_INCLUDE_SIMPLE",
          "-DRAM_SIZE=2048", "-DUSE_X11=0", "-DLV_USE_LIBINPUT=0"]
 flags += [f"-I{p}" for p in [out, lv, lv.parent, ui / "include", ui / "generated/ui_320x240"]]

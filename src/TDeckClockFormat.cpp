@@ -16,6 +16,7 @@
 // setter therefore records intent only; tdeck_clock_service(), called from loop(),
 // does the write on the safe thread.
 // -----------------------------------------------------------------------------
+#include "TDeckSettingsPersistence.h"
 #include "main.h"
 #include "mesh/NodeDB.h" // the global `config` + nodeDB->saveToDisk
 
@@ -42,5 +43,5 @@ extern "C" void tdeck_clock_service(void)
         return;
     s_clockPending = false;
     config.display.use_12h_clock = s_clockWant12h;
-    nodeDB->saveToDisk(SEGMENT_CONFIG); // persists without a reboot
+    tdeck_save_settings(SEGMENT_CONFIG); // persists without a reboot
 }

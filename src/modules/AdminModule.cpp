@@ -110,6 +110,7 @@ bool AdminModule::handleReceivedProtobuf(const meshtastic_MeshPacket &mp, meshta
     // if handled == false, then let others look at this message also if they want
     bool handled = false;
     assert(r);
+    saveFailed = false;
 
 #ifdef MESHTASTIC_ENCRYPTED_STORAGE
     // While storage is locked, drop every admin payload - both local and
@@ -472,7 +473,9 @@ bool AdminModule::handleReceivedProtobuf(const meshtastic_MeshPacket &mp, meshta
     }
     case meshtastic_AdminMessage_store_ui_config_tag: {
         LOG_INFO("Storing device-ui config");
-        handleStoreDeviceUIConfig(r->store_ui_config);
+        if (!handleStoreDeviceUIConfig(r->store_ui_config)) {
+            myReply = allocErrorResponse(meshtastic_Routing_Error_GOT_NAK, &mp);
+        }
         handled = true;
         break;
     }
@@ -483,7 +486,6 @@ bool AdminModule::handleReceivedProtobuf(const meshtastic_MeshPacket &mp, meshta
         break;
     }
     case meshtastic_AdminMessage_commit_edit_settings_tag: {
-        disableBluetooth();
         LOG_INFO("Commit settings edit transaction");
         hasOpenEditTransaction = false;
         deferredEditSegments = 0;
@@ -708,7 +710,7 @@ bool AdminModule::handleReceivedProtobuf(const meshtastic_MeshPacket &mp, meshta
 
     // If asked for a response and it is not yet set, generate an 'ACK' response
     if (mp.decoded.want_response && !myReply) {
-        myReply = allocErrorResponse(meshtastic_Routing_Error_NONE, &mp);
+        myReply = allocErrorResponse(saveFailed ? meshtastic_Routing_Error_GOT_NAK : meshtastic_Routing_Error_NONE, &mp);
     }
     if (mp.pki_encrypted && myReply) {
         myReply->pki_encrypted = true;
@@ -1240,10 +1242,6 @@ void AdminModule::handleSetConfig(const meshtastic_Config &c, bool fromOthers)
         // NOOP! This is handled by handleStoreDeviceUIConfig
         break;
     }
-    if (requiresReboot && !hasOpenEditTransaction) {
-        disableBluetooth();
-    } // end of switch case which_payload_variant
-
     saveChanges(changes, requiresReboot);
     if (loraPresetWarnPending)
         warnOnLoraPresetChange(pendingOldLora, pendingNewLora);
@@ -1255,15 +1253,6 @@ void AdminModule::handleSetConfig(const meshtastic_Config &c, bool fromOthers)
 bool AdminModule::handleSetModuleConfig(const meshtastic_ModuleConfig &c)
 {
     bool shouldReboot = true;
-    // Skip the variants that must not lose BLE here: MQTT and Serial validate first and disable it
-    // themselves, and statusmessage/mesh_beacon never reboot, so a disable would strand BLE until the
-    // next PowerFSM transition. Everything else reboots, so take BLE down before the phone interferes.
-    if (!hasOpenEditTransaction &&
-        !IS_ONE_OF(c.which_payload_variant, meshtastic_ModuleConfig_mqtt_tag, meshtastic_ModuleConfig_serial_tag,
-                   meshtastic_ModuleConfig_statusmessage_tag, meshtastic_ModuleConfig_mesh_beacon_tag)) {
-        disableBluetooth();
-    }
-
     switch (c.which_payload_variant) {
     case meshtastic_ModuleConfig_mqtt_tag:
 #if MESHTASTIC_EXCLUDE_MQTT
@@ -1274,10 +1263,6 @@ bool AdminModule::handleSetModuleConfig(const meshtastic_ModuleConfig &c)
         if (!MQTT::isValidConfig(c.payload_variant.mqtt)) {
             return false;
         }
-        // Disable Bluetooth to prevent interference during MQTT configuration, except inside an edit
-        // transaction: saveChanges() defers the reboot there, so nothing would bring BLE back.
-        if (!hasOpenEditTransaction)
-            disableBluetooth();
         moduleConfig.has_mqtt = true;
         {
             char prevPass[sizeof(moduleConfig.mqtt.password)];
@@ -1289,15 +1274,10 @@ bool AdminModule::handleSetModuleConfig(const meshtastic_ModuleConfig &c)
         break;
     case meshtastic_ModuleConfig_serial_tag:
         LOG_INFO("Set module config: Serial");
-        // No architecture guard: the check and the store below must agree on every platform.
-        // disableBluetooth() self-guards on HAS_BLUETOOTH, so it is empty where there is no radio.
         if (!serialConfigIsValid(c.payload_variant.serial)) {
             LOG_ERROR("Invalid serial config");
             return false;
         }
-        // Same transaction caveat as MQTT above: a deferred reboot would leave BLE down with no restore.
-        if (!hasOpenEditTransaction)
-            disableBluetooth(); // Disable Bluetooth to prevent interference during Serial configuration
         moduleConfig.has_serial = true;
         moduleConfig.serial = c.payload_variant.serial;
         break;
@@ -1905,22 +1885,33 @@ void AdminModule::saveChanges(int saveWhat, bool shouldReboot)
 #endif
     if (!hasOpenEditTransaction) {
         LOG_INFO("Save changes to disk");
-        service->reloadConfig(saveWhat); // Calls saveToDisk among other things
+        if (!service->reloadConfig(saveWhat)) {
+            saveFailed = true;
+            sendWarning("Settings were not saved. Check internal storage.");
+            return;
+        }
     } else {
         LOG_INFO("Delay disk save until open transaction commits");
         editTransactionActivityMs = millis(); // still in use, so not the abandoned kind we time out
         deferredEditSegments |= saveWhat;
     }
     if (shouldReboot && !hasOpenEditTransaction) {
+        disableBluetooth();
         reboot(DEFAULT_REBOOT_SECONDS);
     }
 }
 
-void AdminModule::handleStoreDeviceUIConfig(const meshtastic_DeviceUIConfig &uicfg)
+bool AdminModule::handleStoreDeviceUIConfig(const meshtastic_DeviceUIConfig &uicfg)
 {
 #if HAS_SCREEN
-    nodeDB->saveProto("/prefs/uiconfig.proto", meshtastic_DeviceUIConfig_size, &meshtastic_DeviceUIConfig_msg, &uicfg);
+    if (nodeDB->saveProto(uiconfigFileName, meshtastic_DeviceUIConfig_size, &meshtastic_DeviceUIConfig_msg, &uicfg)) {
+        uiconfig = uicfg;
+        return true;
+    }
+    LOG_ERROR("Failed to save device-ui config");
+    sendWarning("Settings were not saved. Check internal storage.");
 #endif
+    return false;
 }
 
 // Unset, or set to nothing but whitespace - the two ways a client can leave a name field empty.

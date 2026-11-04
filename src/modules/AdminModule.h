@@ -40,6 +40,7 @@ class AdminModule : public ProtobufModule<meshtastic_AdminMessage>, public Obser
 
   private:
     bool hasOpenEditTransaction = false;
+    bool saveFailed = false;
     // Each deferred write restarts the clock, so this bounds the gap between writes, not the length
     // of the edit; a bulk import sends them milliseconds apart.
     static constexpr uint32_t EDIT_TRANSACTION_IDLE_MS = 60 * 1000;
@@ -130,7 +131,7 @@ class AdminModule : public ProtobufModule<meshtastic_AdminMessage>, public Obser
     NOINLINE void handleViaModuleApi(const meshtastic_MeshPacket &mp, meshtastic_AdminMessage *r);
     NOINLINE void handleViaObservers(const meshtastic_AdminMessage *r);
 
-    void handleStoreDeviceUIConfig(const meshtastic_DeviceUIConfig &uicfg);
+    bool handleStoreDeviceUIConfig(const meshtastic_DeviceUIConfig &uicfg);
     void handleSendInputEvent(const meshtastic_AdminMessage_InputEvent &inputEvent);
     void reboot(int32_t seconds);
 

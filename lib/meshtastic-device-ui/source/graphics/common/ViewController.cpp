@@ -910,6 +910,11 @@ bool ViewController::handleFromRadio(const meshtastic_FromRadio &from)
                 view->notifyResync(false);
                 break;
             }
+            case meshtastic_FromRadio_clientNotification_tag: {
+                if (from.clientNotification.level >= meshtastic_LogRecord_Level_WARNING && from.clientNotification.message[0])
+                    view->notifyClientNotification(from.clientNotification.message);
+                break;
+            }
             case meshtastic_FromRadio_queueStatus_tag: {
                 const meshtastic_QueueStatus &q = from.queueStatus;
                 if (q.free == 0) {

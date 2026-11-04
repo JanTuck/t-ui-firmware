@@ -17,15 +17,15 @@
 // when brushed is a surprise, not an upgrade. Opt in from Settings. Flag lives in
 // NVS — see TDeckLockControl.cpp and TDeckKeyboardLight.cpp for the same pattern.
 // -----------------------------------------------------------------------------
+#include "TDeckSettingsPreferences.h"
 #include "configuration.h"
-#include <Preferences.h>
 
 static int s_tbNav = -1; // -1 = not read from NVS yet; 0 = off; 1 = on
 
 extern "C" bool tdeck_trackball_nav_enabled(void)
 {
     if (s_tbNav < 0) {
-        Preferences p;
+        TDeckSettingsPreferences p;
         if (p.begin("tdecktb", true)) { // read-only
             s_tbNav = p.getBool("nav", false) ? 1 : 0;
             p.end();
@@ -39,7 +39,7 @@ extern "C" bool tdeck_trackball_nav_enabled(void)
 extern "C" void tdeck_trackball_nav_set_enabled(bool en)
 {
     s_tbNav = en ? 1 : 0;
-    Preferences p;
+    TDeckSettingsPreferences p;
     if (p.begin("tdecktb", false)) { // read-write
         p.putBool("nav", en);
         p.end();
@@ -64,7 +64,7 @@ static int s_tbClick = -1;
 extern "C" bool tdeck_trackball_click_enabled(void)
 {
     if (s_tbClick < 0) {
-        Preferences p;
+        TDeckSettingsPreferences p;
         if (p.begin("tdecktb", true)) {
             s_tbClick = p.getBool("click", false) ? 1 : 0;
             p.end();
@@ -78,7 +78,7 @@ extern "C" bool tdeck_trackball_click_enabled(void)
 extern "C" void tdeck_trackball_click_set_enabled(bool en)
 {
     s_tbClick = en ? 1 : 0;
-    Preferences p;
+    TDeckSettingsPreferences p;
     if (p.begin("tdecktb", false)) {
         p.putBool("click", en);
         p.end();
@@ -98,7 +98,7 @@ static int s_tbSpeed = -1;
 extern "C" int tdeck_trackball_speed(void)
 {
     if (s_tbSpeed < 0) {
-        Preferences p;
+        TDeckSettingsPreferences p;
         if (p.begin("tdecktb", true)) {
             s_tbSpeed = (int)p.getUChar("spd", 2);
             p.end();
@@ -116,7 +116,7 @@ extern "C" void tdeck_trackball_set_speed(int v)
     if (v < 0 || v > 4)
         return;
     s_tbSpeed = v;
-    Preferences p;
+    TDeckSettingsPreferences p;
     if (p.begin("tdecktb", false)) {
         p.putUChar("spd", (uint8_t)v);
         p.end();
@@ -130,7 +130,7 @@ static int s_tbStyle = -1;
 extern "C" int tdeck_trackball_style(void)
 {
     if (s_tbStyle < 0) {
-        Preferences p;
+        TDeckSettingsPreferences p;
         if (p.begin("tdecktb", true)) {
             s_tbStyle = (int)p.getUChar("sty", 0);
             p.end();
@@ -148,7 +148,7 @@ extern "C" void tdeck_trackball_set_style(int v)
     if (v < 0 || v > 1)
         return;
     s_tbStyle = v;
-    Preferences p;
+    TDeckSettingsPreferences p;
     if (p.begin("tdecktb", false)) {
         p.putUChar("sty", (uint8_t)v);
         p.end();

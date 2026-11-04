@@ -36,6 +36,30 @@ Mesh and base lock screenshots check generated widget construction, not firmware
 lock behavior. The simulator deliberately does not claim those controller paths
 are tested.
 
+Files uses the actual storage picker, byte formatter, row styles, action bar,
+folder-name dialog, directory/trash selection callbacks and Back handler.
+Pointer checks cover selection changes, folder descent, long-press selection,
+scrolling, disabled unsafe names, copy/paste/cancel, restore/delete confirmation,
+and returning Home. Notes opening and filesystem actions use explicit spies in
+this visual harness. Storage, no-SD, full/unavailable internal storage, focus,
+pressed, selected and dialog states have matching old/new captures. Error alerts
+are checked on the active Files screen; the old screen failed to show that alert.
+100 Files list rebuilds and 100 error notices retain no heap; idle Files causes no display flushes. Long error text scrolls by touch while OK remains visible.
+
+Run actual extracted storage functions against failure-injecting filesystem handles:
+
+```sh
+python3 bin/ui-simulator/test_files_storage.py
+python3 bin/ui-simulator/test_settings_preferences.py
+```
+
+These cover partial/failed/growing copies, fresh capacity checks, safe filename
+bounds, recursive deletion failures, trash-name/metadata collisions, and failed
+metadata writes or renames. NVS tests cover checked write results with a Preferences
+substitute; they do not emulate physical flash. Copy retains its existing temporary
+4 KiB PSRAM buffer. SD I/O remains synchronous, so its hardware latency is not
+measured by these host tests.
+
 Baseline launcher comparison:
 
 ```sh
@@ -49,12 +73,14 @@ python3 bin/ui-simulator/grids.py .pio/ui-simulator
 python3 bin/ui-simulator/gallery.py .pio/ui-simulator
 ```
 
-Open `.pio/ui-simulator/comparison.html` for 33 matching old/new states and a grid toggle.
+Open `.pio/ui-simulator/comparison.html` for 47 matching old/new states and a grid toggle.
 The gallery labels its coverage limits; it is not a complete device walkthrough.
 
 On this 64-bit host, the identical fixture used 43,592 bytes of LVGL heap before
 and 38,792 after (4,800 bytes / 11% less). These are component heap measurements,
-not the ESP32's total memory or hardware CPU measurements. The new style removes
+not the ESP32's total memory or hardware CPU measurements. The Files screen fixture uses
+8,328 bytes versus 8,384 before; shared row styles avoid repeating their property
+allocations for every directory entry. The new style removes
 launcher gradients, shadow drawing and per-tile style duplication; it adds no
 images, fonts, framebuffers or animation timers to firmware.
 
@@ -68,3 +94,21 @@ The firmware's old focus-navigation mode remains disabled by its existing crash
 guard. These focus tests validate LVGL widgets, not a repaired physical encoder
 mode. Normal trackball pointer operation is preserved. Do not remove that guard
 without separate input-group ownership and hardware validation.
+
+Settings persistence has a separate headless firmware target (Linux, or the repository's
+native-test Docker image):
+
+```sh
+./bin/run-tests.sh -e native-settings-test -f test_admin_radio
+python3 bin/ui-simulator/test_settings_preferences.py
+```
+
+The first command runs the real AdminModule, MeshService, NodeDB, SafeFile, and sound,
+clock, units, and timezone bridges against an isolated host filesystem. It checks
+save/readback, rejected writes, preservation of the last committed settings, and error
+notifications. Its dedicated environment excludes ESP32-only UI/bridge sources and the
+standalone chess test executables; only the unrelated raw USB remote-control hook is a
+no-op. A successful filtered run reports `RESULT: FILTERED`, not a full-suite green.
+The second command tests the real checked Preferences wrapper with failed and short NVS
+writes injected through a fake ESP32 Preferences API. Neither test emulates physical
+flash faults, NVS wear, SPI contention, or the device's available storage.

@@ -16,14 +16,14 @@
 // what froze the device when the time-zone dropdown first tried it. NVS has its own lock
 // and is task-safe, so the Settings handler can write this directly.
 // -----------------------------------------------------------------------------
-#include <Preferences.h>
+#include "TDeckSettingsPreferences.h"
 
 static int32_t s_graceSecs = -1; // -1 = not read from NVS yet
 
 extern "C" uint32_t tdeck_lock_grace_secs(void)
 {
     if (s_graceSecs < 0) {
-        Preferences p;
+        TDeckSettingsPreferences p;
         if (p.begin("tdecklock", true)) { // read-only; shares the namespace with the on/off flag
             s_graceSecs = (int32_t)p.getUInt("grace", 0);
             p.end();
@@ -37,7 +37,7 @@ extern "C" uint32_t tdeck_lock_grace_secs(void)
 extern "C" void tdeck_lock_set_grace_secs(uint32_t secs)
 {
     s_graceSecs = (int32_t)secs;
-    Preferences p;
+    TDeckSettingsPreferences p;
     if (p.begin("tdecklock", false)) {
         p.putUInt("grace", secs);
         p.end();

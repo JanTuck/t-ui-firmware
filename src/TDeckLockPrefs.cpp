@@ -20,8 +20,8 @@
 // filesystem write from the UI (LVGL) task is what froze this device when the time-zone
 // dropdown first tried it. NVS has its own lock and is safe to write from a handler.
 // -----------------------------------------------------------------------------
-#include <Arduino.h>   // millis()
-#include <Preferences.h>
+#include "TDeckSettingsPreferences.h"
+#include <Arduino.h> // millis()
 
 // Lock modes. Deliberately ordered least-secure to most, so the Settings button can
 // just cycle upward and wrap.
@@ -42,7 +42,7 @@ static void loadAll(void)
 {
     if (s_mode >= 0)
         return;
-    Preferences p;
+    TDeckSettingsPreferences p;
     if (!p.begin("tdecklock", true)) { // namespace not created yet: first-run defaults
         s_mode = 2;                    // PIN, matching the old default of "lock on"
         s_widget = 3;                  // Sun: the one that earns its place on a hunting radio
@@ -76,7 +76,7 @@ extern "C" void tdeck_lock_set_mode(int mode)
         return;
     loadAll();
     s_mode = mode;
-    Preferences p;
+    TDeckSettingsPreferences p;
     if (p.begin("tdecklock", false)) {
         p.putUChar("mode", (uint8_t)mode);
         // Keep the legacy flag honest for any code still reading it.
@@ -97,7 +97,7 @@ extern "C" void tdeck_lock_set_widget(int w)
         return;
     loadAll();
     s_widget = w;
-    Preferences p;
+    TDeckSettingsPreferences p;
     if (p.begin("tdecklock", false)) {
         p.putUChar("widget", (uint8_t)w);
         p.end();
@@ -114,7 +114,7 @@ extern "C" void tdeck_lock_set_wx_minutes(uint32_t mins)
 {
     loadAll();
     s_wxMins = (int)mins;
-    Preferences p;
+    TDeckSettingsPreferences p;
     if (p.begin("tdecklock", false)) {
         p.putUShort("wxmins", (uint16_t)mins);
         p.end();
@@ -139,7 +139,7 @@ extern "C" bool tdeck_lastpos_get(int32_t *lat, int32_t *lon)
 {
     if (!s_lastLoaded) {
         s_lastLoaded = true;
-        Preferences p;
+        TDeckSettingsPreferences p;
         if (p.begin("tdecklock", true)) {
             s_lastLat = (int32_t)p.getLong("plat", 0);
             s_lastLon = (int32_t)p.getLong("plon", 0);
@@ -170,7 +170,7 @@ extern "C" void tdeck_lastpos_set(int32_t lat, int32_t lon)
     if (s_lastSaveMs && (now - s_lastSaveMs) < 60000)
         return; // in RAM immediately; to flash at most once a minute
     s_lastSaveMs = now ? now : 1;
-    Preferences p;
+    TDeckSettingsPreferences p;
     if (p.begin("tdecklock", false)) {
         p.putLong("plat", lat);
         p.putLong("plon", lon);
@@ -195,7 +195,7 @@ static void loadStay(void)
 {
     if (s_stayOn >= 0)
         return;
-    Preferences p;
+    TDeckSettingsPreferences p;
     if (!p.begin("tdecklock", true)) {
         s_stayOn = 0;
         s_dimPct = 15;
@@ -222,7 +222,7 @@ extern "C" void tdeck_lock_set_stayon_mins(int m)
 {
     loadStay();
     s_stayOn = m;
-    Preferences p;
+    TDeckSettingsPreferences p;
     if (p.begin("tdecklock", false)) {
         p.putUChar("stay", (uint8_t)m);
         p.end();
@@ -241,7 +241,7 @@ extern "C" void tdeck_lock_set_dim_pct(int pct)
         return;
     loadStay();
     s_dimPct = pct;
-    Preferences p;
+    TDeckSettingsPreferences p;
     if (p.begin("tdecklock", false)) {
         p.putUChar("dim", (uint8_t)pct);
         p.end();
@@ -260,7 +260,7 @@ extern "C" void tdeck_lock_set_unlock_key(int k)
         return;
     loadStay();
     s_unlockKey = k;
-    Preferences p;
+    TDeckSettingsPreferences p;
     if (p.begin("tdecklock", false)) {
         p.putUChar("ukey", (uint8_t)k);
         p.end();

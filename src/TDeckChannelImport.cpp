@@ -18,6 +18,7 @@
 // the UI reads the file and hands the text over here; the service below decodes and
 // applies it from loop(). Neither one reaches into the other's territory.
 // -----------------------------------------------------------------------------
+#include "TDeckSettingsPersistence.h"
 #include "configuration.h"
 #include "mesh/Channels.h"
 #include "mesh/NodeDB.h"
@@ -197,7 +198,7 @@ extern "C" void tdeck_channel_import_service(void)
 
     channels.onConfigChanged();
     if (nodeDB)
-        nodeDB->saveToDisk(SEGMENT_CHANNELS | SEGMENT_CONFIG);
+        tdeck_save_settings(SEGMENT_CHANNELS | SEGMENT_CONFIG);
 
     LOG_INFO("T-Deck: imported %d channel(s) from the SD card", s_applied);
     s_status = TDECK_CH_OK;

@@ -93,6 +93,7 @@ class TFTView_320x240 : public MeshtasticView
     void notifyResync(bool show) override;
     void notifyReboot(bool show) override;
     void notifyShutdown(void) override;
+    void notifyClientNotification(const char *message) override;
     void blankScreen(bool enable) override;
     void screenSaving(bool enabled) override;
     bool isScreenLocked(void) override;
@@ -800,7 +801,6 @@ class TFTView_320x240 : public MeshtasticView
     char filesPath[192] = "/";               // current directory within filesVol
     char filesSelName[64] = {};              // selected file's name ("" = none)
     bool filesSelIsDir = false;              // the selection is a folder, not a file
-    bool filesSuppressClick = false;         // long-press selected a row; swallow the release-click
     bool filesCopyArmed = false;             // a source is armed, waiting for Paste here
     char copySrcPath[256] = {};              // armed source (full path within its volume)
     FilesVol copySrcVol = VOL_ROOT;
