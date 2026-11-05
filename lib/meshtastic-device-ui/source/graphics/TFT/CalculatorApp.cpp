@@ -1,10 +1,10 @@
 // -----------------------------------------------------------------------------
-// T-UI Calculator — a self-contained basic calculator for the launcher.
+// T-UI Calculator - a self-contained basic calculator for the launcher.
 //
 // iOS-style layout: readout on top, 4x5 button grid (C ± % ÷ / 789× / 456− /
 // 123+ / 0 . ⌫ =). Immediate-execution logic (2 + 3 × 4 = 20, like a pocket
 // calculator). The physical keyboard works too: digits, . + - * / =, Enter,
-// backspace, and C to clear — via the same invisible key-catcher trick Snake
+// backspace, and C to clear - via the same invisible key-catcher trick Snake
 // uses (with the periodic refocus guard, since the trackball encoder can move
 // LVGL's focus elsewhere). Back button or trackball double-click exits.
 // -----------------------------------------------------------------------------
@@ -268,14 +268,14 @@ void buildScreen(void)
 {
     screen = lv_obj_create(NULL);
     tui_statusbar_reserve(screen); // note item A4: the persistent top bar
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
 
     // Back (top-left) returns to whatever screen opened us (the launcher)
     lv_obj_t *back = lv_btn_create(screen);
     lv_obj_set_size(back, 56, 24);
     lv_obj_set_pos(back, 4, 4);
-    lv_obj_set_style_bg_color(back, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(back, lv_color_hex(0x30415a), LV_PART_MAIN);
     lv_obj_set_style_radius(back, 8, LV_PART_MAIN);
     lv_obj_add_event_cb(
         back,
@@ -297,7 +297,7 @@ void buildScreen(void)
     lv_obj_set_pos(readout, 62, 24);
     lv_label_set_long_mode(readout, LV_LABEL_LONG_CLIP);
 
-    // the grid — iOS colors: gray function row, orange operators, dark digits
+    // the grid - iOS colors: gray function row, orange operators, dark digits
     const uint32_t kFn = 0xa5a5a5, kOp = 0xff9f0a, kNum = 0x333333;
     gridBtn("C", 'C', 0, 0, kFn, 0x000000);
     gridBtn("+/-", 'S', 1, 0, kFn, 0x000000);

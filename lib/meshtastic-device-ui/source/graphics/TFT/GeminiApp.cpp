@@ -1,5 +1,5 @@
 // -----------------------------------------------------------------------------
-// Gemini for the colour T-Deck — the screen. The network lives in src/TDeckGemini.cpp.
+// Gemini for the colour T-Deck - the screen. The network lives in src/TDeckGemini.cpp.
 //
 // Jake: "Could you make a Gemini app for that?"
 //
@@ -7,14 +7,14 @@
 // deliberately so: this is a handheld with a thumb keyboard, and every control added is another
 // thing to hit by accident while typing.
 //
-// ⚠️ ASKING DROPS BLUETOOTH until the next reboot — one antenna, and starting wi-fi tears BT
+// ⚠️ ASKING DROPS BLUETOOTH until the next reboot - one antenna, and starting wi-fi tears BT
 // down. Jake accepted that ("I won't Bluetooth much to my tdeck") but the screen says so anyway,
 // because losing a phone link with no explanation is the kind of thing that gets blamed on a
 // bug three weeks later.
 //
 // THREADING: nothing here touches the network. tdeckgemini::ask() records the question and the
 // main loop does the work; this polls the state and repaints. The UI task must never block on a
-// socket — the rule the whole launcher is built on.
+// socket - the rule the whole launcher is built on.
 // -----------------------------------------------------------------------------
 #include "graphics/view/TFT/TuiStatusBar.h"
 #include "lvgl.h"
@@ -23,7 +23,7 @@
 
 extern "C" void gemini_open(void);
 
-// src/TDeckGemini.cpp — the linker joins these across the src/ and lib/ boundary, the same trick
+// src/TDeckGemini.cpp - the linker joins these across the src/ and lib/ boundary, the same trick
 // the mesh kill-switch and the buzzer helpers use.
 namespace tdeckgemini
 {
@@ -45,7 +45,7 @@ lv_obj_t *askArea = nullptr;
 // wiped by the first keystroke of the next one.
 bool s_sentText = false;
 lv_obj_t *helpBox = nullptr; // "how do I get a key" overlay, behind the ? in the corner
-size_t s_sentLen = 0; // how long the sent question was, so the next keystroke can drop exactly it
+size_t s_sentLen = 0;        // how long the sent question was, so the next keystroke can drop exactly it
 lv_obj_t *answerLbl = nullptr;
 lv_obj_t *statusLbl = nullptr;
 lv_obj_t *askBtnLbl = nullptr;
@@ -192,7 +192,7 @@ extern "C" void gemini_open(void)
 {
     if (!screen) {
         screen = lv_obj_create(NULL);
-        lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
         lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
         tui_statusbar_reserve(screen); // the shared top bar, which also makes room for itself
 
@@ -201,7 +201,7 @@ extern "C" void gemini_open(void)
         askArea = lv_textarea_create(screen);
         lv_obj_set_pos(askArea, 4, 28);
         lv_obj_set_size(askArea, 312, 52);
-        lv_obj_set_style_bg_color(askArea, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(askArea, lv_color_hex(0x1b283c), LV_PART_MAIN);
         lv_obj_set_style_text_color(askArea, lv_color_hex(0xffffff), LV_PART_MAIN);
         lv_obj_set_style_border_width(askArea, 0, LV_PART_MAIN);
         lv_textarea_set_max_length(askArea, 200);
@@ -222,7 +222,8 @@ extern "C" void gemini_open(void)
         if (lv_group_get_default())
             lv_group_add_obj(lv_group_get_default(), askArea);
         // Enter asks, rather than inserting a newline nobody wants in a one-line question.
-        lv_obj_add_event_cb(askArea, [](lv_event_t *e) { doAsk(e); }, LV_EVENT_READY, NULL);
+        lv_obj_add_event_cb(
+            askArea, [](lv_event_t *e) { doAsk(e); }, LV_EVENT_READY, NULL);
 
         // The first keystroke after sending throws the old question away rather than appending to
         // it. Checked on VALUE_CHANGED because that is the only event that fires for a character
@@ -261,12 +262,15 @@ extern "C" void gemini_open(void)
         // button, because two apps explaining a credential differently is one thing to learn
         // twice.
         {
-            lv_obj_t *hb = makeButton(screen, "?", 0x2c2c2e, [](lv_event_t *) {
-                if (helpBox) {
-                    lv_obj_clear_flag(helpBox, LV_OBJ_FLAG_HIDDEN);
-                    lv_obj_move_foreground(helpBox);
-                }
-            }, nullptr);
+            lv_obj_t *hb = makeButton(
+                screen, "?", 0x2c2c2e,
+                [](lv_event_t *) {
+                    if (helpBox) {
+                        lv_obj_clear_flag(helpBox, LV_OBJ_FLAG_HIDDEN);
+                        lv_obj_move_foreground(helpBox);
+                    }
+                },
+                nullptr);
             lv_obj_set_size(hb, 28, 28);
             lv_obj_set_pos(hb, 288, 0);
         }
@@ -274,7 +278,7 @@ extern "C" void gemini_open(void)
         helpBox = lv_obj_create(screen);
         lv_obj_set_pos(helpBox, 0, 0);
         lv_obj_set_size(helpBox, 320, 218);
-        lv_obj_set_style_bg_color(helpBox, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(helpBox, lv_color_hex(0x1b283c), LV_PART_MAIN);
         lv_obj_set_style_border_width(helpBox, 0, LV_PART_MAIN);
         lv_obj_add_flag(helpBox, LV_OBJ_FLAG_HIDDEN);
         {
@@ -285,8 +289,8 @@ extern "C" void gemini_open(void)
 
             lv_obj_t *b = lv_label_create(helpBox);
             lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-            lv_obj_set_width(b, 296);      // ⛔ WRAP NEEDS AN EXPLICIT WIDTH AND HEIGHT or it
-            lv_obj_set_height(b, 150);     //    draws straight over the button below it
+            lv_obj_set_width(b, 296);  // ⛔ WRAP NEEDS AN EXPLICIT WIDTH AND HEIGHT or it
+            lv_obj_set_height(b, 150); //    draws straight over the button below it
             lv_obj_set_pos(b, 4, 24);
             lv_label_set_text(b, "1. On a computer: aistudio.google.com\n"
                                  "2. Sign in, then \"Get API key\"\n"
@@ -301,10 +305,13 @@ extern "C" void gemini_open(void)
                                  "installer is safe to share.");
             lv_obj_set_style_text_color(b, lv_color_hex(0xc7c7cc), LV_PART_MAIN);
 
-            lv_obj_t *ok = makeButton(helpBox, "Close", 0x3a3a3c, [](lv_event_t *) {
-                if (helpBox)
-                    lv_obj_add_flag(helpBox, LV_OBJ_FLAG_HIDDEN);
-            }, nullptr);
+            lv_obj_t *ok = makeButton(
+                helpBox, "Close", 0x3a3a3c,
+                [](lv_event_t *) {
+                    if (helpBox)
+                        lv_obj_add_flag(helpBox, LV_OBJ_FLAG_HIDDEN);
+                },
+                nullptr);
             lv_obj_set_size(ok, 100, 30);
             lv_obj_set_pos(ok, 108, 182);
         }
@@ -323,7 +330,7 @@ extern "C" void gemini_open(void)
         lv_obj_set_style_text_color(statusLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
         lv_label_set_text(statusLbl, "");
 
-        // The answer, scrollable — Gemini is told to be brief but "brief" still overflows 100px.
+        // The answer, scrollable - Gemini is told to be brief but "brief" still overflows 100px.
         lv_obj_t *box = lv_obj_create(screen);
         lv_obj_set_pos(box, 2, 142);
         lv_obj_set_size(box, 316, 96);

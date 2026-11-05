@@ -1,9 +1,9 @@
 // -----------------------------------------------------------------------------
-// T-UI Stopwatch & Timer — a self-contained clock app for the launcher.
+// T-UI Stopwatch & Timer - a self-contained clock app for the launcher.
 //
 // Two modes, chosen by the segmented control up top:
-//   • Stopwatch — counts UP from zero. Start/Stop and Reset.
-//   • Timer     — counts DOWN from a set duration (adjust with − / +, one minute
+//   • Stopwatch - counts UP from zero. Start/Stop and Reset.
+//   • Timer     - counts DOWN from a set duration (adjust with − / +, one minute
 //                 per tap). At zero the readout flashes red and shows "Time's up".
 // Timing is millis()-based so it stays accurate regardless of the UI refresh rate;
 // a short LVGL timer just repaints while running. Trackball double-click = Home
@@ -19,7 +19,7 @@ extern "C" void stopwatch_open(void);
 // Sound is produced by the firmware's buzzer helpers (buzz.cpp), which route
 // through the T-Deck's I2S speaker. This UI library can't include firmware src/
 // headers, so we forward-declare them and let the linker resolve them across the
-// boundary — same trick the mesh kill-switch bridge uses.
+// boundary - same trick the mesh kill-switch bridge uses.
 void playBeep();                          // short blip (~1/16 note)
 void playLongBeep();                      // clear 1-second tone
 extern "C" void tdeck_beep_gain(float g); // set audio loudness (0.2 default; timer cranks to ~1.0)
@@ -54,12 +54,15 @@ uint32_t startMs = 0;              // millis() reference when (re)started
 uint32_t accumMs = 0;              // elapsed frozen at the last Stop
 uint32_t timerSetMs = 5 * 60000UL; // configured countdown duration (default 5:00)
 bool timerDone = false;
-uint32_t lastBeepMs = 0;     // throttles the repeating "time's up" alarm beep
-uint32_t timerDoneAtMs = 0;  // when the alarm started, so it can auto-silence
+uint32_t lastBeepMs = 0;    // throttles the repeating "time's up" alarm beep
+uint32_t timerDoneAtMs = 0; // when the alarm started, so it can auto-silence
 
 const uint32_t kTimerMaxMs = 99 * 60000UL + 59000UL;
 
-uint32_t rawElapsed(void) { return running ? (accumMs + (millis() - startMs)) : accumMs; }
+uint32_t rawElapsed(void)
+{
+    return running ? (accumMs + (millis() - startMs)) : accumMs;
+}
 
 // what the big label should show, in ms
 uint32_t shownMs(void)
@@ -94,7 +97,10 @@ void paint(void)
     lv_label_set_text(timeLbl, buf);
 }
 
-void setReadoutColor(uint32_t c) { lv_obj_set_style_text_color(timeLbl, lv_color_hex(c), LV_PART_MAIN); }
+void setReadoutColor(uint32_t c)
+{
+    lv_obj_set_style_text_color(timeLbl, lv_color_hex(c), LV_PART_MAIN);
+}
 
 void showAdjust(bool show)
 {
@@ -291,19 +297,22 @@ void buildScreen(void)
 {
     screen = lv_obj_create(NULL);
     tui_statusbar_reserve(screen); // note item A4: the persistent top bar
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
 
     // mode selector (top): Stopwatch | Timer
     // Three modes across the top now, so 150 no longer fits: 6 + 100 + 4 + 100 + 4 + 100 + 6
     // is exactly the 320 available.
-    swModeBtn = makeButton(screen, "Watch", 0x0a84ff, [](lv_event_t *) { setMode(MODE_STOPWATCH); }, nullptr);
+    swModeBtn = makeButton(
+        screen, "Watch", 0x0a84ff, [](lv_event_t *) { setMode(MODE_STOPWATCH); }, nullptr);
     lv_obj_set_size(swModeBtn, 100, 40);
     lv_obj_align(swModeBtn, LV_ALIGN_TOP_LEFT, 6, 6);
-    tmModeBtn = makeButton(screen, "Timer", 0x2c2c2e, [](lv_event_t *) { setMode(MODE_TIMER); }, nullptr);
+    tmModeBtn = makeButton(
+        screen, "Timer", 0x2c2c2e, [](lv_event_t *) { setMode(MODE_TIMER); }, nullptr);
     lv_obj_set_size(tmModeBtn, 100, 40);
     lv_obj_align(tmModeBtn, LV_ALIGN_TOP_MID, 0, 6);
-    alModeBtn = makeButton(screen, "Alarm", 0x2c2c2e, [](lv_event_t *) { setMode(MODE_ALARM); }, nullptr);
+    alModeBtn = makeButton(
+        screen, "Alarm", 0x2c2c2e, [](lv_event_t *) { setMode(MODE_ALARM); }, nullptr);
     lv_obj_set_size(alModeBtn, 100, 40);
     lv_obj_align(alModeBtn, LV_ALIGN_TOP_RIGHT, -6, 6);
 
@@ -313,10 +322,12 @@ void buildScreen(void)
     lv_obj_set_style_text_font(timeLbl, &lv_font_montserrat_40, LV_PART_MAIN);
     lv_obj_align(timeLbl, LV_ALIGN_CENTER, 0, -18);
 
-    minusBtn = makeButton(screen, "-", 0x3a3a3c, [](lv_event_t *) { adjustTimer(-60000); }, nullptr);
+    minusBtn = makeButton(
+        screen, "-", 0x3a3a3c, [](lv_event_t *) { adjustTimer(-60000); }, nullptr);
     lv_obj_set_size(minusBtn, 48, 48);
     lv_obj_align(minusBtn, LV_ALIGN_LEFT_MID, 8, -18);
-    plusBtn = makeButton(screen, "+", 0x3a3a3c, [](lv_event_t *) { adjustTimer(60000); }, nullptr);
+    plusBtn = makeButton(
+        screen, "+", 0x3a3a3c, [](lv_event_t *) { adjustTimer(60000); }, nullptr);
     lv_obj_set_size(plusBtn, 48, 48);
     lv_obj_align(plusBtn, LV_ALIGN_RIGHT_MID, -8, -18);
 
