@@ -1,3 +1,4 @@
+#include "graphics/view/TFT/GlassUI.h"
 // -----------------------------------------------------------------------------
 // T-UI Notification Centre - who messaged you, wherever you happen to be.
 //
@@ -30,6 +31,7 @@
 #include "graphics/view/TFT/UnreadCounts.h" // unread_clear_all
 #include "lvgl.h"
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 // The generated UI's font, which this build definitely has. LVGL's own
@@ -134,11 +136,9 @@ void buildPopup(void)
     popup = lv_obj_create(lv_layer_top());
     lv_obj_set_size(popup, 300, 56);
     lv_obj_align(popup, LV_ALIGN_TOP_MID, 0, 6);
-    lv_obj_set_style_bg_color(popup, lv_color_hex(0x1b283c), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(popup, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_color(popup, lv_color_hex(0x30d158), LV_PART_MAIN);
-    lv_obj_set_style_border_width(popup, 1, LV_PART_MAIN);
-    lv_obj_set_style_radius(popup, 10, LV_PART_MAIN);
+    GlassUI::surface(popup, 18);
+    lv_obj_set_style_bg_color(popup, lv_color_hex(0x294768), 0);
+    lv_obj_set_style_bg_opa(popup, 235, 0);
     lv_obj_set_style_pad_all(popup, 0, LV_PART_MAIN);
     lv_obj_clear_flag(popup, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(popup, LV_OBJ_FLAG_HIDDEN);
@@ -170,7 +170,7 @@ void buildPopup(void)
     tui_one_line(popupWho); // LONG_DOT needs a pinned height - see TuiLabel.h
 
     popupText = lv_label_create(popup);
-    lv_obj_set_style_text_color(popupText, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(popupText, lv_color_hex(0xe0eafa), LV_PART_MAIN);
     lv_obj_set_style_text_font(popupText, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_obj_align(popupText, LV_ALIGN_TOP_LEFT, 26, 30);
     lv_obj_set_width(popupText, 230);
@@ -263,8 +263,9 @@ lv_obj_t *barBtn(lv_obj_t *parent, const char *txt, int w, lv_align_t align, int
     lv_obj_t *b = lv_btn_create(parent);
     lv_obj_set_size(b, w, 28);
     lv_obj_align(b, align, xofs, 3);
-    lv_obj_set_style_radius(b, 8, LV_PART_MAIN);
+    GlassUI::surface(b, 16);
     lv_obj_set_style_bg_color(b, lv_color_hex(color), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(b, 100, LV_PART_MAIN);
     lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, nullptr);
     lv_obj_t *l = lv_label_create(b);
     lv_label_set_text(l, txt);
@@ -276,8 +277,9 @@ lv_obj_t *barBtn(lv_obj_t *parent, const char *txt, int w, lv_align_t align, int
 void buildScreen(void)
 {
     screen = lv_obj_create(NULL);
+    GlassUI::wallpaper(screen);
     tui_statusbar_reserve(screen); // note item A4: the persistent top bar
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
+
     lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
 
     // Jake asked for both: a Close (leave the list alone) and a Clear (empty it).
@@ -298,7 +300,7 @@ void buildScreen(void)
 
     lv_obj_t *title = lv_label_create(screen);
     lv_label_set_text(title, "Notifications");
-    lv_obj_set_style_text_color(title, lv_color_hex(0x30d158), LV_PART_MAIN);
+    lv_obj_set_style_text_color(title, lv_color_white(), LV_PART_MAIN);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
 
     barBtn(screen, "Clear", 62, LV_ALIGN_TOP_RIGHT, -4, 0x8a2a24, [](lv_event_t *) {
@@ -323,13 +325,13 @@ void buildScreen(void)
     lockedLbl = lv_label_create(screen);
     lv_label_set_text(lockedLbl, "Unlock to open a conversation");
     lv_obj_set_style_text_font(lockedLbl, &ui_font_montserrat_12, LV_PART_MAIN);
-    lv_obj_set_style_text_color(lockedLbl, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(lockedLbl, lv_color_hex(0xe0eafa), LV_PART_MAIN);
     lv_obj_align(lockedLbl, LV_ALIGN_BOTTOM_MID, 0, -4);
     lv_obj_add_flag(lockedLbl, LV_OBJ_FLAG_HIDDEN);
 
     emptyLbl = lv_label_create(screen);
     lv_label_set_text(emptyLbl, "Nothing new.\nMessages you have not read yet\nshow up here.");
-    lv_obj_set_style_text_color(emptyLbl, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(emptyLbl, lv_color_hex(0xe0eafa), LV_PART_MAIN);
     lv_obj_align(emptyLbl, LV_ALIGN_CENTER, 0, 10);
 }
 
@@ -347,9 +349,7 @@ void rebuild(void)
         lv_obj_t *row = lv_obj_create(listCont);
         lv_obj_remove_style_all(row);
         lv_obj_set_size(row, 296, 52);
-        lv_obj_set_style_bg_color(row, lv_color_hex(0x1b283c), LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_PART_MAIN);
-        lv_obj_set_style_radius(row, 8, LV_PART_MAIN);
+        GlassUI::surface(row, 16);
         lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(row, onRowTap, LV_EVENT_CLICKED, (void *)(intptr_t)i);
@@ -357,7 +357,7 @@ void rebuild(void)
         lv_obj_t *who = lv_label_create(row);
         lv_label_set_text(who, store[i].who[0] ? store[i].who : "Someone");
         lv_obj_set_style_text_color(who, lv_color_hex(0xffffff), LV_PART_MAIN);
-        lv_obj_set_width(who, 200);
+        lv_obj_set_width(who, store[i].isChannel ? 156 : 210);
         lv_label_set_long_mode(who, LV_LABEL_LONG_DOT);
         tui_one_line(who); // LONG_DOT needs a pinned height - see TuiLabel.h
         lv_obj_align(who, LV_ALIGN_TOP_LEFT, 10, 5);
@@ -367,8 +367,8 @@ void rebuild(void)
             lv_obj_t *tag = lv_label_create(row);
             lv_label_set_text(tag, "group");
             lv_obj_set_style_text_font(tag, &ui_font_montserrat_12, LV_PART_MAIN);
-            lv_obj_set_style_text_color(tag, lv_color_hex(0x5ac8fa), LV_PART_MAIN);
-            lv_obj_align(tag, LV_ALIGN_TOP_RIGHT, -56, 7);
+            lv_obj_set_style_text_color(tag, lv_color_hex(0xe0edff), LV_PART_MAIN);
+            lv_obj_align(tag, LV_ALIGN_TOP_RIGHT, -80, 7);
         }
 
         char age[16];
@@ -376,13 +376,13 @@ void rebuild(void)
         lv_obj_t *ag = lv_label_create(row);
         lv_label_set_text(ag, age);
         lv_obj_set_style_text_font(ag, &ui_font_montserrat_12, LV_PART_MAIN);
-        lv_obj_set_style_text_color(ag, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(ag, lv_color_hex(0xe0eafa), LV_PART_MAIN);
         lv_obj_align(ag, LV_ALIGN_TOP_RIGHT, -8, 7);
 
         lv_obj_t *tx = lv_label_create(row);
         lv_label_set_text(tx, store[i].text);
         lv_obj_set_style_text_font(tx, &ui_font_montserrat_12, LV_PART_MAIN);
-        lv_obj_set_style_text_color(tx, lv_color_hex(0xc7c7cc), LV_PART_MAIN);
+        lv_obj_set_style_text_color(tx, lv_color_hex(0xf1f6ff), LV_PART_MAIN);
         lv_obj_set_width(tx, 276);
         lv_label_set_long_mode(tx, LV_LABEL_LONG_DOT);
         tui_one_line(tx); // LONG_DOT needs a pinned height - see TuiLabel.h
@@ -561,7 +561,7 @@ extern "C" void notif_open(void)
     const bool locked = tdeck_device_locked();
     if (lockedLbl) {
         lv_label_set_text(lockedLbl, "Unlock to open a conversation");
-        lv_obj_set_style_text_color(lockedLbl, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(lockedLbl, lv_color_hex(0xe0eafa), LV_PART_MAIN);
         if (locked)
             lv_obj_clear_flag(lockedLbl, LV_OBJ_FLAG_HIDDEN);
         else

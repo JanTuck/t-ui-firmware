@@ -10,3 +10,5 @@ bash lib/meshtastic-device-ui/tests/control_center/run.sh
 ```
 
 The tests compile the production panel and fonts with simulated input and firmware callbacks. They cover corner gestures, radio confirmation, touch and keyboard brightness persistence, modal and lock gating, input focus restoration, screen changes, and idle redraw suppression. They do not validate physical input drivers or radio hardware.
+
+The status bar suite also checks idle redraw suppression and notification, clock, and battery updates.

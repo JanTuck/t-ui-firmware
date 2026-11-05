@@ -14,5 +14,10 @@ done
 c++ -std=c++17 -Wall -Wextra -Werror -DVIEW_320x240 "${flags[@]}" \
 	-I"$ui_root/include" -I"$ui_root/generated/ui_320x240" \
 	"$ui_root/tests/control_center/test_control_center.cpp" \
-	"$ui_root/source/graphics/TFT/ControlCenter.cpp" "$build_dir"/*.o "$LVGL_LIBRARY" -lm -o "$build_dir/tests"
+	"$ui_root/source/graphics/TFT/ControlCenter.cpp" "$ui_root/source/graphics/TFT/GlassUI.cpp" "$build_dir"/*.o "$LVGL_LIBRARY" -lm -o "$build_dir/tests"
 "$build_dir/tests"
+c++ -std=c++17 -Wall -Wextra -Werror -DVIEW_320x240 "${flags[@]}" \
+	-I"$ui_root/include" -I"$ui_root/generated/ui_320x240" \
+	"$ui_root/tests/control_center/test_status_bar.cpp" \
+	"$ui_root/source/graphics/TFT/TuiStatusBar.cpp" "$ui_root/source/graphics/TFT/GlassUI.cpp" "$build_dir"/*.o "$LVGL_LIBRARY" -lm -o "$build_dir/status-tests"
+"$build_dir/status-tests"

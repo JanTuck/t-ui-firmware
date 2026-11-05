@@ -12,6 +12,7 @@
 #include "graphics/map/TileProvider.h"
 #include "graphics/map/URLService.h"
 #include "graphics/view/TFT/ControlCenter.h"
+#include "graphics/view/TFT/GlassUI.h"
 #include "graphics/view/TFT/LockWidgets.h" // the three lock-screen widgets
 #include "graphics/view/TFT/Themes.h"
 #include "graphics/view/TFT/TuiLabel.h"     // tui_one_line: LONG_DOT needs a height
@@ -741,20 +742,6 @@ static const LauncherApp kApps[] = {
     {"Alerts", &img_messages_button_image, 0xff453a, nullptr, nullptr, nullptr, &notif_open},
 };
 
-// --- simple per-app icons, drawn from lv_obj primitives (no image assets needed) ---
-// Mix an accent colour into a dark base. Each home-screen tile is tinted by its own app
-// colour, top more than bottom, which is what turns a grid of identical grey squares into
-// something you can find an app on without reading the labels. The percentages are low on
-// purpose - 16 and 4 - and were picked by rendering the grid on the PC and looking at it
-// (C:\tdsim, "home-old" and "home-new"). Anything stronger reads as six coloured boxes.
-uint32_t tintAccent(uint32_t base, uint32_t accent, int pct)
-{
-    const int r = (int)(((base >> 16) & 0xff) * (100 - pct) + ((accent >> 16) & 0xff) * pct) / 100;
-    const int g = (int)(((base >> 8) & 0xff) * (100 - pct) + ((accent >> 8) & 0xff) * pct) / 100;
-    const int b = (int)((base & 0xff) * (100 - pct) + (accent & 0xff) * pct) / 100;
-    return ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
-}
-
 lv_obj_t *icBox(lv_obj_t *p, int x, int y, int w, int h, uint32_t color, int radius)
 {
     lv_obj_t *o = lv_obj_create(p);
@@ -776,261 +763,6 @@ lv_obj_t *icRing(lv_obj_t *p, int x, int y, int d, uint32_t color, int borderW)
     lv_obj_set_style_border_width(o, borderW, LV_PART_MAIN);
     return o;
 }
-// A five-pointed star outline, drawn with lv_line.
-//
-// ⚠️ lv_line does NOT copy its point array - the points must outlive the object. So the shape is
-// built ONCE into a static array in the line object's own coordinate space, and every star just
-// positions its object; they can all share the one array precisely because the points are relative.
-lv_obj_t *icStar(lv_obj_t *p, int x, int y, int size, uint32_t color, int w)
-{
-    static lv_point_precise_t pts[11];
-    static int builtFor = -1;
-    if (builtFor != size) {
-        builtFor = size;
-        const double R = size / 2.0, r = R * 0.42, cx = R, cy = R;
-        for (int i = 0; i < 10; i++) {
-            const double ang = (-90.0 + i * 36.0) * M_PI / 180.0;
-            const double rad = (i % 2 == 0) ? R : r;
-            pts[i].x = (lv_value_precise_t)(cx + rad * cos(ang));
-            pts[i].y = (lv_value_precise_t)(cy + rad * sin(ang));
-        }
-        pts[10] = pts[0]; // close it
-    }
-    lv_obj_t *l = lv_line_create(p);
-    lv_line_set_points(l, pts, 11);
-    lv_obj_set_pos(l, x, y);
-    lv_obj_set_style_line_color(l, lv_color_hex(color), LV_PART_MAIN);
-    lv_obj_set_style_line_width(l, w, LV_PART_MAIN);
-    lv_obj_set_style_line_rounded(l, true, LV_PART_MAIN);
-    return l;
-}
-
-void buildTileIcon(lv_obj_t *tile, const char *name, uint32_t color)
-{
-    lv_obj_t *ic = lv_obj_create(tile); // transparent 46x40 icon canvas near the tile top
-    lv_obj_remove_style_all(ic);
-    lv_obj_set_size(ic, 46, 40);
-    lv_obj_align(ic, LV_ALIGN_TOP_MID, 0, 8);
-    lv_obj_clear_flag(ic, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_clear_flag(ic, LV_OBJ_FLAG_CLICKABLE);
-
-    if (!strcmp(name, "Snake")) { // green body squares + red food
-        icBox(ic, 5, 22, 9, 9, 0x30d158, 2);
-        icBox(ic, 14, 22, 9, 9, 0x30d158, 2);
-        icBox(ic, 14, 13, 9, 9, 0x30d158, 2);
-        icBox(ic, 23, 13, 9, 9, 0x30d158, 2);
-        icBox(ic, 34, 4, 8, 8, 0xff453a, 4);
-    } else if (!strcmp(name, "Deep Space")) {
-        // Black sky, a scatter of stars, and your ship climbing up through it. Drawn in
-        // creation order so the void goes down first and everything else lands on top.
-        icBox(ic, 0, 0, 46, 40, 0x05050a, 6); // the void
-        icBox(ic, 5, 6, 2, 2, 0xffffff, 1);   // stars
-        icBox(ic, 38, 8, 2, 2, 0xffffff, 1);
-        icBox(ic, 12, 31, 2, 2, 0x9ad0ff, 1);
-        icBox(ic, 34, 29, 2, 2, 0xffffff, 1);
-        icBox(ic, 41, 19, 2, 2, 0xffe9a8, 1);
-        icBox(ic, 7, 18, 2, 2, 0xffffff, 1);
-        icBox(ic, 29, 4, 2, 2, 0x9ad0ff, 1);
-        icBox(ic, 18, 35, 2, 2, 0xffffff, 1);
-        icBox(ic, 21, 13, 4, 7, 0xffffff, 1);  // nose
-        icBox(ic, 18, 19, 10, 8, 0xc7c7cc, 2); // hull
-        icBox(ic, 12, 23, 6, 4, 0x0a84ff, 1);  // wings
-        icBox(ic, 28, 23, 6, 4, 0x0a84ff, 1);
-        icBox(ic, 21, 27, 4, 6, 0xff9f0a, 2); // thruster
-    } else if (!strcmp(name, "Weather")) {
-        // A sun in the top-left with a few rays, and a white cloud drifting across it. The
-        // cloud is drawn AFTER the sun so it sits in front - "partly cloudy" in one glance.
-        icBox(ic, 6, 3, 15, 15, 0xffd60a, LV_RADIUS_CIRCLE); // sun disc
-        icBox(ic, 12, 0, 3, 2, 0xffd60a, 1);                 // rays around the top/left
-        icBox(ic, 1, 2, 3, 3, 0xffd60a, 1);
-        icBox(ic, 0, 10, 2, 3, 0xffd60a, 1);
-        icBox(ic, 23, 2, 3, 3, 0xffd60a, 1);
-        icBox(ic, 1, 18, 3, 3, 0xffd60a, 1);
-        icBox(ic, 15, 20, 28, 12, 0xf2f2f7, 6);                // cloud base
-        icBox(ic, 18, 14, 14, 14, 0xf2f2f7, LV_RADIUS_CIRCLE); // left puff
-        icBox(ic, 28, 16, 14, 13, 0xf2f2f7, LV_RADIUS_CIRCLE); // right puff
-    } else if (!strcmp(name, "Flashlight")) {                  // bulb + rays
-        icBox(ic, 17, 17, 12, 15, 0xffd60a, 4);
-        icBox(ic, 19, 13, 8, 5, 0xfff3b0, 2);
-        icBox(ic, 21, 2, 4, 8, 0xffd60a, 2);
-        icBox(ic, 7, 7, 9, 4, 0xffd60a, 2);
-        icBox(ic, 30, 7, 9, 4, 0xffd60a, 2);
-    } else if (!strcmp(name, "Pinball")) { // bumper ring + ball + two angled flippers
-        icRing(ic, 15, 1, 16, 0xff2d55, 3);
-        icBox(ic, 20, 19, 7, 7, 0xffffff, LV_RADIUS_CIRCLE);
-        lv_obj_t *lf = icBox(ic, 5, 31, 17, 5, 0xff9f0a, 2);
-        lv_obj_set_style_transform_pivot_x(lf, 0, LV_PART_MAIN);
-        lv_obj_set_style_transform_pivot_y(lf, 2, LV_PART_MAIN);
-        lv_obj_set_style_transform_rotation(lf, 200, LV_PART_MAIN); // 20 deg, tip slopes to center
-        lv_obj_t *rf = icBox(ic, 25, 31, 17, 5, 0xff9f0a, 2);
-        lv_obj_set_style_transform_pivot_x(rf, 17, LV_PART_MAIN);
-        lv_obj_set_style_transform_pivot_y(rf, 2, LV_PART_MAIN);
-        lv_obj_set_style_transform_rotation(rf, -200, LV_PART_MAIN);
-    } else if (!strcmp(name, "Clock")) { // ring + top button + hand
-        icRing(ic, 10, 8, 26, color, 3);
-        icBox(ic, 20, 2, 6, 6, color, 1);
-        icBox(ic, 22, 15, 2, 9, color, 1);
-    } else if (!strcmp(name, "Nodes")) {       // two upper-torso silhouettes, the back one offset
-        icBox(ic, 6, 16, 16, 12, 0x6a6a70, 6); // back shoulders
-        icRing(ic, 9, 6, 10, 0x6a6a70, 5);     // back head (filled by a thick border)
-        icBox(ic, 18, 18, 20, 14, color, 7);   // front shoulders
-        icRing(ic, 23, 6, 12, color, 6);       // front head
-    } else if (!strcmp(name, "Favorites")) {   // five-pointed star outline
-        icStar(ic, 8, 6, 30, color, 3);
-    } else if (!strcmp(name, "Chats")) {                  // two speech bubbles, the front one active
-        icBox(ic, 4, 4, 26, 18, 0x6a6a70, 6);             // back bubble
-        icBox(ic, 8, 20, 6, 5, 0x6a6a70, 1);              // its tail
-        icBox(ic, 14, 16, 26, 20, color, 6);              // front bubble
-        icBox(ic, 30, 34, 7, 6, color, 1);                // its tail
-    } else if (!strcmp(name, "Alerts")) {                 // a bell: dome, rim, clapper
-        icBox(ic, 13, 8, 20, 18, color, 8);               // dome
-        icBox(ic, 21, 3, 4, 5, color, 2);                 // the little loop on top
-        icBox(ic, 9, 25, 28, 5, color, 2);                // rim
-        icBox(ic, 20, 31, 6, 5, color, LV_RADIUS_CIRCLE); // clapper
-    } else if (!strcmp(name, "Files")) {                  // folder
-        icBox(ic, 8, 7, 15, 5, color, 1);
-        icBox(ic, 6, 11, 34, 24, color, 3);
-    } else if (!strcmp(name, "Gemini")) {                  // a four-pointed spark, drawn like the rest
-        icBox(ic, 19, 2, 6, 38, color, 3);                 // vertical
-        icBox(ic, 2, 19, 40, 6, color, 3);                 // horizontal
-        icBox(ic, 33, 5, 5, 5, color, LV_RADIUS_CIRCLE);   // small spark off the shoulder
-    } else if (!strcmp(name, "Chess")) {                   // a pawn: head, collar, waist, base
-        icBox(ic, 16, 4, 10, 10, color, LV_RADIUS_CIRCLE); // head
-        icBox(ic, 13, 15, 16, 4, color, 2);                // collar
-        icBox(ic, 17, 19, 8, 10, color, 2);                // body
-        icBox(ic, 10, 30, 22, 6, color, 2);                // base
-    } else if (!strcmp(name, "Mail")) {                    // envelope: body, then the flap as two leaning bars
-        icBox(ic, 4, 9, 36, 24, color, 3);                 // the envelope body
-        icBox(ic, 8, 13, 16, 4, 0x1c1c1e, 1);              // flap, left half, sloping down
-        icBox(ic, 10, 16, 14, 4, 0x1c1c1e, 1);             //  stepped rather than rotated -
-        icBox(ic, 13, 19, 10, 4, 0x1c1c1e, 1);             //  icBox cannot rotate, and three
-        icBox(ic, 20, 13, 16, 4, 0x1c1c1e, 1);             //  steps a side reads as a V at
-        icBox(ic, 20, 16, 14, 4, 0x1c1c1e, 1);             //  40px without needing one.
-        icBox(ic, 21, 19, 10, 4, 0x1c1c1e, 1);
-    } else if (!strcmp(name, "Notes")) { // page with lines
-        icBox(ic, 11, 3, 24, 34, 0xf2f2f2, 3);
-        icBox(ic, 15, 10, 16, 2, 0x8e8e93, 1);
-        icBox(ic, 15, 16, 16, 2, 0x8e8e93, 1);
-        icBox(ic, 15, 22, 16, 2, 0x8e8e93, 1);
-        icBox(ic, 15, 28, 10, 2, 0x8e8e93, 1);
-    } else if (!strcmp(name, "Calculator")) { // screen + button grid
-        icBox(ic, 12, 3, 22, 34, 0x3a3a3c, 4);
-        icBox(ic, 15, 6, 16, 6, color, 1);
-        icBox(ic, 16, 18, 4, 4, 0xffffff, 1);
-        icBox(ic, 22, 18, 4, 4, 0xffffff, 1);
-        icBox(ic, 28, 18, 4, 4, 0xffffff, 1);
-        icBox(ic, 16, 25, 4, 4, 0xffffff, 1);
-        icBox(ic, 22, 25, 4, 4, 0xffffff, 1);
-        icBox(ic, 28, 25, 4, 4, 0xffffff, 1);
-    } else if (!strcmp(name, "Settings")) { // gear = ring + 4 nubs
-        icRing(ic, 11, 7, 26, color, 5);
-        icBox(ic, 21, 0, 4, 6, color, 1);
-        icBox(ic, 21, 34, 4, 6, color, 1);
-        icBox(ic, 1, 18, 6, 4, color, 1);
-        icBox(ic, 39, 18, 6, 4, color, 1);
-    } else if (!strcmp(name, "Maps")) {                       // location pin on a patch of "map"
-        icBox(ic, 4, 6, 38, 28, 0x2f4f34, 4);                 // map background
-        icBox(ic, 8, 22, 16, 3, 0x6b8e6b, 1);                 // a faint road
-        icBox(ic, 18, 8, 14, 14, 0xff453a, LV_RADIUS_CIRCLE); // pin head
-        icBox(ic, 22, 12, 6, 6, 0xffffff, LV_RADIUS_CIRCLE);  // pin hole
-        icBox(ic, 23, 20, 4, 8, 0xff453a, 1);                 // pin point
-    } else if (!strcmp(name, "Mesh")) {                       // three connected nodes
-        icBox(ic, 15, 2, 9, 9, color, LV_RADIUS_CIRCLE);
-        icBox(ic, 4, 26, 9, 9, color, LV_RADIUS_CIRCLE);
-        icBox(ic, 33, 26, 9, 9, color, LV_RADIUS_CIRCLE);
-    } else if (!strcmp(name, "Breakout")) { // brick rows + ball + paddle
-        icBox(ic, 5, 3, 10, 4, 0xff453a, 1);
-        icBox(ic, 17, 3, 10, 4, 0xff9f0a, 1);
-        icBox(ic, 29, 3, 10, 4, 0xffd60a, 1);
-        icBox(ic, 5, 9, 10, 4, 0x30d158, 1);
-        icBox(ic, 17, 9, 10, 4, 0xff453a, 1);
-        icBox(ic, 29, 9, 10, 4, 0xff9f0a, 1);
-        icBox(ic, 21, 22, 5, 5, 0xffffff, 2);  // ball
-        icBox(ic, 14, 33, 18, 4, 0x0a84ff, 2); // paddle
-    } else if (!strcmp(name, "Metronome")) {   // pyramid body + swinging bob
-        icBox(ic, 12, 31, 22, 5, color, 1);
-        icBox(ic, 15, 23, 16, 8, color, 1);
-        icBox(ic, 18, 15, 10, 8, color, 1);
-        icBox(ic, 21, 6, 5, 9, color, 1);
-        icBox(ic, 26, 13, 6, 6, 0xffffff, 2); // the bob, off to one side
-    } else if (!strcmp(name, "Dice")) {       // white die showing 5, red die showing 3
-        icBox(ic, 3, 2, 20, 20, 0xf2f2f2, 5);
-        icBox(ic, 6, 5, 4, 4, 0x1c1c1e, LV_RADIUS_CIRCLE);
-        icBox(ic, 16, 5, 4, 4, 0x1c1c1e, LV_RADIUS_CIRCLE);
-        icBox(ic, 11, 10, 4, 4, 0x1c1c1e, LV_RADIUS_CIRCLE);
-        icBox(ic, 6, 15, 4, 4, 0x1c1c1e, LV_RADIUS_CIRCLE);
-        icBox(ic, 16, 15, 4, 4, 0x1c1c1e, LV_RADIUS_CIRCLE);
-        icBox(ic, 23, 17, 20, 20, 0xff453a, 5);
-        icBox(ic, 26, 20, 4, 4, 0xffffff, LV_RADIUS_CIRCLE);
-        icBox(ic, 31, 25, 4, 4, 0xffffff, LV_RADIUS_CIRCLE);
-        icBox(ic, 36, 30, 4, 4, 0xffffff, LV_RADIUS_CIRCLE);
-    } else if (!strcmp(name, "Reaction")) { // lightning bolt (two slanted strokes)
-        lv_obj_t *b1 = icBox(ic, 20, 1, 8, 19, 0xffd60a, 2);
-        lv_obj_set_style_transform_pivot_x(b1, 4, LV_PART_MAIN);
-        lv_obj_set_style_transform_pivot_y(b1, 9, LV_PART_MAIN);
-        lv_obj_set_style_transform_rotation(b1, 250, LV_PART_MAIN); // 25 deg lean
-        lv_obj_t *b2 = icBox(ic, 15, 20, 8, 19, 0xffd60a, 2);
-        lv_obj_set_style_transform_pivot_x(b2, 4, LV_PART_MAIN);
-        lv_obj_set_style_transform_pivot_y(b2, 9, LV_PART_MAIN);
-        lv_obj_set_style_transform_rotation(b2, 250, LV_PART_MAIN);
-    } else if (!strcmp(name, "Score")) { // scoreboard: two columns of tally marks
-        icBox(ic, 5, 5, 16, 30, 0x1c1c20, 3);
-        icBox(ic, 25, 5, 16, 30, 0x1c1c20, 3);
-        icBox(ic, 8, 10, 3, 9, 0x30d158, 1);
-        icBox(ic, 13, 10, 3, 9, 0x30d158, 1);
-        icBox(ic, 8, 23, 3, 9, 0x30d158, 1);
-        icBox(ic, 28, 10, 3, 9, 0x0a84ff, 1);
-        icBox(ic, 33, 10, 3, 9, 0x0a84ff, 1);
-    } else if (!strcmp(name, "Tally")) { // four gate marks, the fifth struck through
-        icBox(ic, 8, 8, 3, 22, 0xffffff, 1);
-        icBox(ic, 14, 8, 3, 22, 0xffffff, 1);
-        icBox(ic, 20, 8, 3, 22, 0xffffff, 1);
-        icBox(ic, 26, 8, 3, 22, 0xffffff, 1);
-        lv_obj_t *sl = icBox(ic, 5, 18, 30, 3, 0xff453a, 1); // the diagonal fifth
-        lv_obj_set_style_transform_pivot_x(sl, 15, LV_PART_MAIN);
-        lv_obj_set_style_transform_pivot_y(sl, 1, LV_PART_MAIN);
-        lv_obj_set_style_transform_rotation(sl, -200, LV_PART_MAIN);
-    } else if (!strcmp(name, "Convert")) { // two arrows pointing opposite ways
-        icBox(ic, 7, 11, 26, 4, 0x30d158, 2);
-        icBox(ic, 27, 7, 8, 4, 0x30d158, 2); // upper arrow head
-        icBox(ic, 31, 11, 4, 4, 0x30d158, 2);
-        icBox(ic, 13, 25, 26, 4, 0x0a84ff, 2);
-        icBox(ic, 11, 25, 8, 4, 0x0a84ff, 2); // lower arrow head
-        icBox(ic, 11, 21, 4, 4, 0x0a84ff, 2);
-    } else if (!strcmp(name, "Intervals")) { // timer ring split into work/rest halves
-        icRing(ic, 9, 6, 28, 0x30d158, 3);
-        icBox(ic, 23, 12, 3, 9, 0xffffff, 1); // hand
-        icBox(ic, 20, 1, 6, 5, 0x30d158, 1);  // crown
-        icBox(ic, 9, 18, 12, 3, 0x0a84ff, 1); // the rest half
-    } else if (!strcmp(name, "Breathe")) {    // nested squares = the box expanding
-        icRing(ic, 5, 3, 34, 0x0a84ff, 2);
-        icRing(ic, 12, 10, 20, 0x30d158, 2);
-        icBox(ic, 20, 18, 5, 5, 0xffffff, LV_RADIUS_CIRCLE);
-    } else if (!strcmp(name, "Stars")) { // scattered stars with a warp streak
-        icBox(ic, 8, 6, 3, 3, 0xffffff, LV_RADIUS_CIRCLE);
-        icBox(ic, 30, 9, 4, 4, 0x9ad0ff, LV_RADIUS_CIRCLE);
-        icBox(ic, 16, 26, 3, 3, 0xffe9a8, LV_RADIUS_CIRCLE);
-        icBox(ic, 35, 29, 3, 3, 0xffffff, LV_RADIUS_CIRCLE);
-        icBox(ic, 6, 20, 4, 4, 0xffffff, LV_RADIUS_CIRCLE);
-        lv_obj_t *st = icBox(ic, 18, 17, 16, 3, 0xffffff, 2); // the streak
-        lv_obj_set_style_transform_pivot_x(st, 0, LV_PART_MAIN);
-        lv_obj_set_style_transform_pivot_y(st, 1, LV_PART_MAIN);
-        lv_obj_set_style_transform_rotation(st, 250, LV_PART_MAIN);
-    } else { // fallback: a colored rounded square
-        icBox(ic, 11, 8, 24, 24, color, 6);
-    }
-}
-
-// Draw an app's OWN icon from a little text file it shipped (via Get Apps), so a brand-new app
-// can have an icon with NO firmware flash - the whole point of an open app store. Format of
-// /apps/<id>/icon.txt:
-//     X=RRGGBB        one palette line per colour: a single char, '=', then 6 hex digits
-//     ...picture...   then the picture, one line per row, ONE CHARACTER per pixel
-// A space, a '.', or any character with no palette entry is transparent. Grid up to 40x40; it
-// is scaled up whole-pixel to fill and is centred on the 46x40 tile-icon area. Returns false
-// (and draws nothing) if there's no file or it can't be parsed, so the caller falls back to the
-// built-in icon. Consecutive same-colour pixels in a row are merged into one box, so a full
-// icon is a few dozen objects, not hundreds.
 bool buildTileIconFromFile(lv_obj_t *tile, const char *path)
 {
 #if HAS_SDCARD && !HAS_SD_MMC && !ARCH_PORTDUINO
@@ -1108,29 +840,51 @@ bool buildTileIconFromFile(lv_obj_t *tile, const char *path)
     int offX = (46 - width * scale) / 2; // centre it
     int offY = (40 - height * scale) / 2;
 
-    lv_obj_t *ic = lv_obj_create(tile); // only now that we know the file is a valid icon
-    lv_obj_remove_style_all(ic);
-    lv_obj_set_size(ic, 46, 40);
-    lv_obj_align(ic, LV_ALIGN_TOP_MID, 0, 8);
-    lv_obj_clear_flag(ic, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_clear_flag(ic, LV_OBJ_FLAG_CLICKABLE);
-
-    for (int y = 0; y < height; y++) {
-        const char *row = rows[y];
-        int rlen = rowLen[y];
-        int x = 0;
-        while (x < width) {
-            unsigned char c = (x < rlen) ? (unsigned char)row[x] : ' ';
-            if (c >= 128 || !palOpaque[c]) { // transparent pixel
-                x++;
+    struct FileIcon {
+        lv_image_dsc_t image;
+        uint8_t pixels[48 * 48 * 4];
+    };
+    auto *icon = static_cast<FileIcon *>(heap_caps_calloc(1, sizeof(FileIcon), MALLOC_CAP_SPIRAM));
+    if (!icon)
+        icon = static_cast<FileIcon *>(calloc(1, sizeof(FileIcon)));
+    if (!icon)
+        return false;
+    icon->image.header.magic = LV_IMAGE_HEADER_MAGIC;
+    icon->image.header.cf = LV_COLOR_FORMAT_ARGB8888;
+    icon->image.header.w = icon->image.header.h = 48;
+    icon->image.header.stride = 48 * 4;
+    icon->image.data_size = sizeof(icon->pixels);
+    icon->image.data = icon->pixels;
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            const unsigned char c = x < rowLen[y] ? static_cast<unsigned char>(rows[y][x]) : ' ';
+            if (c >= 128 || !palOpaque[c])
                 continue;
-            }
-            int runStart = x; // merge a run of the same char into one box
-            while (x < width && (x < rlen ? (unsigned char)row[x] : ' ') == c)
-                x++;
-            icBox(ic, offX + runStart * scale, offY + y * scale, (x - runStart) * scale, scale, palColor[c], 0);
+            for (int dy = 0; dy < scale; ++dy)
+                for (int dx = 0; dx < scale; ++dx) {
+                    const int px = 1 + offX + x * scale + dx;
+                    const int py = 4 + offY + y * scale + dy;
+                    if (px < 0 || px >= 48 || py < 0 || py >= 48)
+                        continue;
+                    uint8_t *pixel = &icon->pixels[(py * 48 + px) * 4];
+                    pixel[0] = palColor[c] & 0xff;
+                    pixel[1] = (palColor[c] >> 8) & 0xff;
+                    pixel[2] = (palColor[c] >> 16) & 0xff;
+                    pixel[3] = 255;
+                }
         }
     }
+    lv_obj_t *image = lv_image_create(tile);
+    lv_image_set_src(image, &icon->image);
+    lv_obj_align(image, LV_ALIGN_TOP_MID, 0, 0);
+    lv_obj_add_event_cb(
+        image,
+        [](lv_event_t *e) {
+            auto *icon = static_cast<FileIcon *>(lv_event_get_user_data(e));
+            lv_image_cache_drop(&icon->image);
+            free(icon);
+        },
+        LV_EVENT_DELETE, icon);
     return true;
 #else
     (void)tile;
@@ -1377,7 +1131,7 @@ void TFTView_320x240::createLauncher(void)
 
     launcher_screen = lv_obj_create(NULL);
     tdeck_launcher_scr = launcher_screen; // so tdeck_on_home_screen() can see it
-    lv_obj_set_style_bg_color(launcher_screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
+    GlassUI::wallpaper(launcher_screen);
     lv_obj_clear_flag(launcher_screen, LV_OBJ_FLAG_SCROLLABLE);
 
     // ---- top status bar (~24px): mesh dot + label left, clock center, battery right ----
@@ -1388,23 +1142,6 @@ void TFTView_320x240::createLauncher(void)
     tdeck_diag_boot();                   // capture last restart reason + last session's memory lows (once)
     tdeck_diag_set_version(TUI_VERSION); // after the boot read, so the previous run's version survives
     lua_seed_bundled();                  // install bundled SD apps on first run of this firmware (once, then user-owned)
-    // The strip itself. Flat, not a gradient - Jake, 2026-09-19: "maybe no status bar
-    // gradient". Same height, same colour and same hairline as TuiStatusBar draws on every
-    // other screen, so Home does not look like a different device.
-    {
-        lv_obj_t *bar = lv_obj_create(launcher_screen);
-        lv_obj_remove_style_all(bar);
-        lv_obj_set_size(bar, 320, 22);
-        lv_obj_align(bar, LV_ALIGN_TOP_LEFT, 0, 0);
-        lv_obj_set_style_bg_color(bar, lv_color_hex(0x0a0a0c), LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_MAIN);
-        lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_BOTTOM, LV_PART_MAIN);
-        lv_obj_set_style_border_color(bar, lv_color_hex(0x30415a), LV_PART_MAIN);
-        lv_obj_set_style_border_width(bar, 1, LV_PART_MAIN);
-        lv_obj_clear_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_clear_flag(bar, LV_OBJ_FLAG_CLICKABLE); // the labels on top of it stay tappable
-    }
-
     launcher_mem_label = lv_label_create(launcher_screen);
     lv_label_set_text(launcher_mem_label, "T-Deck");
     lv_obj_set_style_text_color(launcher_mem_label, lv_color_hex(0xffffff), LV_PART_MAIN);
@@ -1412,11 +1149,15 @@ void TFTView_320x240::createLauncher(void)
     // Dead centre, like the clock on every other screen. It used to be pushed 40px right to
     // clear the unread count; that count now lives in its own left-hand slot, so it does not
     // need to be dodged any more.
-    lv_obj_align(launcher_mem_label, LV_ALIGN_TOP_MID, 0, 4);
+    lv_obj_set_size(launcher_mem_label, 96, 20);
+    lv_label_set_long_mode(launcher_mem_label, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_align(launcher_mem_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_pad_top(launcher_mem_label, 1, 0);
+    lv_obj_align(launcher_mem_label, LV_ALIGN_TOP_MID, 0, 0);
     // Tap the readout for a full, readable diagnostics popup (the top-bar text is
     // cramped; this is the "hard to see the numbers" fix).
     lv_obj_add_flag(launcher_mem_label, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_ext_click_area(launcher_mem_label, 12);
+    lv_obj_set_ext_click_area(launcher_mem_label, 0);
     lv_obj_add_event_cb(
         launcher_mem_label, [](lv_event_t *) { THIS->showDiagnostics(); }, LV_EVENT_CLICKED, NULL);
     lv_timer_create(
@@ -1476,16 +1217,16 @@ void TFTView_320x240::createLauncher(void)
     launcher_unread_label = lv_label_create(launcher_screen);
     lv_obj_set_style_text_color(launcher_unread_label, lv_color_hex(0x30d158), LV_PART_MAIN);
     lv_obj_set_style_text_font(launcher_unread_label, &ui_font_montserrat_12, LV_PART_MAIN);
-    lv_obj_align(launcher_unread_label, LV_ALIGN_TOP_LEFT, 6, 4);
+    lv_obj_align(launcher_unread_label, LV_ALIGN_TOP_LEFT, 6, 1);
     // "Notifications" when there is nothing, exactly as the shared bar reads, rather than an
     // empty space that gives no hint there is anything to tap.
     lv_label_set_text(launcher_unread_label, "Notifications");
-    lv_obj_set_style_text_color(launcher_unread_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(launcher_unread_label, lv_color_hex(0xffffff), LV_PART_MAIN);
     // Jake: "then youd click the '1msg' it would take you to a notifications page". This is
     // that "1msg". The hit area is grown well past the text, because a 12px label is a
     // cruel tap target.
     lv_obj_add_flag(launcher_unread_label, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_ext_click_area(launcher_unread_label, 14);
+    lv_obj_set_ext_click_area(launcher_unread_label, 8);
     lv_obj_add_event_cb(
         launcher_unread_label, [](lv_event_t *) { lv_async_call([](void *) { notif_open(); }, nullptr); }, LV_EVENT_CLICKED,
         NULL);
@@ -1563,17 +1304,40 @@ void TFTView_320x240::createLauncher(void)
     notif_init();         // build the notification card NOW, on the UI task - a message can
                           // arrive on the mesh task at any moment and must not create objects
 
-    // battery percentage (top-right); fed by updateMetrics()->updateLauncherBattery().
-    launcher_battery_label = lv_label_create(launcher_screen);
-    lv_obj_set_style_text_color(launcher_battery_label, lv_color_hex(0xffffff), LV_PART_MAIN);
-    // montserrat_12 and -6, matching the shared bar. It was the default font, which is bigger
-    // than everything beside it and made Home look like it had been laid out by someone else.
-    lv_obj_set_style_text_font(launcher_battery_label, &ui_font_montserrat_12, LV_PART_MAIN);
-    lv_obj_align(launcher_battery_label, LV_ALIGN_TOP_RIGHT, -6, 4);
+    launcher_battery = GlassUI::battery(launcher_screen);
     updateLauncherBattery();
 
     // ---- paged app grid (built into buildAppGrid so it can be rebuilt live) ----
     scanUserApps(); // discover any user apps on the SD card (once per boot)
+    lv_obj_t *dock = lv_obj_create(launcher_screen);
+    GlassUI::surface(dock, 20);
+    lv_obj_set_size(dock, 264, 38);
+    lv_obj_set_pos(dock, 28, 199);
+    const char *shortcuts[] = {"Chats", "Maps", "Settings"};
+    for (int i = 0; i < 3; ++i) {
+        lv_obj_t *button = lv_button_create(dock);
+        lv_obj_remove_style_all(button);
+        lv_obj_set_pos(button, i * 88, 0);
+        lv_obj_set_size(button, 88, 38);
+        lv_obj_set_style_radius(button, 18, 0);
+        lv_obj_set_style_bg_opa(button, 40, LV_STATE_PRESSED);
+        lv_obj_set_style_outline_width(button, 2, LV_STATE_FOCUS_KEY);
+        lv_obj_t *label = lv_label_create(button);
+        lv_label_set_text(label, shortcuts[i]);
+        lv_obj_center(label);
+        lv_obj_add_event_cb(
+            button,
+            [](lv_event_t *e) {
+                const int shortcut = (int)(intptr_t)lv_event_get_user_data(e);
+                if (shortcut == 0)
+                    channels_open();
+                else if (shortcut == 1)
+                    THIS->openMapsAction();
+                else
+                    THIS->openSettingsAction();
+            },
+            LV_EVENT_CLICKED, (void *)(intptr_t)i);
+    }
     buildAppGrid(); // assemble the ordered list + build the tiles
 
     // NOTE: no on-screen "return to launcher" button. Home is reached exclusively by
@@ -1773,7 +1537,7 @@ void TFTView_320x240::createLauncher(void)
                 tb_nav_rows = 0;
                 lv_group_t *g = lv_group_get_default();
                 if (g) {
-                    int steps = (THIS->launcher_screen && lv_screen_active() == THIS->launcher_screen) ? 3 : 1;
+                    int steps = (THIS->launcher_screen && lv_screen_active() == THIS->launcher_screen) ? 4 : 1;
                     for (int i = 0; i < steps; i++) {
                         if (dir > 0)
                             lv_group_focus_next(g);
@@ -2007,10 +1771,10 @@ void TFTView_320x240::saveAppOrder(void)
 // card is absent or misbehaving.
 void TFTView_320x240::buildAppGrid(void)
 {
-    const int kPagerY = 26;
-    const int kPagerH = 188;
+    const int kPagerY = 30;
+    const int kPagerH = 158;
     const int kPageW = 320;
-    const int kPerPage = 6; // 3 columns × 2 rows
+    const int kPerPage = 8; // Four columns, with labels below the icons.
     const int kMax = (int)(sizeof(launchList) / sizeof(launchList[0]));
 
     launchCount = 0;
@@ -2131,50 +1895,23 @@ void TFTView_320x240::buildAppGrid(void)
             lv_obj_clear_flag(page, LV_OBJ_FLAG_SCROLLABLE);
             lv_obj_set_flex_flow(page, LV_FLEX_FLOW_ROW_WRAP);
             lv_obj_set_flex_align(page, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-            lv_obj_set_style_pad_row(page, 12, LV_PART_MAIN);
-            lv_obj_set_style_pad_hor(page, 12, LV_PART_MAIN);
+            lv_obj_set_style_pad_row(page, 8, LV_PART_MAIN);
+            lv_obj_set_style_pad_hor(page, 6, LV_PART_MAIN);
         }
         lv_obj_t *tile = lv_btn_create(page);
-        lv_obj_set_size(tile, 88, 84);
+        lv_obj_remove_style_all(tile);
+        lv_obj_set_size(tile, 72, 70);
         lv_obj_clear_flag(tile, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_style_radius(tile, 18, LV_PART_MAIN);
-        // A vertical gradient tinted with the app's own colour, and a lit top edge, so the
-        // tile reads as a surface with light falling on it rather than a flat grey square.
-        {
-            const uint32_t a = launchList[i].color;
-            // Lit from BELOW: dark at the top, lighter at the bottom.
-            //
-            // ⚠️ Jake asked for the Apple-style bottom-left angle, and it is not available.
-            // LVGL has LV_GRAD_DIR_LINEAR, but only behind LV_USE_DRAW_SW_COMPLEX_GRADIENTS,
-            // which is 0 here. Turning it on in the PC renderer, with a clean rebuild and the
-            // proper lv_grad_linear_init()/lv_grad_init_stops() helpers in both orders, drew
-            // nothing at all - the tiles came out transparent. Recorded so nobody repeats it.
-            //
-            // 8%, not the 16% first tried: "maybe just less vibrant". At 8 the tile is grey
-            // with a hint of the app in it; at 16 it was six coloured boxes.
-            lv_obj_set_style_bg_color(tile, lv_color_hex(tintAccent(0x192337, a, 4)), LV_PART_MAIN);
-            lv_obj_set_style_bg_grad_color(tile, lv_color_hex(tintAccent(0x2a3950, a, 8)), LV_PART_MAIN);
-            lv_obj_set_style_bg_grad_dir(tile, LV_GRAD_DIR_VER, LV_PART_MAIN);
-            lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, LV_PART_MAIN);
-            lv_obj_set_style_border_side(tile, LV_BORDER_SIDE_TOP, LV_PART_MAIN);
-            lv_obj_set_style_border_color(tile, lv_color_hex(0x35353a), LV_PART_MAIN);
-            lv_obj_set_style_border_width(tile, 1, LV_PART_MAIN);
-            lv_obj_set_style_shadow_width(tile, 0, LV_PART_MAIN);
-            lv_obj_set_style_shadow_color(tile, lv_color_hex(0x0b1220), LV_PART_MAIN);
-            lv_obj_set_style_shadow_opa(tile, 110, LV_PART_MAIN);
-            lv_obj_set_style_shadow_offset_y(tile, 4, LV_PART_MAIN);
-            // Pressed: brighter and pushed down a couple of pixels, so a tap on a touchscreen
-            // this size gives you something back before the app has finished opening.
-            lv_obj_set_style_bg_color(tile, lv_color_hex(tintAccent(0x3a3a41, a, 14)), LV_PART_MAIN | LV_STATE_PRESSED);
-            lv_obj_set_style_translate_y(tile, 2, LV_PART_MAIN | LV_STATE_PRESSED);
-            lv_obj_set_style_shadow_opa(tile, 40, LV_PART_MAIN | LV_STATE_PRESSED);
-        }
+        lv_obj_set_style_radius(tile, 16, 0);
+        lv_obj_set_style_bg_color(tile, lv_color_white(), LV_STATE_PRESSED);
+        lv_obj_set_style_bg_opa(tile, 35, LV_STATE_PRESSED);
+        lv_obj_set_style_outline_color(tile, lv_color_white(), LV_STATE_FOCUS_KEY);
+        lv_obj_set_style_outline_width(tile, 2, LV_STATE_FOCUS_KEY);
+        lv_obj_set_style_outline_pad(tile, 1, LV_STATE_FOCUS_KEY);
         lv_obj_add_event_cb(tile, tile_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
         lv_obj_add_event_cb(tile, tile_long_cb, LV_EVENT_LONG_PRESSED, NULL);
 
-        // A user app may ship its own icon at /apps/<id>/icon.txt (delivered by Get Apps) - try
-        // that first, so new apps get an icon with no firmware flash. Fall back to the built-in
-        // name-based icon (and, past that, a plain coloured square) when there's no file.
+        // Sideloaded artwork stays user-owned; otherwise use the antialiased built-in atlas.
         bool drewIcon = false;
         if (launchList[i].userIdx >= 0) {
             char ip[80];
@@ -2182,20 +1919,23 @@ void TFTView_320x240::buildAppGrid(void)
             drewIcon = buildTileIconFromFile(tile, ip);
         }
         if (!drewIcon)
-            buildTileIcon(tile, launchList[i].name, launchList[i].color);
+            GlassUI::appIcon(tile, launchList[i].name);
 
         lv_obj_t *lbl = lv_label_create(tile);
         lv_label_set_text(lbl, launchList[i].name);
         lv_obj_set_style_text_color(lbl, lv_color_hex(0xffffff), LV_PART_MAIN);
         lv_obj_set_style_text_font(lbl, &ui_font_montserrat_12, LV_PART_MAIN);
-        lv_obj_align(lbl, LV_ALIGN_BOTTOM_MID, 0, -6);
+        lv_obj_set_size(lbl, 72, 16);
+        lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
+        lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
+        lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, 52);
     }
 
     if (pageCount > 1) {
         lv_obj_t *dots = lv_obj_create(launcher_screen);
         lv_obj_remove_style_all(dots);
         lv_obj_set_size(dots, kPageW, 14);
-        lv_obj_align(dots, LV_ALIGN_BOTTOM_MID, 0, -4);
+        lv_obj_set_pos(dots, 0, 182);
         lv_obj_set_flex_flow(dots, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(dots, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_pad_column(dots, 6, LV_PART_MAIN);
@@ -2205,10 +1945,10 @@ void TFTView_320x240::buildAppGrid(void)
             lv_obj_remove_style_all(d);
             // The page you are on is a PILL; the others stay dots. Five identical dots with
             // one of them slightly lighter is a thing you have to hunt for on a 320px screen.
-            lv_obj_set_size(d, p == 0 ? 16 : 6, 6);
+            lv_obj_set_size(d, p == 0 ? 12 : 5, 6);
             lv_obj_set_style_radius(d, 3, LV_PART_MAIN);
             lv_obj_set_style_bg_opa(d, LV_OPA_COVER, LV_PART_MAIN);
-            lv_obj_set_style_bg_color(d, lv_color_hex(p == 0 ? 0xffffff : 0x48484a), LV_PART_MAIN);
+            lv_obj_set_style_bg_color(d, lv_color_hex(p == 0 ? 0xffffff : 0x9dbcd7), LV_PART_MAIN);
         }
         launcher_dots = dots;
         lv_obj_add_event_cb(
@@ -2226,8 +1966,8 @@ void TFTView_320x240::buildAppGrid(void)
                 for (uint32_t k = 0; k < n; k++) {
                     lv_obj_t *d = lv_obj_get_child(THIS->launcher_dots, k);
                     const bool on = ((int)k == cur);
-                    lv_obj_set_style_bg_color(d, lv_color_hex(on ? 0xffffff : 0x48484a), LV_PART_MAIN);
-                    lv_obj_set_width(d, on ? 16 : 6); // the pill follows the page
+                    lv_obj_set_style_bg_color(d, lv_color_hex(on ? 0xffffff : 0x9dbcd7), LV_PART_MAIN);
+                    lv_obj_set_width(d, on ? 12 : 5); // the pill follows the page
                 }
             },
             LV_EVENT_SCROLL, NULL);
@@ -2429,22 +2169,8 @@ void TFTView_320x240::setGpsEnabled(bool on)
  */
 void TFTView_320x240::updateLauncherBattery(void)
 {
-    if (!launcher_battery_label)
-        return;
-    if (launcherBatPct < 0) { // no telemetry yet
-        lv_label_set_text(launcher_battery_label, "--");
-        lv_obj_set_style_text_color(launcher_battery_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
-        return;
-    }
-    char buf[16];
-    snprintf(buf, sizeof(buf), "%d%%%s", launcherBatPct, launcherBatPlugged ? "+" : "");
-    lv_label_set_text(launcher_battery_label, buf);
-    uint32_t col = 0xffffff;
-    if (launcherBatPlugged)
-        col = 0x30d158; // charging / external power
-    else if (launcherBatPct <= 15)
-        col = 0xff453a; // low
-    lv_obj_set_style_text_color(launcher_battery_label, lv_color_hex(col), LV_PART_MAIN);
+    if (launcher_battery)
+        GlassUI::updateBattery(launcher_battery, launcherBatPct, launcherBatPlugged);
 }
 
 /**
@@ -2459,6 +2185,7 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_obj_set_scroll_dir(settings_screen, LV_DIR_VER); // scrollable now that there are more rows
     lv_obj_set_scrollbar_mode(settings_screen, LV_SCROLLBAR_MODE_AUTO);
 
+    GlassUI::settingsSections(settings_screen);
     lv_obj_t *title = lv_label_create(settings_screen);
     lv_label_set_text(title, "Settings");
     lv_obj_set_style_text_color(title, lv_color_hex(0xffffff), LV_PART_MAIN);
@@ -2612,8 +2339,7 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_obj_set_width(gpsHint, 288); // bounded + wrapped so it never runs off-screen
     lv_label_set_long_mode(gpsHint, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_font(gpsHint, &ui_font_montserrat_12, LV_PART_MAIN);
-    lv_label_set_text(gpsHint,
-                      "GPS on = always searching, even while asleep. Share location = how exactly others on the mesh see you.");
+    lv_label_set_text(gpsHint, "GPS searches while asleep.\nSharing controls location precision.");
     lv_obj_set_style_text_color(gpsHint, lv_color_hex(0x8e8e93), LV_PART_MAIN);
     lv_obj_align(gpsHint, LV_ALIGN_TOP_LEFT, 16, 264);
 
@@ -2754,7 +2480,7 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_obj_set_width(sndHint, 288);
     lv_label_set_long_mode(sndHint, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_font(sndHint, &ui_font_montserrat_12, LV_PART_MAIN);
-    lv_label_set_text(sndHint, "Off = silence everything, including message alerts.");
+    lv_label_set_text(sndHint, "Off mutes all sounds and alerts.");
     lv_obj_set_style_text_color(sndHint, lv_color_hex(0x8e8e93), LV_PART_MAIN);
     lv_obj_align(sndHint, LV_ALIGN_TOP_LEFT, 16, 638);
 
@@ -2799,13 +2525,15 @@ void TFTView_320x240::createSettingsScreen(void)
     // UTC - so an unset device gets an explicit "Not set" entry at the top instead, and the
     // zone indices shift by one while it's there.
     lv_obj_t *tzDd = lv_dropdown_create(settings_screen);
+    lv_dropdown_set_symbol(tzDd, LV_SYMBOL_DOWN);
+    lv_obj_set_style_text_font(tzDd, &lv_font_montserrat_14, LV_PART_INDICATOR);
     int tzCur = tdeck_tz_get();
     bool tzUnset = (tzCur < 0);
     lv_dropdown_set_options(tzDd, tzUnset ? "Not set\nPacific\nMountain\nArizona\nCentral\nEastern\nAlaska\n"
                                             "Hawaii\nUTC\nUK\nCentral Europe"
                                           : "Pacific\nMountain\nArizona\nCentral\nEastern\nAlaska\nHawaii\n"
                                             "UTC\nUK\nCentral Europe");
-    lv_obj_set_width(tzDd, 150);
+    lv_obj_set_width(tzDd, 172);
     lv_obj_align(tzDd, LV_ALIGN_TOP_RIGHT, -16, 810);
     lv_dropdown_set_selected(tzDd, tzUnset ? 0 : (uint32_t)tzCur);
     // Keep the open list on-screen: this row sits at the bottom of a tall scrolling screen,
@@ -3062,6 +2790,7 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_label_set_text(shot_hint_label, "Tap, then go to the screen you want. Saved to /shots on the card.");
     lv_obj_set_style_text_color(shot_hint_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
     lv_obj_align(shot_hint_label, LV_ALIGN_TOP_LEFT, 16, 1230);
+    GlassUI::settingsFinish(settings_screen);
 }
 
 /**
@@ -3081,26 +2810,26 @@ void TFTView_320x240::importChannelFromCard(void)
     };
 
     if (!sdCard) {
-        say("No SD card.", 0xff453a);
+        say("No SD card.", 0xb42318);
         return;
     }
     FsFile f = SDFs.open("/channel.txt", O_RDONLY);
     if (!f) {
-        say("No channel.txt on the card. Put the link in that file.", 0xff453a);
+        say("No channel.txt on the card. Put the link in that file.", 0xb42318);
         return;
     }
     char buf[512];
     int n = (int)f.read((uint8_t *)buf, sizeof(buf) - 1);
     f.close();
     if (n <= 0) {
-        say("channel.txt is empty.", 0xff453a);
+        say("channel.txt is empty.", 0xb42318);
         return;
     }
     buf[n] = 0;
 
     tdeck_channel_import_clear();
     tdeck_channel_import_submit(buf, n);
-    say("Reading...", 0xffd60a);
+    say("Reading...", 0x9a6700);
 
     // The main loop picks it up within a tick or two; poll briefly for the outcome.
     if (channel_import_timer)
@@ -3110,12 +2839,12 @@ void TFTView_320x240::importChannelFromCard(void)
             static int tries = 0;
             int st = tdeck_channel_import_status();
             const char *msg = nullptr;
-            uint32_t colour = 0xff453a;
+            uint32_t colour = 0xb42318;
             if (st == 2) {
                 static char okMsg[72];
                 snprintf(okMsg, sizeof(okMsg), "Added %d channel(s). Restart to finish.", tdeck_channel_import_count());
                 msg = okMsg;
-                colour = 0x30d158;
+                colour = 0x167143;
             } else if (st == -1) {
                 msg = "That file doesn't look like a channel link.";
             } else if (st == -2) {
@@ -3238,12 +2967,12 @@ void TFTView_320x240::updateTrackballRows(void)
         lv_obj_align(settings_tb_hint, LV_ALIGN_TOP_LEFT, 16, on ? 1076 : 1006);
         // The hold gesture is no longer traded away: at 1.5s it cannot be confused with a
         // click, so it works with the cursor on as well. Both modes read the same.
-        lv_label_set_text(settings_tb_hint, on ? "Roll to move the arrow, click to press what it is on.\n"
-                                                 "Hold the ball 1.5s for Back. Double-click for Home, or to lock "
-                                                 "from Home."
-                                               : "Off: rolling does nothing and everything is chosen by touch.\n"
-                                                 "Hold the ball 1.5s for Back. Double-click for Home, or to lock "
-                                                 "from Home.");
+        lv_label_set_text(settings_tb_hint, on ? "Roll: move. Click: select.\n"
+                                                 "Hold 1.5s: Back. Double-click: Home.\n"
+                                                 "Double-click on Home: lock."
+                                               : "Touch to select; rolling is off.\n"
+                                                 "Hold 1.5s: Back. Double-click: Home.\n"
+                                                 "Double-click on Home: lock.");
     }
 }
 
@@ -3475,7 +3204,7 @@ void TFTView_320x240::updateWifiStatus(void)
         snprintf(buf, sizeof(buf), "Connecting to %s ...", db.config.network.wifi_ssid);
     }
     lv_label_set_text(wifi_status_label, buf);
-    lv_obj_set_style_text_color(wifi_status_label, lv_color_hex(st == 2 ? 0x30d158 : 0x8e8e93), LV_PART_MAIN);
+    lv_obj_set_style_text_color(wifi_status_label, lv_color_hex(st == 2 ? 0x167143 : 0x52647a), LV_PART_MAIN);
 }
 
 void TFTView_320x240::wifiApplyEnabled(bool enable)
@@ -3496,7 +3225,7 @@ void TFTView_320x240::wifiApplyEnabled(bool enable)
     if (wifi_status_label) {
         lv_label_set_text(wifi_status_label, enable ? "Restarting to turn Wi-Fi on. This is normal."
                                                     : "Restarting to turn Wi-Fi off. This is normal.");
-        lv_obj_set_style_text_color(wifi_status_label, lv_color_hex(0xffd60a), LV_PART_MAIN);
+        lv_obj_set_style_text_color(wifi_status_label, lv_color_hex(0x9a6700), LV_PART_MAIN);
     }
     messageAlert(enable ? _("Turning Wi-Fi on...\nThe device restarts - this is normal.")
                         : _("Turning Wi-Fi off...\nThe device restarts - this is normal."),
@@ -11737,18 +11466,21 @@ lv_obj_t *TFTView_320x240::lockPageRow(lv_obj_t *parent, const char *title, int 
 {
     lv_obj_t *row = lv_obj_create(parent);
     lv_obj_remove_style_all(row);
-    lv_obj_set_size(row, 320, 40);
-    lv_obj_align(row, LV_ALIGN_TOP_LEFT, 0, y);
+    lv_obj_set_size(row, 304, 40);
+    lv_obj_set_style_bg_color(row, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(row, 14, 0);
+    lv_obj_align(row, LV_ALIGN_TOP_LEFT, 8, y);
     lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *t = lv_label_create(row);
     lv_label_set_text(t, title);
     lv_obj_set_style_text_color(t, lv_color_hex(0xffffff), LV_PART_MAIN);
-    lv_obj_align(t, LV_ALIGN_LEFT_MID, 16, 0);
+    lv_obj_align(t, LV_ALIGN_LEFT_MID, 8, 0);
 
     lv_obj_t *b = lv_btn_create(row);
     lv_obj_set_size(b, 124, 30);
-    lv_obj_align(b, LV_ALIGN_RIGHT_MID, -16, 0);
+    lv_obj_align(b, LV_ALIGN_RIGHT_MID, -8, 0);
     lv_obj_set_style_radius(b, 8, LV_PART_MAIN);
     lv_obj_set_style_bg_color(b, lv_color_hex(0x30415a), LV_PART_MAIN);
     lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, NULL);
@@ -11766,7 +11498,7 @@ void TFTView_320x240::openLockSettings(void)
     if (!lockpage_screen) {
         lockpage_screen = lv_obj_create(NULL);
         tui_statusbar_reserve(lockpage_screen); // an ordinary settings page: you are already unlocked here
-        lv_obj_set_style_bg_color(lockpage_screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(lockpage_screen, lv_color_hex(0xedf1f7), LV_PART_MAIN);
         lv_obj_set_scroll_dir(lockpage_screen, LV_DIR_VER);
         lv_obj_set_scrollbar_mode(lockpage_screen, LV_SCROLLBAR_MODE_AUTO);
 
@@ -11897,6 +11629,7 @@ void TFTView_320x240::openLockSettings(void)
                                 "without unlocking. Only the unlock key gets you in - Alt + W is much "
                                 "harder to press by accident in a pocket than the spacebar.");
         lv_obj_align(hint, LV_ALIGN_TOP_LEFT, 16, y);
+        GlassUI::settingsFinish(lockpage_screen);
     }
     updateLockPageLabels();
     lv_screen_load_anim(lockpage_screen, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
@@ -11932,14 +11665,14 @@ void TFTView_320x240::showLockGlance(void)
 
     if (!lockglance_screen) {
         lockglance_screen = lv_obj_create(NULL);
-        lv_obj_set_style_bg_color(lockglance_screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
+        GlassUI::wallpaper(lockglance_screen);
         lv_obj_clear_flag(lockglance_screen, LV_OBJ_FLAG_SCROLLABLE);
 
         // ---- top left: Notifications, which is a button ----
         glance_notif_btn = lv_btn_create(lockglance_screen);
         lv_obj_set_size(glance_notif_btn, 104, 26);
         lv_obj_align(glance_notif_btn, LV_ALIGN_TOP_LEFT, 8, 6);
-        lv_obj_set_style_radius(glance_notif_btn, 8, LV_PART_MAIN);
+        GlassUI::surface(glance_notif_btn, 13);
         lv_obj_set_style_border_width(glance_notif_btn, 1, LV_PART_MAIN);
         lv_obj_add_event_cb(
             glance_notif_btn,
@@ -11958,28 +11691,11 @@ void TFTView_320x240::showLockGlance(void)
         lv_obj_set_style_text_font(glance_clock_label, &ui_font_montserrat_20, LV_PART_MAIN);
         lv_obj_align(glance_clock_label, LV_ALIGN_TOP_MID, 0, 6);
 
-        // ---- top right: the battery, as a figure AND a cell, so it reads without being read ----
-        glance_bat_shell = lv_obj_create(lockglance_screen);
-        lv_obj_remove_style_all(glance_bat_shell);
-        lv_obj_set_size(glance_bat_shell, 24, 12);
-        lv_obj_align(glance_bat_shell, LV_ALIGN_TOP_RIGHT, -10, 13);
-        lv_obj_set_style_radius(glance_bat_shell, 3, LV_PART_MAIN);
-        lv_obj_set_style_border_color(glance_bat_shell, lv_color_hex(0x8e8e93), LV_PART_MAIN);
-        lv_obj_set_style_border_width(glance_bat_shell, 1, LV_PART_MAIN);
-        lv_obj_clear_flag(glance_bat_shell, LV_OBJ_FLAG_SCROLLABLE);
-        glance_bat_fill = lv_obj_create(glance_bat_shell);
-        lv_obj_remove_style_all(glance_bat_fill);
-        lv_obj_set_size(glance_bat_fill, 17, 8);
-        lv_obj_align(glance_bat_fill, LV_ALIGN_LEFT_MID, 2, 0);
-        lv_obj_set_style_radius(glance_bat_fill, 2, LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(glance_bat_fill, LV_OPA_COVER, LV_PART_MAIN);
-        glance_bat_label = lv_label_create(lockglance_screen);
-        lv_obj_set_style_text_font(glance_bat_label, &ui_font_montserrat_12, LV_PART_MAIN);
-        lv_obj_set_style_text_color(glance_bat_label, lv_color_hex(0xffffff), LV_PART_MAIN);
-        lv_obj_align(glance_bat_label, LV_ALIGN_TOP_RIGHT, -38, 13);
+        glance_battery = GlassUI::battery(lockglance_screen);
+        lv_obj_align(glance_battery, LV_ALIGN_TOP_RIGHT, -6, 9);
 
         glance_date_label = lv_label_create(lockglance_screen);
-        lv_obj_set_style_text_color(glance_date_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(glance_date_label, lv_color_hex(0xf0f6ff), LV_PART_MAIN);
         lv_obj_set_style_text_font(glance_date_label, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_obj_align(glance_date_label, LV_ALIGN_TOP_MID, 0, 36);
 
@@ -12000,11 +11716,7 @@ void TFTView_320x240::showLockGlance(void)
         lv_obj_align(glance_slider, LV_ALIGN_BOTTOM_MID, 0, -7);
         lv_slider_set_range(glance_slider, 0, 100);
         lv_slider_set_value(glance_slider, 0, LV_ANIM_OFF);
-        lv_obj_set_style_bg_color(glance_slider, lv_color_hex(0x1b283c), LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(glance_slider, LV_OPA_COVER, LV_PART_MAIN);
-        lv_obj_set_style_border_color(glance_slider, lv_color_hex(0x3a3a3c), LV_PART_MAIN);
-        lv_obj_set_style_border_width(glance_slider, 1, LV_PART_MAIN);
-        lv_obj_set_style_radius(glance_slider, 22, LV_PART_MAIN);
+        GlassUI::surface(glance_slider, 22);
         // At value 0 an LVGL slider puts the knob's CENTRE on the track's left edge, so half
         // the knob hangs off the screen. Padding on MAIN insets the travel area and brings it
         // fully into view. Seen on the PC renderer; the build log has no opinion about this.
@@ -12023,7 +11735,7 @@ void TFTView_320x240::showLockGlance(void)
 
         glance_slide_label = lv_label_create(lockglance_screen);
         lv_label_set_text(glance_slide_label, "slide to unlock");
-        lv_obj_set_style_text_color(glance_slide_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(glance_slide_label, lv_color_white(), LV_PART_MAIN);
         lv_obj_align(glance_slide_label, LV_ALIGN_BOTTOM_MID, 14, -20);
 
         lv_obj_add_event_cb(
@@ -12066,9 +11778,7 @@ void TFTView_320x240::glanceNotifRow(lv_obj_t *parent, const char *who, const ch
     lv_obj_t *row = lv_obj_create(parent);
     lv_obj_remove_style_all(row);
     lv_obj_set_size(row, 300, 38);
-    lv_obj_set_style_bg_color(row, lv_color_hex(0x14241a), LV_PART_MAIN); // a green-tinted card:
-    lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_PART_MAIN);             // unread reads at a glance
-    lv_obj_set_style_radius(row, 9, LV_PART_MAIN);
+    GlassUI::surface(row, 14);
     lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *dot = lv_obj_create(row);
@@ -12090,7 +11800,7 @@ void TFTView_320x240::glanceNotifRow(lv_obj_t *parent, const char *who, const ch
 
     lv_obj_t *a = lv_label_create(row);
     lv_label_set_text(a, age);
-    lv_obj_set_style_text_color(a, lv_color_hex(0x30d158), LV_PART_MAIN);
+    lv_obj_set_style_text_color(a, lv_color_hex(0xe0edff), LV_PART_MAIN);
     lv_obj_set_style_text_font(a, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_obj_align(a, LV_ALIGN_TOP_RIGHT, -10, 4);
 
@@ -12110,9 +11820,7 @@ void TFTView_320x240::glanceWidgetCard(lv_obj_t *parent, const LockWidgetText &w
     lv_obj_t *card = lv_obj_create(parent);
     lv_obj_remove_style_all(card);
     lv_obj_set_size(card, 300, 96);
-    lv_obj_set_style_bg_color(card, lv_color_hex(0x121214), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(card, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_radius(card, 12, LV_PART_MAIN);
+    GlassUI::surface(card, 18);
     lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *big = lv_label_create(card);
@@ -12134,7 +11842,7 @@ void TFTView_320x240::glanceWidgetCard(lv_obj_t *parent, const LockWidgetText &w
     if (w.line1[0]) {
         lv_obj_t *l1 = lv_label_create(card);
         lv_label_set_text(l1, w.line1);
-        lv_obj_set_style_text_color(l1, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(l1, lv_color_hex(0xe2ebf5), LV_PART_MAIN);
         lv_obj_set_style_text_font(l1, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_obj_set_width(l1, w.right[0] ? 190 : 272);
         // ⚠️ AN EXPLICIT HEIGHT, OR LONG_DOT DOES NOTHING. LVGL clips to the label's height,
@@ -12148,14 +11856,14 @@ void TFTView_320x240::glanceWidgetCard(lv_obj_t *parent, const LockWidgetText &w
     if (w.right[0]) {
         lv_obj_t *r = lv_label_create(card);
         lv_label_set_text(r, w.right);
-        lv_obj_set_style_text_color(r, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(r, lv_color_hex(0xe2ebf5), LV_PART_MAIN);
         lv_obj_set_style_text_font(r, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_obj_align(r, LV_ALIGN_TOP_RIGHT, -14, 44);
     }
     if (w.line2[0]) {
         lv_obj_t *l2 = lv_label_create(card);
         lv_label_set_text(l2, w.line2);
-        lv_obj_set_style_text_color(l2, lv_color_hex(0x6a6a70), LV_PART_MAIN);
+        lv_obj_set_style_text_color(l2, lv_color_hex(0xd0e1f1), LV_PART_MAIN);
         lv_obj_set_style_text_font(l2, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_obj_set_width(l2, 272);
         lv_obj_set_height(l2, 16);
@@ -12198,29 +11906,8 @@ void TFTView_320x240::refreshLockGlance(bool force)
         lv_label_set_text(glance_date_label, "");
     }
 
-    // ---- battery, top right ----
-    if (glance_bat_label && glance_bat_fill) {
-        if (launcherBatPct < 0) {
-            lv_label_set_text(glance_bat_label, "--");
-            lv_obj_set_style_text_color(glance_bat_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
-            lv_obj_set_style_bg_opa(glance_bat_fill, LV_OPA_TRANSP, LV_PART_MAIN);
-        } else {
-            snprintf(buf, sizeof(buf), "%d%%%s", launcherBatPct, launcherBatPlugged ? "+" : "");
-            lv_label_set_text(glance_bat_label, buf);
-            uint32_t col = 0xf2f2f7;
-            if (launcherBatPlugged)
-                col = 0x30d158;
-            else if (launcherBatPct <= 15)
-                col = 0xff453a;
-            lv_obj_set_style_text_color(glance_bat_label, lv_color_hex(col), LV_PART_MAIN);
-            // The cell is 24 wide with a 1px border, so 20px of usable inside. Never below 2,
-            // or a nearly-flat battery looks like a rendering fault instead of a warning.
-            int w = (launcherBatPct * 20) / 100;
-            lv_obj_set_width(glance_bat_fill, w < 2 ? 2 : w);
-            lv_obj_set_style_bg_color(glance_bat_fill, lv_color_hex(col), LV_PART_MAIN);
-            lv_obj_set_style_bg_opa(glance_bat_fill, LV_OPA_COVER, LV_PART_MAIN);
-        }
-    }
+    if (glance_battery)
+        GlassUI::updateBattery(glance_battery, launcherBatPct, launcherBatPlugged);
 
     // ---- the Notifications button's own label ----
     const int unread = notif_count();
@@ -12232,9 +11919,9 @@ void TFTView_320x240::refreshLockGlance(bool force)
         else
             snprintf(buf, sizeof(buf), "%d msgs", unread);
         lv_label_set_text(glance_notif_label, buf);
-        lv_obj_set_style_text_color(glance_notif_label, lv_color_hex(unread ? 0x30d158 : 0x8e8e93), LV_PART_MAIN);
-        lv_obj_set_style_bg_color(glance_notif_btn, lv_color_hex(unread ? 0x14401f : 0x1c1c1e), LV_PART_MAIN);
-        lv_obj_set_style_border_color(glance_notif_btn, lv_color_hex(unread ? 0x30d158 : 0x3a3a3c), LV_PART_MAIN);
+        lv_obj_set_style_text_color(glance_notif_label, lv_color_hex(unread ? 0xb8ffd0 : 0xffffff), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(glance_notif_btn, lv_color_hex(0xe3f2ff), LV_PART_MAIN);
+        lv_obj_set_style_border_color(glance_notif_btn, lv_color_white(), LV_PART_MAIN);
     }
 
     // ---- the slot: unread messages win it outright, exactly as Jake asked ----
@@ -12360,23 +12047,23 @@ void TFTView_320x240::showLockPad(bool setMode)
 
     if (!lockpad_screen) {
         lockpad_screen = lv_obj_create(NULL);
-        lv_obj_set_style_bg_color(lockpad_screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
+        GlassUI::wallpaper(lockpad_screen);
         lv_obj_clear_flag(lockpad_screen, LV_OBJ_FLAG_SCROLLABLE);
 
         lock_title_label = lv_label_create(lockpad_screen);
-        lv_obj_set_style_text_color(lock_title_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(lock_title_label, lv_color_white(), LV_PART_MAIN);
         lv_obj_align(lock_title_label, LV_ALIGN_TOP_MID, 0, 6);
 
         // Unread-message count in the pad's top-left corner (same green "N msgs" as the launcher
         // top bar) - so a glance at the locked device tells you if anything came in.
         lockpad_unread_label = lv_label_create(lockpad_screen);
-        lv_obj_set_style_text_color(lockpad_unread_label, lv_color_hex(0x30d158), LV_PART_MAIN);
+        lv_obj_set_style_text_color(lockpad_unread_label, lv_color_white(), LV_PART_MAIN);
         lv_obj_set_style_text_font(lockpad_unread_label, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_obj_align(lockpad_unread_label, LV_ALIGN_TOP_LEFT, 8, 6);
         lv_label_set_text(lockpad_unread_label, "");
 
         lock_digits_label = lv_label_create(lockpad_screen);
-        lv_obj_set_style_text_color(lock_digits_label, lv_color_hex(0x30d158), LV_PART_MAIN);
+        lv_obj_set_style_text_color(lock_digits_label, lv_color_white(), LV_PART_MAIN);
         lv_obj_set_style_text_font(lock_digits_label, &ui_font_montserrat_20, LV_PART_MAIN);
         lv_obj_set_style_text_letter_space(lock_digits_label, 4, LV_PART_MAIN);
         lv_obj_align(lock_digits_label, LV_ALIGN_TOP_MID, 0, 24);
@@ -19874,7 +19561,7 @@ void TFTView_320x240::updateUnreadMessages(void)
         // "Notifications" rather than blank when there is nothing, matching the shared top bar
         // on every other screen. Blank gave no hint that the corner was tappable at all.
         lv_label_set_text(launcher_unread_label, top[0] ? top : "Notifications");
-        lv_obj_set_style_text_color(launcher_unread_label, lv_color_hex(unreadMessages > 0 ? 0x30d158 : 0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(launcher_unread_label, lv_color_hex(unreadMessages > 0 ? 0x9bffc5 : 0xffffff), LV_PART_MAIN);
         // The "mesh off" warning sits immediately right of this count, so it has to move when the
         // count's width changes ("" -> "3 msgs"). align_to is one-shot, so redo it here.
         if (launcher_mesh_off_label) {

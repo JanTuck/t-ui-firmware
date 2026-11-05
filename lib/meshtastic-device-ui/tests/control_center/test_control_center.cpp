@@ -125,6 +125,7 @@ int main()
     assert(flushes == idleFlushes);
     tap(50, 70);
     assert(findText(lv_layer_top(), "Turn on\n& restart"));
+    assert(!findText(lv_layer_top(), "Settings"));
     assert(changes.empty());
     tap(288, 20);
     assert(!opened());
@@ -132,16 +133,16 @@ int main()
     assert(lv_indev_get_group(keyboard) == group);
     drag(292, 6, 290, 80);
     assert(opened());
-    tap(155, 70);
+    tap(117, 80);
     tap(265, 200);
     assert(!opened());
     assert(changes.size() == 1 && changes.back().action == Bluetooth && changes.back().value == 1);
     tap(292, 9);
     assert(opened());
-    tap(260, 70);
+    tap(187, 80);
     assert(state.gpsEnabled);
     const auto before = changes.size();
-    drag(100, 150, 250, 150);
+    drag(270, 130, 270, 70);
     assert(opened());
     int saved = 0;
     for (size_t i = before; i < changes.size(); ++i)

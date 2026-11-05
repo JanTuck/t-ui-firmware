@@ -1,6 +1,7 @@
 #if defined(VIEW_320x240) || defined(VIEW_240x320)
 #include "graphics/view/TFT/ControlCenter.h"
 #include "graphics/view/TFT/ControlCenterGesture.h"
+#include "graphics/view/TFT/GlassUI.h"
 #include "ui.h"
 #include <cstring>
 
@@ -10,7 +11,7 @@ namespace
 {
 Read readState;
 Write writeState;
-lv_obj_t *handle, *panel, *origin, *slider, *hint, *confirm;
+lv_obj_t *handle, *panel, *origin, *slider, *hint, *confirm, *settingsButton;
 lv_obj_t *tiles[3], *labels[3];
 lv_group_t *savedGroup;
 lv_obj_t *savedFocus;
@@ -49,16 +50,7 @@ bool allowed()
 
 void surface(lv_obj_t *obj)
 {
-    lv_obj_set_style_bg_color(obj, lv_color_hex(0x223047), 0);
-    lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_color(obj, lv_color_hex(0x46566d), 0);
-    lv_obj_set_style_border_width(obj, 1, 0);
-    lv_obj_set_style_radius(obj, 18, 0);
-    lv_obj_set_style_shadow_width(obj, 0, 0);
-    lv_obj_set_style_text_color(obj, lv_color_hex(0xf5f7ff), 0);
-    lv_obj_set_style_text_font(obj, &ui_font_montserrat_12, 0);
-    lv_obj_set_style_pad_all(obj, 0, 0);
-    lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+    GlassUI::surface(obj);
 }
 
 lv_obj_t *button(lv_obj_t *parent, const char *text, int x, int y, int w, int h, lv_event_cb_t cb)
@@ -88,16 +80,16 @@ void refresh()
     const bool enabled[] = {state.wifiEnabled, state.bluetoothEnabled, state.gpsEnabled};
     const bool available[] = {state.wifiAvailable, state.bluetoothAvailable, state.gpsAvailable};
     const bool oldEnabled[] = {last.wifiEnabled, last.bluetoothEnabled, last.gpsEnabled};
-    const char *texts[] = {!state.wifiAvailable    ? "Wi-Fi\nUnavailable"
-                           : state.wifiConnected   ? (state.wifiEnabled ? "Wi-Fi\nConnected" : "Wi-Fi\nApp session")
+    const char *texts[] = {!state.wifiAvailable    ? "Wi-Fi\nNo radio"
+                           : state.wifiConnected   ? (state.wifiEnabled ? "Wi-Fi\nConnected" : "Wi-Fi\nIn app")
                            : !state.wifiConfigured ? "Wi-Fi\nSet up"
-                           : state.wifiEnabled     ? "Wi-Fi\nConnecting"
+                           : state.wifiEnabled     ? "Wi-Fi\nJoining"
                                                    : "Wi-Fi\nOff",
-                           !state.bluetoothAvailable ? "Bluetooth\nUnavailable"
+                           !state.bluetoothAvailable ? "Bluetooth\nNo radio"
                            : state.bluetoothActive   ? "Bluetooth\nEnabled"
                            : state.bluetoothEnabled  ? "Bluetooth\nRestart"
                                                      : "Bluetooth\nOff",
-                           !state.gpsAvailable ? "GPS\nUnavailable"
+                           !state.gpsAvailable ? "GPS\nNo GPS"
                            : state.gpsEnabled  ? "GPS\nOn"
                                                : "GPS\nOff"};
     for (int i = 0; i < 3; ++i) {
@@ -105,8 +97,10 @@ void refresh()
             lv_label_set_text(labels[i], texts[i]);
             lastText[i] = texts[i];
         }
-        if (!haveLast || enabled[i] != oldEnabled[i])
-            lv_obj_set_style_bg_color(tiles[i], lv_color_hex(enabled[i] ? 0x245faa : 0x223047), 0);
+        if (!haveLast || enabled[i] != oldEnabled[i]) {
+            lv_obj_set_style_bg_color(tiles[i], lv_color_hex(enabled[i] ? 0x168cf5 : 0xc8e0fa), 0);
+            lv_obj_set_style_bg_opa(tiles[i], enabled[i] ? 230 : 65, 0);
+        }
         if (available[i])
             lv_obj_remove_state(tiles[i], LV_STATE_DISABLED);
         else
@@ -134,6 +128,7 @@ void choose(lv_event_t *e)
     if (action == Wifi && (!state.wifiConfigured || (state.wifiConnected && !state.wifiEnabled))) {
         pending = -1;
         lv_obj_add_flag(confirm, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(settingsButton, LV_OBJ_FLAG_HIDDEN);
         lv_label_set_text(hint, !state.wifiConfigured ? "Set a Wi-Fi network name\nand password in Settings."
                                                       : "An app is using Wi-Fi.\nDisconnect from that app.");
         return;
@@ -141,8 +136,11 @@ void choose(lv_event_t *e)
     pending = action;
     pendingValue = action == Wifi ? !state.wifiEnabled : !state.bluetoothEnabled;
     lv_label_set_text(lv_obj_get_child(confirm, 0), pendingValue ? "Turn on\n& restart" : "Turn off\n& restart");
-    lv_label_set_text(hint, action == Wifi ? "Wi-Fi change restarts device.\nEnabling Wi-Fi pauses Bluetooth."
-                                           : "Bluetooth change restarts device.\nEnabling Bluetooth turns Wi-Fi off.");
+    const char *message =
+        action == Wifi ? (pendingValue ? "Restart to enable Wi-Fi.\nBluetooth will pause." : "Restart to disable Wi-Fi.")
+                       : (pendingValue ? "Restart to enable Bluetooth.\nWi-Fi will turn off." : "Restart to disable Bluetooth.");
+    lv_label_set_text(hint, message);
+    lv_obj_add_flag(settingsButton, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(confirm, LV_OBJ_FLAG_HIDDEN);
 }
 
@@ -181,27 +179,48 @@ void open()
     surface(panel);
     lv_obj_set_style_radius(panel, 0, 0);
     lv_obj_set_style_border_width(panel, 0, 0);
-    lv_obj_set_style_bg_color(panel, lv_color_hex(0x101a2b), 0);
+    GlassUI::wallpaper(panel);
+    lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
     lv_obj_t *title = lv_label_create(panel);
     lv_label_set_text(title, "Control Center");
     lv_obj_set_style_text_font(title, &ui_font_montserrat_16, 0);
     lv_obj_set_pos(title, 12, 15);
-    button(panel, "Done", 264, 2, 48, 40, dismiss);
+    button(panel, "Done", 260, 7, 52, 30, dismiss);
+    lv_obj_t *connections = lv_obj_create(panel);
+    surface(connections);
+    lv_obj_set_pos(connections, 10, 46);
+    lv_obj_set_size(connections, 214, 121);
+    lv_obj_remove_flag(connections, LV_OBJ_FLAG_CLICKABLE);
+    const char *symbols[] = {"Wifi", "Bluetooth", "Gps"};
     for (int i = 0; i < 3; ++i) {
-        tiles[i] = button(panel, "", 8 + i * 104, 46, 96, 58, [](lv_event_t *) {});
-        labels[i] = lv_obj_get_child(tiles[i], 0);
+        tiles[i] = button(panel, "", 20 + i * 70, 57, 54, 54, [](lv_event_t *) {});
+        lv_obj_set_style_radius(tiles[i], LV_RADIUS_CIRCLE, 0);
+        GlassUI::symbol(tiles[i], symbols[i], 12, 12);
+        labels[i] = lv_label_create(panel);
+        lv_obj_set_pos(labels[i], 12 + i * 70, 118);
+        lv_obj_set_width(labels[i], 70);
         lv_obj_set_style_text_align(labels[i], LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_add_event_cb(tiles[i], choose, LV_EVENT_CLICKED, reinterpret_cast<void *>(static_cast<intptr_t>(i)));
     }
-    lv_obj_t *caption = lv_label_create(panel);
-    lv_label_set_text(caption, "Brightness");
-    lv_obj_set_pos(caption, 14, 113);
+    lv_obj_t *display = lv_obj_create(panel);
+    surface(display);
+    lv_obj_set_pos(display, 234, 46);
+    lv_obj_set_size(display, 76, 121);
+    lv_obj_remove_flag(display, LV_OBJ_FLAG_CLICKABLE);
     slider = lv_slider_create(panel);
-    lv_obj_set_pos(slider, 22, 145);
-    lv_obj_set_size(slider, 276, 14);
-    lv_obj_set_ext_click_area(slider, 14);
+    lv_obj_set_pos(slider, 246, 55);
+    lv_obj_set_size(slider, 52, 102);
+    lv_obj_set_ext_click_area(slider, 6);
     lv_slider_set_range(slider, 10, 255);
-    lv_obj_set_style_bg_color(slider, lv_color_hex(0x67aaff), LV_PART_INDICATOR);
+    lv_obj_set_style_radius(slider, 26, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(slider, lv_color_hex(0x355a8c), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(slider, 160, LV_PART_MAIN);
+    lv_obj_set_style_radius(slider, 26, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(slider, lv_color_hex(0xe9f6ff), LV_PART_INDICATOR);
+    lv_obj_set_style_bg_opa(slider, LV_OPA_COVER, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_opa(slider, LV_OPA_TRANSP, LV_PART_KNOB);
+    lv_obj_set_style_pad_all(slider, 0, LV_PART_KNOB);
+    GlassUI::symbol(slider, "Sun", 12, 64);
     lv_obj_add_flag(slider, LV_OBJ_FLAG_EVENT_BUBBLE);
     lv_group_add_obj(panelGroup, slider);
     lv_obj_add_event_cb(
@@ -228,14 +247,16 @@ void open()
         },
         LV_EVENT_ALL, nullptr);
     hint = lv_label_create(panel);
-    lv_obj_set_pos(hint, 12, 177);
+    lv_obj_set_pos(hint, 12, 180);
     lv_obj_set_size(hint, 198, 48);
-    lv_label_set_text(hint, "Quick controls\nChanges are saved on device.");
-    button(panel, "Settings", 218, 178, 94, 48, [](lv_event_t *) {
+    lv_label_set_text(hint, "");
+    settingsButton = button(panel, "Settings", 218, 178, 94, 48, [](lv_event_t *) {
         close();
         writeState(Settings, 0, false);
     });
     confirm = button(panel, "Restart", 218, 178, 94, 48, apply);
+    lv_obj_set_style_bg_color(confirm, lv_color_hex(0x1678dd), 0);
+    lv_obj_set_style_bg_opa(confirm, LV_OPA_COVER, 0);
     lv_obj_set_style_text_align(lv_obj_get_child(confirm, 0), LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_add_flag(confirm, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(panel, LV_OBJ_FLAG_PRESS_LOCK);
@@ -313,15 +334,6 @@ void init(Read read, Write write)
     lv_obj_add_flag(handle, LV_OBJ_FLAG_PRESS_LOCK);
     lv_obj_add_flag(handle, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(handle, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_t *pill = lv_obj_create(handle);
-    lv_obj_remove_style_all(pill);
-    lv_obj_remove_flag(pill, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(pill, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_size(pill, 26, 3);
-    lv_obj_align(pill, LV_ALIGN_BOTTOM_MID, 0, -1);
-    lv_obj_set_style_bg_color(pill, lv_color_hex(0x8dbfff), 0);
-    lv_obj_set_style_bg_opa(pill, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(pill, LV_RADIUS_CIRCLE, 0);
     lv_obj_add_event_cb(
         handle,
         [](lv_event_t *e) {

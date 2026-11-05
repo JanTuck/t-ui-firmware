@@ -194,9 +194,9 @@ class TFTView_320x240 : public MeshtasticView
     virtual void updateAllLastHeard(void);
     // The freeze fix. updateAllLastHeard used to walk all 229 nodes every 60 s while holding
     // spiLock; it now does a slice per pass, and nothing at all while the list is hidden.
-    bool lastHeardStale = false;   // hidden list needs catching up when it is next opened
-    size_t lastHeardCursor = 0;    // how far through the node map the sweep has got
-    uint16_t onlineAccum = 0;      // online count so far this sweep; published only when it ends
+    bool lastHeardStale = false; // hidden list needs catching up when it is next opened
+    size_t lastHeardCursor = 0;  // how far through the node map the sweep has got
+    uint16_t onlineAccum = 0;    // online count so far this sweep; published only when it ends
     static constexpr size_t kNodesPerPass = 24;
     // update image and unread messages on home screen
     virtual void updateUnreadMessages(void);
@@ -221,7 +221,7 @@ class TFTView_320x240 : public MeshtasticView
 
     // ---- Maps app: user-dropped pins on our own map screen (long-press to drop) ----
     // A pin can be shared over the mesh. On the wire it is a plain meshtastic_Waypoint, which is
-    // what every other Meshtastic client already speaks — so a pin shared from here shows up on a
+    // what every other Meshtastic client already speaks - so a pin shared from here shows up on a
     // stock T-Deck and in the phone app, not only on another T-UI.
     enum PinShare : uint8_t { ePinNotShared = 0, ePinSharedToNode = 1, ePinSharedToChannel = 2 };
     struct MapPin {
@@ -230,12 +230,12 @@ class TFTView_320x240 : public MeshtasticView
         uint32_t color;
         uint32_t whenEpoch; // unix time dropped (0 = unknown)
         char label[24];
-        lv_obj_t *marker;    // the on-map dot (child of maps_map_container)
-        lv_obj_t *labelObj;  // the pin's name shown next to the dot (also a child)
-        uint8_t shareKind;   // PinShare: who I'm sharing this one with, if anybody
-        uint32_t shareDest;  // nodenum (ePinSharedToNode) or channel index (ePinSharedToChannel)
-        uint32_t fromNode;   // 0 = mine, else the node that shared it with me
-        uint32_t wpId;       // waypoint id on the mesh; 0 until first shared. Retracting reuses it.
+        lv_obj_t *marker;       // the on-map dot (child of maps_map_container)
+        lv_obj_t *labelObj;     // the pin's name shown next to the dot (also a child)
+        uint8_t shareKind;      // PinShare: who I'm sharing this one with, if anybody
+        uint32_t shareDest;     // nodenum (ePinSharedToNode) or channel index (ePinSharedToChannel)
+        uint32_t fromNode;      // 0 = mine, else the node that shared it with me
+        uint32_t wpId;          // waypoint id on the mesh; 0 until first shared. Retracting reuses it.
         int16_t lastX, lastY;   // last drawn position, so a redraw that changes nothing costs nothing
         int16_t lastLX, lastLY; // ...and the same for the name tag beside it
     };
@@ -248,30 +248,30 @@ class TFTView_320x240 : public MeshtasticView
     MapPin *findPinByWaypoint(uint32_t wpId);
     lv_obj_t *makePinMarker(uint32_t color, bool theirs = false);
     void stylePinMarker(lv_obj_t *m, uint32_t color, bool theirs); // filled dot = mine, ring = theirs
-    lv_obj_t *makePinLabel(const char *name, uint32_t color); // name tag drawn beside a pin
+    lv_obj_t *makePinLabel(const char *name, uint32_t color);      // name tag drawn beside a pin
     void dropPinAt(float lat, float lon);
     void drawAllPins(void);
     void loadPins(void);
-    bool savePins(void); // returns false if the SD write failed (surfaced on-screen)
+    bool savePins(void);                    // returns false if the SD write failed (surfaced on-screen)
     void openPinsList(bool search = false); // search = opened from the magnifier: titled "Search"
-    void rebuildPinRows(void);               // just the results, so typing does not kill the box
+    void rebuildPinRows(void);              // just the results, so typing does not kill the box
     void pinsNodeRow(lv_obj_t *list, uint32_t num, const char *name, int32_t latI, int32_t lonI);
     void pinsSectionHeader(lv_obj_t *list, const char *text);
     static bool nameContains(const char *hay, const char *lowercaseNeedle);
     void awayText(double lat, double lon, char *out, size_t n); // "1.4 mi NE", or empty
-    lv_obj_t *pins_list = nullptr;            // the results, inside pins_overlay
-    lv_obj_t *pins_search_ta = nullptr;       // the box you type in
-    char pinFilter[24] = "";                  // outlives a rebuild, so the Nodes toggle is safe
+    lv_obj_t *pins_list = nullptr;                              // the results, inside pins_overlay
+    lv_obj_t *pins_search_ta = nullptr;                         // the box you type in
+    char pinFilter[24] = "";                                    // outlives a rebuild, so the Nodes toggle is safe
     void closePinsList(void);
     void deletePin(uint32_t id);
 
     // ---- Maps app: offline place-name search (towns, lakes, peaks...) - see PlaceNames.h ----
-    bool pinsSearchMode = false;        // the overlay was opened from the magnifier
-    lv_timer_t *places_timer = nullptr; // searches the card once typing pauses (paused otherwise)
+    bool pinsSearchMode = false;         // the overlay was opened from the magnifier
+    lv_timer_t *places_timer = nullptr;  // searches the card once typing pauses (paused otherwise)
     static const int kMaxPlaceHits = 13; // 9 Nearby + 4 Cities (PlaceNames.cpp)
-    PlaceHit *placeHits = nullptr;      // kMaxPlaceHits of them, in PSRAM, kept for the session
+    PlaceHit *placeHits = nullptr;       // kMaxPlaceHits of them, in PSRAM, kept for the session
     int placeHitCount = 0;
-    char placeQuery[24] = "";           // the text placeHits answers ("" = nothing searched yet)
+    char placeQuery[24] = ""; // the text placeHits answers ("" = nothing searched yet)
     PlaceSearchInfo placeInfo{};
     void runPlaceSearch(void);
     void placeRow(lv_obj_t *list, int idx);
@@ -315,11 +315,11 @@ class TFTView_320x240 : public MeshtasticView
     void mapsRememberView(void); // on leaving Maps: note where it was, save if it moved
 
     // ---- Maps app: sharing a pin over the mesh ----
-    void sharePin(uint32_t id, uint8_t kind, uint32_t dest); // send it, remember who to
-    void unsharePin(uint32_t id);                            // ask everyone to drop it again
-    void sendPinWaypoint(const MapPin &p, bool retract);     // the actual WAYPOINT_APP send
+    void sharePin(uint32_t id, uint8_t kind, uint32_t dest);   // send it, remember who to
+    void unsharePin(uint32_t id);                              // ask everyone to drop it again
+    void sendPinWaypoint(const MapPin &p, bool retract);       // the actual WAYPOINT_APP send
     void pinShareText(const MapPin &p, char *out, size_t len); // the row's plain-English status line
-    void openSharePicker(uint32_t id);                       // choose a channel or a node
+    void openSharePicker(uint32_t id);                         // choose a channel or a node
     void closeSharePicker(void);
     // Jake, 2026-08-26: "maybe a prompt after clicking a channel to share to... same when clicking
     // the unshare button". kind == ePinNotShared means unshare; anything else is a share to dest.
@@ -340,43 +340,43 @@ class TFTView_320x240 : public MeshtasticView
         uint16_t tries;
         uint8_t kind;
     };
-    static constexpr int kRetractDays = 7;      // how long we keep asking
+    static constexpr int kRetractDays = 7; // how long we keep asking
     static constexpr uint16_t kRetractMaxTries = 60;
     // static for the same load-bearing reason as share_overlay: the GUI object must not grow.
     static std::vector<PendingRetract> pendingRetracts;
     static time_t retractLastService;
-    void queueRetract(const MapPin &p);       // remember one, so it outlives the pin and the boot
-    void cancelRetract(uint32_t wpId);        // re-sharing must not leave a retraction chasing it
+    void queueRetract(const MapPin &p); // remember one, so it outlives the pin and the boot
+    void cancelRetract(uint32_t wpId);  // re-sharing must not leave a retraction chasing it
     void sendRetract(PendingRetract &r);
-    void retractService(void);                // from the 5s tick
+    void retractService(void);                 // from the 5s tick
     void retractOnNodeHeard(uint32_t nodeNum); // they just came back in range - try now
-    bool retractPendingFor(uint32_t wpId);    // drives the "still asking" line in the pins list
-    const char *pinNodeName(uint32_t nodeNum);               // friendliest name we have for a node
-    const char *pinChannelName(uint8_t ch);                  // channel name, or the preset's name
+    bool retractPendingFor(uint32_t wpId);     // drives the "still asking" line in the pins list
+    const char *pinNodeName(uint32_t nodeNum); // friendliest name we have for a node
+    const char *pinChannelName(uint8_t ch);    // channel name, or the preset's name
     // static, not instance members, and that is load-bearing: the TFTView_320x240 object is a
     // single ~16.5KB allocation that has to come out of ONE contiguous run of internal RAM, and it
     // sits right on the edge of the largest run available after the 36KB TLS reserve. Adding these
     // two as instance members grew the object by 8 bytes and the device stopped booting. There is
-    // only ever one GUI, so they cost nothing in .bss — same reasoning as screenLocked below.
+    // only ever one GUI, so they cost nothing in .bss - same reasoning as screenLocked below.
     static lv_obj_t *share_overlay;
     static uint32_t sharing_pin_id;
     static lv_obj_t *confirm_overlay; // the "are you sure?" card, over whichever list opened it
-    static uint32_t confirm_pin_id;   // what the two buttons act on — lambdas can't capture
+    static uint32_t confirm_pin_id;   // what the two buttons act on - lambdas can't capture
     static uint32_t confirm_dest;
     static uint8_t confirm_kind;
 
     // ---- Maps app: mesh nodes drawn on OUR map, not just the Meshtastic one ----
     // Jake, 2026-08-07: "on my tdeck maps (the ones not in meshtastic app) im not seeing other
-    // nodes". They were never there — node positions only ever went to the mesh map (`map`), and
+    // nodes". They were never there - node positions only ever went to the mesh map (`map`), and
     // the Maps app (`userMap`) only ever drew your own position and your pins.
     struct NodeMarker {
         uint32_t nodeNum;
-        lv_obj_t *marker;   // ring on the map (child of maps_marker_layer)
-        lv_obj_t *labelObj; // short name beside it
-        int16_t lastX, lastY;   // last drawn position - see markerShow()
+        lv_obj_t *marker;     // ring on the map (child of maps_marker_layer)
+        lv_obj_t *labelObj;   // short name beside it
+        int16_t lastX, lastY; // last drawn position - see markerShow()
         int16_t lastLX, lastLY;
     };
-    // Keyed by the id handed to userMap so the draw callback is a hash lookup, not a scan — a
+    // Keyed by the id handed to userMap so the draw callback is a hash lookup, not a scan - a
     // busy mesh has enough nodes that a linear search per marker per redraw would show.
     // ⛔ PSRAM-backed. Measured 2026-09-29: with ~245 nodes, opening Maps took 27KB of the internal
     // heap for these and userMap's objects, never returned, and app-hopping afterwards froze the
@@ -390,8 +390,8 @@ class TFTView_320x240 : public MeshtasticView
     bool showNodesOnUserMap = true;
     std::function<void(uint32_t, uint16_t, uint16_t, uint8_t)> drawNodeCB;
     void addOrUpdateUserMapNode(uint32_t nodeNum, float lat, float lon);
-    void drawAllNodesOnUserMap(void);      // attach every already-known node when the app opens
-    void setShowNodesOnUserMap(bool on);   // the Nodes toggle
+    void drawAllNodesOnUserMap(void);    // attach every already-known node when the app opens
+    void setShowNodesOnUserMap(bool on); // the Nodes toggle
     // Jake, 2026-08-26: "can you put nodes back on my normal map with a toggle for on/off". The
     // switch existed but lived in the Pins list, which is a strange place to look for "am I seeing
     // other people" - so it is now a pill on the map itself, above the cog. Static, not instance
@@ -431,11 +431,11 @@ class TFTView_320x240 : public MeshtasticView
 
     // ---- app grid: built-in apps + user apps discovered on the SD card (/apps/<name>/main.lua),
     //      shown in a user-chosen order (persisted to /apps/order.txt) and re-arrangeable. ----
-    struct LaunchDesc {         // POD (header-safe: no anon-namespace types)
-        char name[24];          // display label (also the ordering key)
+    struct LaunchDesc { // POD (header-safe: no anon-namespace types)
+        char name[24];  // display label (also the ordering key)
         uint32_t color;
-        int builtinIdx;         // >=0 => kApps[builtinIdx]; -1 => a user SD app
-        int userIdx;            // >=0 => userAppDirs[userIdx]; -1 => a built-in app
+        int builtinIdx; // >=0 => kApps[builtinIdx]; -1 => a user SD app
+        int userIdx;    // >=0 => userAppDirs[userIdx]; -1 => a built-in app
     };
     // 12 was too few and failed SILENTLY. With 17 app folders on the card the scan simply
     // stopped at twelve, so the last few were never discovered - no tile, no error, nothing
@@ -446,24 +446,24 @@ class TFTView_320x240 : public MeshtasticView
     static const int kMaxUserApps = 26;
     char userAppDirs[kMaxUserApps][24]; // folder names under /apps that hold a main.lua
     int userAppCount = 0;
-    LaunchDesc launchList[40];           // the assembled, ordered grid (stable storage for tiles)
+    LaunchDesc launchList[40]; // the assembled, ordered grid (stable storage for tiles)
     int launchCount = 0;
     // The chosen order, held in RAM as well as on the card. buildAppGrid() reassembles
     // launchList from scratch on every rebuild, so without this a reorder was thrown away the
     // instant the grid refreshed on any device with no SD card to read the order back from.
     char appOrder[40][24];
     int appOrderCount = 0;
-    bool suppressTileClick = false;      // a long-press opened Arrange -> don't also launch on release
+    bool suppressTileClick = false; // a long-press opened Arrange -> don't also launch on release
     lv_obj_t *arrange_overlay = nullptr;
-    lv_obj_t *arrange_list = nullptr;    // the scrollable row list inside the overlay
-    void refreshArrangeRows(void);       // re-label rows in place after a move (keeps scroll pos)
-    void scanUserApps(void);             // find user apps on the SD card (once at boot)
-    void runUserApp(int userIdx);        // launch a discovered SD app by index
-    void buildAppGrid(void);             // assemble launchList + build the pager/tiles
-    void rebuildAppGrid(void);           // tear down + rebuild the grid live (after reorder)
-    void applyAppOrder(void);            // reorder launchList by /apps/order.txt
-    void saveAppOrder(void);             // persist the current order to /apps/order.txt
-    void openArrange(void);              // "Arrange apps" overlay (long-press a tile)
+    lv_obj_t *arrange_list = nullptr; // the scrollable row list inside the overlay
+    void refreshArrangeRows(void);    // re-label rows in place after a move (keeps scroll pos)
+    void scanUserApps(void);          // find user apps on the SD card (once at boot)
+    void runUserApp(int userIdx);     // launch a discovered SD app by index
+    void buildAppGrid(void);          // assemble launchList + build the pager/tiles
+    void rebuildAppGrid(void);        // tear down + rebuild the grid live (after reorder)
+    void applyAppOrder(void);         // reorder launchList by /apps/order.txt
+    void saveAppOrder(void);          // persist the current order to /apps/order.txt
+    void openArrange(void);           // "Arrange apps" overlay (long-press a tile)
     void closeArrange(void);
     void moveAppInArrange(int idx, int delta);
 
@@ -486,7 +486,7 @@ class TFTView_320x240 : public MeshtasticView
     // ---- custom iPhone-style app-grid launcher (boots first; tiles open MUI screens) ----
     void createLauncher(void);
     lv_obj_t *launcher_screen = nullptr;
-    lv_obj_t *splash_title = nullptr;        // "T-UI" boot label; hidden on the programming screen
+    lv_obj_t *splash_title = nullptr; // "T-UI" boot label; hidden on the programming screen
     // Flashlight app: full-white screen at max backlight; restores brightness on exit
     void openFlashlight(void);
     lv_obj_t *flashlight_screen = nullptr;
@@ -498,7 +498,7 @@ class TFTView_320x240 : public MeshtasticView
     // Holding was tried first and couldn't be told apart from starting a pan.
     lv_obj_t *maps_hold_label = nullptr;   // "tap the map to place a pin" prompt
     lv_obj_t *maps_credit_label = nullptr; // tile-source attribution (a licence condition)
-    bool mapsAwaitPinTap = false;        // armed by "Add pin" in the Pins list
+    bool mapsAwaitPinTap = false;          // armed by "Add pin" in the Pins list
     // Drag-to-pan state. mapsPanMoved also tells a pan apart from a tap, so panning
     // while "Add pin" is armed doesn't drop a pin wherever the finger happened to lift.
     int mapsPanX = 0, mapsPanY = 0;
@@ -512,21 +512,21 @@ class TFTView_320x240 : public MeshtasticView
     lv_timer_t *channel_import_timer = nullptr;
 
     void mapsInitTileStyle(void);                 // detect tile style/prefix on SD (mirror of loadMap's logic)
-    static ITileService *sharedTileService(void); // ONE tile service ever — its ctor registers an LVGL fs driver
+    static ITileService *sharedTileService(void); // ONE tile service ever - its ctor registers an LVGL fs driver
     lv_obj_t *maps_screen = nullptr;
     lv_obj_t *maps_map_container = nullptr; // the tile canvas; pin markers are its children
     lv_obj_t *maps_gps_dot = nullptr;       // "you are here" dot
     MapPanel *userMap = nullptr;            // our own map instance (mesh map keeps its own, `map`)
     bool mapsStyleInited = false;
-    bool meshMapStale = false; // Maps app touched shared zoom/tile state; mesh map re-syncs on next load
-    void updateMapsSats(void);              // refresh the top-bar satellite readout (1s timer)
-    void mapsShowNotice(const char *msg);   // transient on-map message (auto-hides)
-    lv_obj_t *maps_sats_label = nullptr;    // top-bar "N sats" readout (green = locked)
-    lv_timer_t *maps_sats_timer = nullptr;  // drives updateMapsSats while Maps is on screen
-    lv_obj_t *maps_zoom_label = nullptr;    // bottom-left "z13" readout
-    void updateMapsZoom(void);              // refresh it (zoom buttons + the 1s timer)
-    lv_obj_t *maps_notice = nullptr;        // the transient message label
-    uint32_t maps_notice_until = 0;         // lv_tick deadline to hide it (0 = hidden)
+    bool meshMapStale = false;             // Maps app touched shared zoom/tile state; mesh map re-syncs on next load
+    void updateMapsSats(void);             // refresh the top-bar satellite readout (1s timer)
+    void mapsShowNotice(const char *msg);  // transient on-map message (auto-hides)
+    lv_obj_t *maps_sats_label = nullptr;   // top-bar "N sats" readout (green = locked)
+    lv_timer_t *maps_sats_timer = nullptr; // drives updateMapsSats while Maps is on screen
+    lv_obj_t *maps_zoom_label = nullptr;   // bottom-left "z13" readout
+    void updateMapsZoom(void);             // refresh it (zoom buttons + the 1s timer)
+    lv_obj_t *maps_notice = nullptr;       // the transient message label
+    uint32_t maps_notice_until = 0;        // lv_tick deadline to hide it (0 = hidden)
     // Maps: style picker (gear cog) + USGS region downloader
     void openMapsMenu(void);                    // gear -> map settings
     void openMapsStyleMenu(void);               // gear -> Map style -> one row per style on the card
@@ -536,7 +536,7 @@ class TFTView_320x240 : public MeshtasticView
     void mapsApplyStyle(const char *style, bool persist); // set style + per-style .format/.url wiring
     lv_obj_t *maps_gear_btn = nullptr;
     lv_obj_t *maps_style_ovl = nullptr;
-    void openMapDownload(void);   // capture the current viewport as the download box + show the screen
+    void openMapDownload(void); // capture the current viewport as the download box + show the screen
     // --- Get Apps: install add-on apps from jeeab.github.io/t-ui over Wi-Fi -----------
     static const int kMaxStoreApps = 24;
     struct StoreApp {
@@ -551,8 +551,8 @@ class TFTView_320x240 : public MeshtasticView
         bool outdated; // installed, but the catalog has a newer version
     };
     void openGetApps(void);
-    void closeGetApps(void); // hand back Wi-Fi + the TLS client on leaving, by any route
-    void getappsPump(void); // connect Wi-Fi, then fetch the catalog once
+    void closeGetApps(void);    // hand back Wi-Fi + the TLS client on leaving, by any route
+    void getappsPump(void);     // connect Wi-Fi, then fetch the catalog once
     void getappsSelfTest(void); // GETAPPS_SELFTEST builds only: run that fetch at boot, unattended
     void getappsBuildList(void);
     void getappsScheduleRebuild(void); // rebuild rows after the current event, not during it
@@ -582,31 +582,31 @@ class TFTView_320x240 : public MeshtasticView
                                   // 2 = names for all of the USA; 3 = all of Europe
     lv_obj_t *mapdl_title = nullptr;
     lv_obj_t *mapdl_opt_lbls[3] = {nullptr, nullptr, nullptr}; // "Source:", "Detail:", "to"
-    void mapdlShowMode(void);  // title, which controls show, and the before-you-start text
-    void openNamesMenu(void);  // gear -> Place names for search -> near the map / USA / Europe
+    void mapdlShowMode(void);                                  // title, which controls show, and the before-you-start text
+    void openNamesMenu(void);                                  // gear -> Place names for search -> near the map / USA / Europe
     void mapdlStart(void);
     void mapdlStop(bool finished);
-    void mapdlPump(void);                       // one WiFi/fetch step per timer tick (UI task = SD-safe)
+    void mapdlPump(void); // one WiFi/fetch step per timer tick (UI task = SD-safe)
     uint32_t mapdlCountTiles(uint8_t zmin, uint8_t zmax) const;
     lv_obj_t *mapdl_screen = nullptr;
-    lv_obj_t *mapdl_status = nullptr;   // big status line ("Connecting…" / "1234 / 5220 tiles")
-    lv_obj_t *mapdl_info = nullptr;     // detail text
-    lv_obj_t *mapdl_btn = nullptr;      // Start / Stop
+    lv_obj_t *mapdl_status = nullptr; // big status line ("Connecting…" / "1234 / 5220 tiles")
+    lv_obj_t *mapdl_info = nullptr;   // detail text
+    lv_obj_t *mapdl_btn = nullptr;    // Start / Stop
     lv_obj_t *mapdl_btn_lbl = nullptr;
-    lv_obj_t *mapdl_use_btn = nullptr;  // "Use this map now" (shown when done)
-    lv_obj_t *mapdl_zmin_dd = nullptr;  // detail range dropdowns
+    lv_obj_t *mapdl_use_btn = nullptr; // "Use this map now" (shown when done)
+    lv_obj_t *mapdl_zmin_dd = nullptr; // detail range dropdowns
     lv_obj_t *mapdl_zmax_dd = nullptr;
-    lv_obj_t *mapdl_src_dd = nullptr;   // tile source ((US) USGS / (EU) TopPlusOpen)
-    lv_timer_t *mapdl_timer = nullptr;  // the pump; independent of which screen is showing
+    lv_obj_t *mapdl_src_dd = nullptr;  // tile source ((US) USGS / (EU) TopPlusOpen)
+    lv_timer_t *mapdl_timer = nullptr; // the pump; independent of which screen is showing
     bool mapdl_running = false;
-    bool mapdl_own_wifi = false;        // we brought WiFi up -> we take it down
+    bool mapdl_own_wifi = false; // we brought WiFi up -> we take it down
     bool mapdl_wifi_up = false;
     float mapdl_latN = 0, mapdl_latS = 0, mapdl_lonW = 0, mapdl_lonE = 0; // captured viewport box
     uint8_t mapdl_zmin = 10, mapdl_zmax = 15;
-    uint8_t mapdl_z = 0;                            // zoom level currently being fetched
-    uint32_t mapdl_x = 0, mapdl_y = 0;              // next tile cursor within mapdl_z
+    uint8_t mapdl_z = 0;               // zoom level currently being fetched
+    uint32_t mapdl_x = 0, mapdl_y = 0; // next tile cursor within mapdl_z
     uint32_t mapdl_total = 0, mapdl_done = 0, mapdl_failed = 0, mapdl_skipped = 0;
-    uint32_t mapdl_deadline = 0;                    // WiFi association timeout
+    uint32_t mapdl_deadline = 0; // WiFi association timeout
     // mesh kill switch + a settings screen reachable from the grid
     void createSettingsScreen(void);
     void openSettings(void);
@@ -623,13 +623,13 @@ class TFTView_320x240 : public MeshtasticView
     bool gpsEnabled = true;                  // single source of truth for the GPS toggle
     bool meshEnabled = true;                 // single source of truth (toggle + status icon read this)
     lv_obj_t *settings_screen = nullptr;
-    lv_obj_t *mesh_status_icon = nullptr;    // dot on the grid: green = live, gray = off
-    lv_obj_t *mesh_switch = nullptr;         // the on/off switch on the settings screen
+    lv_obj_t *mesh_status_icon = nullptr; // dot on the grid: green = live, gray = off
+    lv_obj_t *mesh_switch = nullptr;      // the on/off switch on the settings screen
     // Settings: WiFi (SSID + password typed on-device, status/IP shown live)
-    lv_obj_t *wifi_switch = nullptr;         // on/off; on = connect to the saved network
-    lv_obj_t *wifi_net_btn_lbl = nullptr;    // shows the saved network name on the "Network" button
-    lv_obj_t *wifi_status_label = nullptr;   // "Connected 192.168.x.x" / "Connecting…" / "Off"
-    lv_obj_t *wifi_ovl = nullptr;            // SSID/password entry overlay (physical-keyboard textarea)
+    lv_obj_t *wifi_switch = nullptr;       // on/off; on = connect to the saved network
+    lv_obj_t *wifi_net_btn_lbl = nullptr;  // shows the saved network name on the "Network" button
+    lv_obj_t *wifi_status_label = nullptr; // "Connected 192.168.x.x" / "Connecting…" / "Off"
+    lv_obj_t *wifi_ovl = nullptr;          // SSID/password entry overlay (physical-keyboard textarea)
     lv_obj_t *wifi_ta = nullptr;
     lv_timer_t *wifi_entry_guard = nullptr;  // keeps the physical keyboard aimed at the textarea
     bool wifi_entry_psk = false;             // which field the overlay is editing
@@ -637,17 +637,17 @@ class TFTView_320x240 : public MeshtasticView
     lv_timer_t *wifi_status_timer = nullptr; // refreshes the status line while Settings is open
     void wifiEntryPrompt(bool psk);          // keyboard overlay for the network name / password
     void closeWifiEntry(void);
-    void wifiApplyEnabled(bool enable);      // write network config + apply (reboots to connect)
-    void updateWifiStatus(void);             // status line from the TDeckWifi bridge
-    void updateWifiNetLabel(void);           // network-name button label from the saved SSID
-    lv_obj_t *wifi_scan_ovl = nullptr;       // "choose a network" overlay (scan results)
-    lv_obj_t *wifi_scan_list = nullptr;      // list of found networks inside that overlay
-    lv_obj_t *wifi_scan_status = nullptr;    // "Scanning…" / "No networks" line
-    lv_timer_t *wifi_scan_timer = nullptr;   // polls the async scan for completion
-    char wifi_scan_ssids[16][33] = {};       // de-duplicated results backing the list rows
-    void wifiScanOpen(void);                 // start a scan + show the chooser (tap Network)
+    void wifiApplyEnabled(bool enable);    // write network config + apply (reboots to connect)
+    void updateWifiStatus(void);           // status line from the TDeckWifi bridge
+    void updateWifiNetLabel(void);         // network-name button label from the saved SSID
+    lv_obj_t *wifi_scan_ovl = nullptr;     // "choose a network" overlay (scan results)
+    lv_obj_t *wifi_scan_list = nullptr;    // list of found networks inside that overlay
+    lv_obj_t *wifi_scan_status = nullptr;  // "Scanning…" / "No networks" line
+    lv_timer_t *wifi_scan_timer = nullptr; // polls the async scan for completion
+    char wifi_scan_ssids[16][33] = {};     // de-duplicated results backing the list rows
+    void wifiScanOpen(void);               // start a scan + show the chooser (tap Network)
     void wifiScanClose(void);
-    void wifiScanPoll(void);                 // fill the list once the scan finishes
+    void wifiScanPoll(void); // fill the list once the scan finishes
     // File Share (FTP): on-demand screen that brings WiFi up, serves the SD over FTP, drops
     // WiFi on exit. See TDeckFtp.cpp / TDeckWifi.cpp on-demand bridge fns.
     lv_obj_t *fileshare_screen = nullptr;
@@ -659,16 +659,16 @@ class TFTView_320x240 : public MeshtasticView
     uint32_t fileshare_deadline = 0;            // lv_tick by which we give up waiting for WiFi
     void openFileShare(void);
     void closeFileShare(void); // stop FTP + power WiFi back down; safe to call twice
-    // top-bar battery % (fed by updateMetrics for the own node) + paged 2x3 app grid
-    lv_obj_t *launcher_battery_label = nullptr;
-    lv_obj_t *launcher_mem_label = nullptr;  // diagnostic: free RAM + lowest-since-boot
+    // Top-bar battery (own-node telemetry) and paged four-column app grid.
+    lv_obj_t *launcher_battery = nullptr;
+    lv_obj_t *launcher_mem_label = nullptr;      // diagnostic: free RAM + lowest-since-boot
     lv_obj_t *launcher_unread_label = nullptr;   // top-bar unread-message count (top-left)
     lv_obj_t *launcher_mesh_off_label = nullptr; // "mesh off" warning; blank while the radio is on
-    lv_obj_t *launcher_pager = nullptr;      // horizontal snap-scroll container of app pages
-    lv_obj_t *launcher_dots = nullptr;       // page indicator dots (only if >1 page)
-    int launcherBatPct = -1;                 // last known battery %, -1 = unknown yet
-    bool launcherBatPlugged = false;         // charging / on external power
-    void updateLauncherBattery(void);        // refresh the top-bar % label
+    lv_obj_t *launcher_pager = nullptr;          // horizontal snap-scroll container of app pages
+    lv_obj_t *launcher_dots = nullptr;           // page indicator dots (only if >1 page)
+    int launcherBatPct = -1;                     // last known battery %, -1 = unknown yet
+    bool launcherBatPlugged = false;             // charging / on external power
+    void updateLauncherBattery(void);            // refresh the top-bar % label
 
     // ---- trackball double-click gesture: Home / lock / wake+unlock ----
     // From an app -> Home. On Home -> lock (black + PIN). Asleep -> wake. Locked -> PIN pad.
@@ -680,47 +680,47 @@ class TFTView_320x240 : public MeshtasticView
     lv_obj_t *preLockScreen = nullptr;
     void rememberScreenBeforeLock(void); // called from EVERY route into a lock screen
     void restoreAfterUnlock(void);       // back to preLockScreen, or Home if it is no longer there
-    void handleHomeGesture(void);            // runs on every trackball double-click
-    void handleBackGesture(void);            // runs on the "erase" key when nothing is being typed
-    void lockDevice(void);                   // black out the screen + require the PIN
-    void showLockPad(bool setMode);          // PIN keypad — unlock, or (setMode) choose a new PIN
-    void serviceBattLog(void);                // a line a minute to /battlog.csv
-    void serviceStayOn(void);                 // the lock screen kept lit: expire, boost, drift
-    void stayOnBoost(void);                   // a key was pressed: 3s at full, no unlock
-    uint32_t stayOnSinceMs = 0;               // 0 = not being kept lit
+    void handleHomeGesture(void);        // runs on every trackball double-click
+    void handleBackGesture(void);        // runs on the "erase" key when nothing is being typed
+    void lockDevice(void);               // black out the screen + require the PIN
+    void showLockPad(bool setMode);      // PIN keypad - unlock, or (setMode) choose a new PIN
+    void serviceBattLog(void);           // a line a minute to /battlog.csv
+    void serviceStayOn(void);            // the lock screen kept lit: expire, boost, drift
+    void stayOnBoost(void);              // a key was pressed: 3s at full, no unlock
+    uint32_t stayOnSinceMs = 0;          // 0 = not being kept lit
     uint32_t stayOnBoostUntil = 0;
     uint32_t stayOnDriftMs = 0;
     uint8_t stayOnDriftIdx = 0;
-    void refreshCoverageOverlay(void);         // heatmap of where the mesh reaches
-    void coverageTestFill(void);               // ⛔ synthetic cells, to prove the heatmap draws
-    bool coverage_overlay_on = false;          // showing it is separate from RECORDING it
+    void refreshCoverageOverlay(void);   // heatmap of where the mesh reaches
+    void coverageTestFill(void);         // ⛔ synthetic cells, to prove the heatmap draws
+    bool coverage_overlay_on = false;    // showing it is separate from RECORDING it
     lv_obj_t **coverage_cells = nullptr; // pool allocated on first use, not 480 bytes of .bss
     void showLockGlance(void);
     void armLockGlance(void); // set up "kept lit" - dim floor, fade time, stay window
     void glanceNotifRow(lv_obj_t *parent, const char *who, const char *text, const char *age);
-    void glanceWidgetCard(lv_obj_t *parent, const struct LockWidgetText &w);               // the iPod-style glance: clock, who messaged, slide to unlock
-    void remoteInit(void);                   // second LVGL pointer device, for injected taps
-    void remoteService(void);                // run one pending remote command, UI task only
-    void trackballEdgeScroll(void);            // cursor at an edge scrolls the page
-    void updateTrackballRows(void);            // the cursor rows, hidden when it is off
+    void glanceWidgetCard(lv_obj_t *parent,
+                          const struct LockWidgetText &w); // the iPod-style glance: clock, who messaged, slide to unlock
+    void remoteInit(void);                                 // second LVGL pointer device, for injected taps
+    void remoteService(void);                              // run one pending remote command, UI task only
+    void trackballEdgeScroll(void);                        // cursor at an edge scrolls the page
+    void updateTrackballRows(void);                        // the cursor rows, hidden when it is off
     lv_obj_t *settings_tb_speed_row = nullptr;
     lv_obj_t *settings_tb_speed_label = nullptr;
     lv_obj_t *settings_tb_style_row = nullptr;
     lv_obj_t *settings_tb_style_label = nullptr;
     lv_obj_t *settings_tb_hint = nullptr;
-    void openLockSettings(void);             // Settings > Lock screen, all of it in one page
+    void openLockSettings(void); // Settings > Lock screen, all of it in one page
     void updateLockPageLabels(void);
-    lv_obj_t *lockPageRow(lv_obj_t *parent, const char *title, int y, const char *btnText,
-                          lv_obj_t **outLabel, lv_event_cb_t cb);
-    void updateLockGraceLabel(void);         // "Ask for PIN" button text, from the stored seconds
-    void startScreenshotCountdown(void);     // Settings: capture the screen in five seconds
-    void sendLocationNow(void);              // Settings: broadcast my position once, now
-    void refreshLockGlance(bool force);      // clock always; rows only when they changed, or forced
-    void lockGlanceUnlocked(void);           // slide completed: PIN pad, or straight in
-    void startCalibrationFromLock(void);     // Alt+C from the pad: run touch calibration, then re-lock
-    void submitLockPad(void);                // OK pressed on the pad
-    void updateLockDisplay(void);            // refresh the masked digits label
-    uint32_t effectiveLockPin(void);         // stored PIN, or the 7272 default when unset
+    lv_obj_t *lockPageRow(lv_obj_t *parent, const char *title, int y, const char *btnText, lv_obj_t **outLabel, lv_event_cb_t cb);
+    void updateLockGraceLabel(void);     // "Ask for PIN" button text, from the stored seconds
+    void startScreenshotCountdown(void); // Settings: capture the screen in five seconds
+    void sendLocationNow(void);          // Settings: broadcast my position once, now
+    void refreshLockGlance(bool force);  // clock always; rows only when they changed, or forced
+    void lockGlanceUnlocked(void);       // slide completed: PIN pad, or straight in
+    void startCalibrationFromLock(void); // Alt+C from the pad: run touch calibration, then re-lock
+    void submitLockPad(void);            // OK pressed on the pad
+    void updateLockDisplay(void);        // refresh the masked digits label
+    uint32_t effectiveLockPin(void);     // stored PIN, or the 7272 default when unset
     static void lockpad_event(lv_event_t *e);
     lv_obj_t *lockpad_screen = nullptr;
     lv_obj_t *lock_digits_label = nullptr;
@@ -732,7 +732,7 @@ class TFTView_320x240 : public MeshtasticView
     lv_obj_t *shot_hint_label = nullptr;      // and reports where the file went
     lv_obj_t *lock_grace_btn = nullptr;       // Settings: "Ask for PIN" cycling button
     lv_obj_t *lock_grace_label = nullptr;
-    lv_obj_t *lockpage_screen = nullptr;      // Settings > Lock screen
+    lv_obj_t *lockpage_screen = nullptr; // Settings > Lock screen
     lv_obj_t *lockpage_mode_label = nullptr;
     lv_obj_t *lockpage_widget_label = nullptr;
     lv_obj_t *lockpage_wx_label = nullptr;
@@ -741,73 +741,71 @@ class TFTView_320x240 : public MeshtasticView
     int32_t stayOnSavedTimeout = 0;
     static constexpr uint16_t kLockFadeSecs = 10; // how long the kept-lit page waits before dimming
 
-    lv_obj_t *lockpage_units_row = nullptr;   // "Temperature" F/C, weather widget only
+    lv_obj_t *lockpage_units_row = nullptr; // "Temperature" F/C, weather widget only
     lv_obj_t *lockpage_units_label = nullptr;
     lv_obj_t *lockpage_grace_label = nullptr;
-    lv_obj_t *lockpage_pin_row = nullptr;     // hidden unless the mode is PIN
-    lv_obj_t *lockpage_grace_row = nullptr;   // ditto
-    lv_obj_t *lockpage_wx_row = nullptr;      // hidden unless the widget is Weather
-    lv_obj_t *lockpage_stay_label = nullptr;  // "keep the lock screen lit" - see lockDevice()
-    lv_obj_t *lockpage_dim_row = nullptr;     // hidden unless it is being kept lit
+    lv_obj_t *lockpage_pin_row = nullptr;    // hidden unless the mode is PIN
+    lv_obj_t *lockpage_grace_row = nullptr;  // ditto
+    lv_obj_t *lockpage_wx_row = nullptr;     // hidden unless the widget is Weather
+    lv_obj_t *lockpage_stay_label = nullptr; // "keep the lock screen lit" - see lockDevice()
+    lv_obj_t *lockpage_dim_row = nullptr;    // hidden unless it is being kept lit
     lv_obj_t *lockpage_dim_label = nullptr;
-    lv_obj_t *lockpage_unlock_row = nullptr;  // ditto
+    lv_obj_t *lockpage_unlock_row = nullptr; // ditto
     lv_obj_t *lockpage_unlock_label = nullptr;
-    lv_obj_t *lockglance_screen = nullptr;    // shown on wake, before the PIN pad
+    lv_obj_t *lockglance_screen = nullptr; // shown on wake, before the PIN pad
     lv_obj_t *glance_clock_label = nullptr;
-    lv_obj_t *glance_notif_btn = nullptr;     // top left: "Notifications" / "3 msgs"
+    lv_obj_t *glance_notif_btn = nullptr; // top left: "Notifications" / "3 msgs"
     lv_obj_t *glance_notif_label = nullptr;
-    lv_obj_t *glance_bat_shell = nullptr;     // top right: the cell outline...
-    lv_obj_t *glance_bat_fill = nullptr;      // ...what is left in it...
-    lv_obj_t *glance_bat_label = nullptr;     // ...and the figure
-    uint32_t glanceSlotHash = 0;              // rebuild the middle only when it would differ
+    lv_obj_t *glance_battery = nullptr;
+    uint32_t glanceSlotHash = 0; // rebuild the middle only when it would differ
     lv_obj_t *glance_date_label = nullptr;
-    lv_obj_t *glance_list = nullptr;          // the notification rows
-    lv_obj_t *glance_slider = nullptr;        // slide to unlock
-    lv_obj_t *glance_slide_label = nullptr;   // "slide to unlock", hidden while dragging
-    uint32_t lockedAtMs = 0;                  // when the device was locked, for the PIN grace period
-    char lockDigits[9] = {};                 // digits typed on the pad (max 8)
+    lv_obj_t *glance_list = nullptr;        // the notification rows
+    lv_obj_t *glance_slider = nullptr;      // slide to unlock
+    lv_obj_t *glance_slide_label = nullptr; // "slide to unlock", hidden while dragging
+    uint32_t lockedAtMs = 0;                // when the device was locked, for the PIN grace period
+    char lockDigits[9] = {};                // digits typed on the pad (max 8)
     uint8_t lockLen = 0;
-    bool lockSetMode = false;                // true = pad is choosing a NEW pin
+    bool lockSetMode = false; // true = pad is choosing a NEW pin
 
-    // ---- Files app: browse SD card + internal flash (capped listing — the SD holds ~600k map tiles) ----
+    // ---- Files app: browse SD card + internal flash (capped listing - the SD holds ~600k map tiles) ----
     // (openFilesAction, the launcher-tile trampoline, is declared public up top)
     enum FilesVol : uint8_t { VOL_ROOT, VOL_SD, VOL_FLASH, VOL_TRASH }; // ROOT = storage picker
     void openFiles(void);
-    void filesRefresh(void);                 // (re)build the list for filesVol/filesPath
-    void filesUpdateActionBar(void);         // show/hide the Copy / Paste-here / X / Trash buttons
-    void filesCopyNow(void);                 // paste: copy the armed source into filesPath
-    void filesTrashSelected(void);           // move the selected file into its volume's /.trash
-    void filesRestoreSelected(void);         // trash view: move a file back where it came from
-    void filesDeleteForever(void);           // trash view: permanently remove (two-tap confirmed)
-    void filesNewFolderPrompt(void);         // ask for a name, then make a folder in filesPath
+    void filesRefresh(void);         // (re)build the list for filesVol/filesPath
+    void filesUpdateActionBar(void); // show/hide the Copy / Paste-here / X / Trash buttons
+    void filesCopyNow(void);         // paste: copy the armed source into filesPath
+    void filesTrashSelected(void);   // move the selected file into its volume's /.trash
+    void filesRestoreSelected(void); // trash view: move a file back where it came from
+    void filesDeleteForever(void);   // trash view: permanently remove (two-tap confirmed)
+    void filesNewFolderPrompt(void); // ask for a name, then make a folder in filesPath
     void filesNewFolderCreate(const char *name);
     void closeNewFolder(void);               // dismiss the folder-name overlay
-    uint64_t filesFreeBytes(bool onSd);      // CACHED free space — measuring the SD card free
+    uint64_t filesFreeBytes(bool onSd);      // CACHED free space - measuring the SD card free
     uint64_t filesFreeCache[2] = {0, 0};     // space scans its whole allocation table (seconds
     bool filesFreeKnown[2] = {false, false}; // on a big card), so never do it per navigation
     lv_obj_t *files_screen = nullptr;
     lv_obj_t *files_list = nullptr;
     lv_obj_t *files_path_label = nullptr;
-    lv_obj_t *files_free_label = nullptr;    // free space of the volume being browsed
-    lv_obj_t *files_copy_btn = nullptr;      // Copy (file selected) / Paste here (copy armed)
+    lv_obj_t *files_free_label = nullptr; // free space of the volume being browsed
+    lv_obj_t *files_copy_btn = nullptr;   // Copy (file selected) / Paste here (copy armed)
     lv_obj_t *files_copy_lbl = nullptr;
-    lv_obj_t *files_cancel_btn = nullptr;    // X — disarm a pending copy
-    lv_obj_t *files_del_btn = nullptr;       // Delete (files only, two-tap confirm)
+    lv_obj_t *files_cancel_btn = nullptr; // X - disarm a pending copy
+    lv_obj_t *files_del_btn = nullptr;    // Delete (files only, two-tap confirm)
     lv_obj_t *files_del_lbl = nullptr;
-    bool filesDelConfirm = false;            // first Delete tap happened; next tap really deletes
-    lv_obj_t *files_sel_row = nullptr;       // highlighted row of the selected file
+    bool filesDelConfirm = false;      // first Delete tap happened; next tap really deletes
+    lv_obj_t *files_sel_row = nullptr; // highlighted row of the selected file
     FilesVol filesVol = VOL_ROOT;
-    char filesPath[192] = "/";               // current directory within filesVol
-    char filesSelName[64] = {};              // selected file's name ("" = none)
-    bool filesSelIsDir = false;              // the selection is a folder, not a file
-    bool filesSuppressClick = false;         // long-press selected a row; swallow the release-click
-    bool filesCopyArmed = false;             // a source is armed, waiting for Paste here
-    char copySrcPath[256] = {};              // armed source (full path within its volume)
+    char filesPath[192] = "/";       // current directory within filesVol
+    char filesSelName[64] = {};      // selected file's name ("" = none)
+    bool filesSelIsDir = false;      // the selection is a folder, not a file
+    bool filesSuppressClick = false; // long-press selected a row; swallow the release-click
+    bool filesCopyArmed = false;     // a source is armed, waiting for Paste here
+    char copySrcPath[256] = {};      // armed source (full path within its volume)
     FilesVol copySrcVol = VOL_ROOT;
     static constexpr int kFilesMaxEntries = 64;
-    char filesNames[kFilesMaxEntries][64];   // entry names backing the list buttons
+    char filesNames[kFilesMaxEntries][64];      // entry names backing the list buttons
     bool filesNameIsDir[kFilesMaxEntries] = {}; // parallel to filesNames: is each entry a folder?
-    lv_obj_t *files_newfolder_btn = nullptr; // "+ Folder" (shown when nothing is selected)
+    lv_obj_t *files_newfolder_btn = nullptr;    // "+ Folder" (shown when nothing is selected)
     lv_obj_t *files_newfolder_lbl = nullptr;
     lv_obj_t *files_newfolder_ovl = nullptr; // folder-name entry overlay (textarea + keyboard)
     lv_obj_t *files_newfolder_ta = nullptr;
@@ -980,20 +978,20 @@ class TFTView_320x240 : public MeshtasticView
 
   public:
     // Entry points for the Nodes/Favorites launcher apps (NodesApp.cpp), reached through the
-    // extern "C" shims in the .cpp. Static because instance() is private — a free function cannot
+    // extern "C" shims in the .cpp. Static because instance() is private - a free function cannot
     // get at it, but a static member can.
     static void tuiOpenChatWith(uint32_t nodeNum);
-    static void tuiTraceRoute(uint32_t nodeNum);     // MUI's own trace-route screen, aimed and started
-    static int tuiDmConversations(uint32_t *out, int maxN);        // who you actually have chats with
+    static void tuiTraceRoute(uint32_t nodeNum);                      // MUI's own trace-route screen, aimed and started
+    static int tuiDmConversations(uint32_t *out, int maxN);           // who you actually have chats with
     static bool tuiDmLastText(uint32_t nodeNum, char *out, int outN); // the last line of one
-    static void tuiRequestPosition(uint32_t nodeNum); // ask a node where it is
+    static void tuiRequestPosition(uint32_t nodeNum);                 // ask a node where it is
     static void tuiShowOnUserMap(uint32_t nodeNum, int32_t latI, int32_t lonI);
     static void tuiOpenChannelChat(uint8_t ch);
-    static bool tuiDeviceLocked(void); // is the PIN/swipe still owed?
+    static bool tuiDeviceLocked(void);  // is the PIN/swipe still owed?
     static bool mapsScreenActive(void); // is the map the screen being looked at?
     static bool stayOnActive(void);     // is the lock screen being kept lit?
     static void tuiUnreadRecount(void); // re-sum the per-conversation counts
-    static int tuiBatteryPct(void);        // for the status bar
+    static int tuiBatteryPct(void);     // for the status bar
     static bool tuiBatteryPlugged(void);
     static bool tuiClockText(char *out, int outN);
 
@@ -1017,41 +1015,41 @@ class TFTView_320x240 : public MeshtasticView
 
     enum BasicSettings activeSettings = eNone; // active settings menu (used to disable other button presses)
 
-    static TFTView_320x240 *gui;                          // singleton pattern
-    bool screensInitialised;                              // true if init_screens is completed
-    uint32_t nodesFiltered;                               // no. hidden nodes in node list
-    bool nodesChanged;                                    // true if nodes changed (added or purged)
-    bool processingFilter;                                // indicates that filtering is ongoing
-    bool packetLogEnabled;                                // display received packets
-    bool detectorRunning;                                 // meshDetector is active
-    bool cardDetected;                                    // SD has been detected
-    bool formatSD;                                        // offer to format SD card
-    uint16_t buttonSize;                                  // size of group/chat buttons in pixels
-    uint16_t statisticTableRows;                          // number of rows in statistics table
-    uint16_t packetCounter;                               // number of packets in packet log
-    time_t lastrun60, lastrun10, lastrun5, lastrun1;      // timers for task loop
-    time_t actTime, uptime, lastHeard;                    // actual time and uptime; time last heard a node
-    bool hasPosition;                                     // if our position is known
-    int32_t myLatitude, myLongitude;                      // our current position as reported by firmware
-    void *topNodeLL;                                      // pointer to topmost button in group ll
-    uint32_t scans;                                       // scanner counter
-    lv_anim_t radar;                                      // radar animation
-    static uint32_t currentNode;                          // current selected node
-    static lv_obj_t *currentPanel;                        // current selected node panel
-    static lv_obj_t *spinnerButton;                       // start button animation
-    static time_t startTime;                              // time when start button was pressed
-    static uint32_t pinKeys;                              // number of keys pressed (lock screen)
-    static bool screenLocked;                             // screen lock active
-    static bool screenUnlockRequest;                      // screen unlock request (via button)
-    uint32_t selectedHops;                                // remember selected choice
-    bool chooseNodeSignalScanner;                         // chose a target node for signal scanner
-    bool chooseNodeTraceRoute;                            // chose a target node for trace route
-    char old_val1_scratch[64], old_val2_scratch[64];      // temporary scratch buffers for settings strings
-    std::array<lv_obj_t *, c_max_channels> ch_label;      // indexable label list for settings
-    meshtastic_Channel *channel_scratch;                  // temporary scratch copy of channel db
-    lv_obj_t *qr;                                         // qr code
-    MapPanel *map = nullptr;                              // map
-    PsramUnorderedMap<uint32_t, lv_obj_t *> nodeObjects;  // nodeObjects displayed on map (PSRAM: one per node)
+    static TFTView_320x240 *gui;                         // singleton pattern
+    bool screensInitialised;                             // true if init_screens is completed
+    uint32_t nodesFiltered;                              // no. hidden nodes in node list
+    bool nodesChanged;                                   // true if nodes changed (added or purged)
+    bool processingFilter;                               // indicates that filtering is ongoing
+    bool packetLogEnabled;                               // display received packets
+    bool detectorRunning;                                // meshDetector is active
+    bool cardDetected;                                   // SD has been detected
+    bool formatSD;                                       // offer to format SD card
+    uint16_t buttonSize;                                 // size of group/chat buttons in pixels
+    uint16_t statisticTableRows;                         // number of rows in statistics table
+    uint16_t packetCounter;                              // number of packets in packet log
+    time_t lastrun60, lastrun10, lastrun5, lastrun1;     // timers for task loop
+    time_t actTime, uptime, lastHeard;                   // actual time and uptime; time last heard a node
+    bool hasPosition;                                    // if our position is known
+    int32_t myLatitude, myLongitude;                     // our current position as reported by firmware
+    void *topNodeLL;                                     // pointer to topmost button in group ll
+    uint32_t scans;                                      // scanner counter
+    lv_anim_t radar;                                     // radar animation
+    static uint32_t currentNode;                         // current selected node
+    static lv_obj_t *currentPanel;                       // current selected node panel
+    static lv_obj_t *spinnerButton;                      // start button animation
+    static time_t startTime;                             // time when start button was pressed
+    static uint32_t pinKeys;                             // number of keys pressed (lock screen)
+    static bool screenLocked;                            // screen lock active
+    static bool screenUnlockRequest;                     // screen unlock request (via button)
+    uint32_t selectedHops;                               // remember selected choice
+    bool chooseNodeSignalScanner;                        // chose a target node for signal scanner
+    bool chooseNodeTraceRoute;                           // chose a target node for trace route
+    char old_val1_scratch[64], old_val2_scratch[64];     // temporary scratch buffers for settings strings
+    std::array<lv_obj_t *, c_max_channels> ch_label;     // indexable label list for settings
+    meshtastic_Channel *channel_scratch;                 // temporary scratch copy of channel db
+    lv_obj_t *qr;                                        // qr code
+    MapPanel *map = nullptr;                             // map
+    PsramUnorderedMap<uint32_t, lv_obj_t *> nodeObjects; // nodeObjects displayed on map (PSRAM: one per node)
     // extended default device profile struct with additional required data
     struct meshtastic_DeviceProfile_ext : meshtastic_DeviceProfile {
         meshtastic_User user;
