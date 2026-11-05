@@ -1,19 +1,19 @@
 // -----------------------------------------------------------------------------
-// T-UI Notes — a self-contained notes app for the launcher.
+// T-UI Notes - a self-contained notes app for the launcher.
 //
 // Notes are plain .txt files in /notes on the SD card (created on first save;
 // nothing is ever scanned outside that one small folder). Two screens:
-//   • List — every note, newest first, previewed by its first line. "+ New"
+//   • List - every note, newest first, previewed by its first line. "+ New"
 //     starts a fresh note; tapping a row opens it.
-//   • Editor — a full-screen text box typed into with the physical keyboard.
+//   • Editor - a full-screen text box typed into with the physical keyboard.
 //     Back SAVES and returns to the list (a brand-new empty note is discarded);
 //     Delete removes the note for good.
 // The textarea is focused via LVGL's default input group (same way the mesh
 // chat input gets typed into), with a periodic refocus guard because the
 // trackball encoder can wander focus. Trackball double-click = Home still works.
 // -----------------------------------------------------------------------------
+#include "graphics/view/TFT/TuiLabel.h"     // tui_one_line: LONG_DOT needs a height
 #include "graphics/view/TFT/TuiStatusBar.h" // the persistent top bar
-#include "graphics/view/TFT/TuiLabel.h" // tui_one_line: LONG_DOT needs a height
 #include "lvgl.h"
 #include <cstdio>
 #include <cstdlib>
@@ -38,9 +38,9 @@ const size_t kMaxNoteBytes = 4000;
 lv_obj_t *listScreen = nullptr;
 lv_obj_t *listPanel = nullptr; // scrollable column of note rows
 lv_obj_t *editScreen = nullptr;
-lv_obj_t *editArea = nullptr;  // the textarea (body)
-lv_obj_t *titleArea = nullptr; // one-line editable title, top-middle (was a "type away" hint)
-lv_obj_t *editHint = nullptr;  // replaces the title box for view-only files
+lv_obj_t *editArea = nullptr;     // the textarea (body)
+lv_obj_t *titleArea = nullptr;    // one-line editable title, top-middle (was a "type away" hint)
+lv_obj_t *editHint = nullptr;     // replaces the title box for view-only files
 lv_obj_t *confirmPanel = nullptr; // "Delete this note?" overlay
 lv_obj_t *focusTarget = nullptr;  // which box the keyboard is aimed at (title or body)
 lv_obj_t *deleteBtn = nullptr;
@@ -55,9 +55,9 @@ static char (*notePreviewBuf)[36] = nullptr;
 static char (*notePreviewArr(void))[36]
 {
     if (!notePreviewBuf) {
-        notePreviewBuf = (char (*)[36])heap_caps_calloc(kMaxNotes, 36, MALLOC_CAP_SPIRAM);
+        notePreviewBuf = (char(*)[36])heap_caps_calloc(kMaxNotes, 36, MALLOC_CAP_SPIRAM);
         if (!notePreviewBuf)
-            notePreviewBuf = (char (*)[36])calloc(kMaxNotes, 36);
+            notePreviewBuf = (char(*)[36])calloc(kMaxNotes, 36);
     }
     return notePreviewBuf;
 }
@@ -70,7 +70,10 @@ bool curFromFiles = false; // opened via the Files app: Back returns there, no D
 bool curReadOnly = false;  // file was too big to load fully: never save it back truncated
 lv_obj_t *filesReturnScreen = nullptr;
 
-void notePath(char *buf, size_t sz, unsigned id) { snprintf(buf, sz, "/notes/n%03u.txt", id); }
+void notePath(char *buf, size_t sz, unsigned id)
+{
+    snprintf(buf, sz, "/notes/n%03u.txt", id);
+}
 
 #if NOTES_HAVE_SD
 // scan /notes (and only /notes) for n###.txt files; preview = first line
@@ -163,7 +166,7 @@ void loadCurPathIntoEditor(void)
         lv_textarea_set_text(editArea, "");
         return;
     }
-    // The first line IS the title — it always was, in the sense that the list preview shows it.
+    // The first line IS the title - it always was, in the sense that the list preview shows it.
     // Now it gets its own box at the top instead of sitting invisibly at the start of the body.
     char *nl = strchr(buf, '\n');
     if (nl) {
@@ -209,7 +212,7 @@ void saveCurrentNote(void)
         f.close();
         return;
     }
-    // Title goes back as the first line, which is exactly where it came from — so the file
+    // Title goes back as the first line, which is exactly where it came from - so the file
     // stays a plain .txt anyone can read, and the list preview keeps working unchanged.
     f.print(title);
     f.print("\n");
@@ -223,15 +226,24 @@ void deleteCurrentNote(void)
         SDFs.remove(curPath);
 }
 #else
-void scanNotes(void) { noteCount = 0; }
-unsigned nextFreeId(void) { return 1; }
+void scanNotes(void)
+{
+    noteCount = 0;
+}
+unsigned nextFreeId(void)
+{
+    return 1;
+}
 void loadCurPathIntoEditor(void)
 {
     lv_textarea_set_text(editArea, "");
     if (titleArea)
         lv_textarea_set_text(titleArea, "");
 }
-void loadFileIntoEditor(void) { lv_textarea_set_text(editArea, ""); }
+void loadFileIntoEditor(void)
+{
+    lv_textarea_set_text(editArea, "");
+}
 void saveCurrentNote(void) {}
 void deleteCurrentNote(void) {}
 #endif
@@ -254,7 +266,7 @@ lv_obj_t *barBtn(lv_obj_t *parent, const char *txt, int w, lv_align_t align, int
 void rebuildList(void);
 void openEditor(unsigned id, bool isNew);
 
-// "Delete this note?" — a child of editScreen, hidden until Delete is tapped. A child rather
+// "Delete this note?" - a child of editScreen, hidden until Delete is tapped. A child rather
 // than lv_layer_top on purpose: the layer is shared with the mesh pop-ups, and the launcher's
 // "am I typing?" test has been caught out by it before.
 void buildConfirmPanel(void)
@@ -262,7 +274,7 @@ void buildConfirmPanel(void)
     confirmPanel = lv_obj_create(editScreen);
     lv_obj_set_size(confirmPanel, 250, 104);
     lv_obj_center(confirmPanel);
-    lv_obj_set_style_bg_color(confirmPanel, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(confirmPanel, lv_color_hex(0x30415a), LV_PART_MAIN);
     lv_obj_set_style_border_color(confirmPanel, lv_color_hex(0x636366), LV_PART_MAIN);
     lv_obj_set_style_border_width(confirmPanel, 1, LV_PART_MAIN);
     lv_obj_set_style_radius(confirmPanel, 12, LV_PART_MAIN);
@@ -296,7 +308,7 @@ void buildListScreen(void)
 {
     listScreen = lv_obj_create(NULL);
     tui_statusbar_reserve(listScreen); // note item A4: the persistent top bar
-    lv_obj_set_style_bg_color(listScreen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(listScreen, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_clear_flag(listScreen, LV_OBJ_FLAG_SCROLLABLE);
 
     barBtn(listScreen, "Back", 56, LV_ALIGN_TOP_LEFT, 4, 0x2c2c2e, [](lv_event_t *) {
@@ -309,8 +321,7 @@ void buildListScreen(void)
     lv_obj_set_style_text_color(title, lv_color_hex(0xffd60a), LV_PART_MAIN);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 9);
 
-    barBtn(listScreen, "+ New", 64, LV_ALIGN_TOP_RIGHT, -4, 0x30d158,
-           [](lv_event_t *) { openEditor(nextFreeId(), true); });
+    barBtn(listScreen, "+ New", 64, LV_ALIGN_TOP_RIGHT, -4, 0x30d158, [](lv_event_t *) { openEditor(nextFreeId(), true); });
 
     listPanel = lv_obj_create(listScreen);
     lv_obj_remove_style_all(listPanel);
@@ -342,7 +353,7 @@ void rebuildList(void)
     for (int i = 0; i < noteCount; i++) {
         lv_obj_t *row = lv_btn_create(listPanel);
         lv_obj_set_size(row, LV_PCT(100), 36);
-        lv_obj_set_style_bg_color(row, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(row, lv_color_hex(0x1b283c), LV_PART_MAIN);
         lv_obj_set_style_radius(row, 10, LV_PART_MAIN);
         lv_obj_add_event_cb(
             row,
@@ -366,7 +377,7 @@ void buildEditScreen(void)
 {
     editScreen = lv_obj_create(NULL);
     tui_statusbar_reserve(editScreen); // note item A4: the persistent top bar
-    lv_obj_set_style_bg_color(editScreen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(editScreen, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_clear_flag(editScreen, LV_OBJ_FLAG_SCROLLABLE);
 
     // Back = save + return to wherever the note was opened from (list or Files)
@@ -387,7 +398,7 @@ void buildEditScreen(void)
     lv_textarea_set_one_line(titleArea, true);
     lv_obj_set_size(titleArea, 178, 26);
     lv_obj_align(titleArea, LV_ALIGN_TOP_MID, 0, 3);
-    lv_obj_set_style_bg_color(titleArea, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(titleArea, lv_color_hex(0x1b283c), LV_PART_MAIN);
     lv_obj_set_style_text_color(titleArea, lv_color_hex(0xffd60a), LV_PART_MAIN);
     lv_obj_set_style_border_width(titleArea, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(titleArea, 6, LV_PART_MAIN);
@@ -429,11 +440,11 @@ void buildEditScreen(void)
     editArea = lv_textarea_create(editScreen);
     lv_obj_set_pos(editArea, 0, 32);
     lv_obj_set_size(editArea, 320, 208);
-    lv_obj_set_style_bg_color(editArea, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(editArea, lv_color_hex(0x1b283c), LV_PART_MAIN);
     lv_obj_set_style_text_color(editArea, lv_color_hex(0xffffff), LV_PART_MAIN);
     lv_obj_set_style_border_width(editArea, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(editArea, 0, LV_PART_MAIN);
-    // Visible caret. A blinking thin line proved unreliable — it only repainted
+    // Visible caret. A blinking thin line proved unreliable - it only repainted
     // when the screen changed (so it seemed to appear only on Back). Use a SOLID,
     // non-blinking, semi-transparent white block over the character position: it's
     // clearly visible and doesn't depend on the blink timer firing a repaint.

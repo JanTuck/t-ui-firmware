@@ -49,12 +49,12 @@ void tui_statusbar_init(void)
     lv_obj_remove_style_all(bar);
     lv_obj_set_size(bar, 320, 20);
     lv_obj_align(bar, LV_ALIGN_TOP_LEFT, 0, 0);
-    lv_obj_set_style_bg_color(bar, lv_color_hex(0x0a0a0c), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(bar, lv_color_hex(0x101a2b), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
     // A hairline, so the bar reads as chrome rather than as part of the screen under it.
     lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_BOTTOM, LV_PART_MAIN);
-    lv_obj_set_style_border_color(bar, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_border_color(bar, lv_color_hex(0x30415a), LV_PART_MAIN);
     lv_obj_set_style_border_width(bar, 1, LV_PART_MAIN);
     lv_obj_add_flag(bar, LV_OBJ_FLAG_HIDDEN);
 
@@ -70,8 +70,7 @@ void tui_statusbar_init(void)
         notifLbl,
         // Deferred: this handler belongs to a label on the top layer, and opening the page
         // changes the screen underneath it.
-        [](lv_event_t *) { lv_async_call([](void *) { notif_open(); }, nullptr); },
-        LV_EVENT_CLICKED, nullptr);
+        [](lv_event_t *) { lv_async_call([](void *) { notif_open(); }, nullptr); }, LV_EVENT_CLICKED, nullptr);
 
     clockLbl = lv_label_create(bar);
     lv_obj_set_style_text_font(clockLbl, &ui_font_montserrat_12, LV_PART_MAIN);

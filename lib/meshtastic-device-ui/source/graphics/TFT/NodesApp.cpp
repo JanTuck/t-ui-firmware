@@ -1,5 +1,5 @@
 // -----------------------------------------------------------------------------
-// T-UI Nodes & Favorites — two launcher apps over one list.
+// T-UI Nodes & Favorites - two launcher apps over one list.
 //
 // Jake, 2026-09-10: "can we make a favorites app as well? which means we need a
 // way to favorite them .. which means we need a separate node list app. trying to
@@ -8,20 +8,20 @@
 //
 // That constraint shapes the whole design. Neither app touches MUI's own node
 // panels. They are ordinary launcher screens built from scratch, fed by the
-// extern "C" bridge in src/TDeckNodesBridge.cpp — the same arrangement the GPS
+// extern "C" bridge in src/TDeckNodesBridge.cpp - the same arrangement the GPS
 // readout already uses, because this library cannot include firmware headers. A
 // future device-ui update merges without ever meeting this code.
 //
 // ONE LIST, TWO DOORS. Nodes shows everything and lets you tap the star;
 // Favorites shows the same rows filtered to the starred ones. The bridge does the
 // ordering (favourites first, then most-recently-heard), so the two screens cannot
-// drift apart — Favorites is literally the same list with a filter.
+// drift apart - Favorites is literally the same list with a filter.
 //
 // The star is Meshtastic's own favourite bit, not a file of ours, so a node
 // starred here is starred in the phone app too and survives a reboot.
 // -----------------------------------------------------------------------------
+#include "graphics/view/TFT/TuiLabel.h"     // tui_one_line: LONG_DOT needs a height
 #include "graphics/view/TFT/TuiStatusBar.h" // the persistent top bar
-#include "graphics/view/TFT/TuiLabel.h" // tui_one_line: LONG_DOT needs a height
 #include "lvgl.h"
 #include <Arduino.h>
 #include <cmath>
@@ -63,7 +63,7 @@ lv_obj_t *prevScreen = nullptr;
 bool favOnly = false;
 uint32_t rowNode[kMaxRows];
 
-// "2m" / "3h" / "4d" — how long since we last heard from them.
+// "2m" / "3h" / "4d" - how long since we last heard from them.
 void ageText(uint32_t secs, char *out, size_t n)
 {
     if (!secs) {
@@ -78,7 +78,7 @@ void ageText(uint32_t secs, char *out, size_t n)
         snprintf(out, n, "%ud", (unsigned)(secs / 86400));
 }
 
-// "1.2 km NE" — empty when either end has no position.
+// "1.2 km NE" - empty when either end has no position.
 void distText(uint32_t num, char *out, size_t n)
 {
     out[0] = 0;
@@ -115,7 +115,7 @@ lv_obj_t *starIcon(lv_obj_t *p, int size, uint32_t color, int w);
 // Jake: "froze the device when i clicked it. didnt force a reboot, just froze."
 //
 // onStar() used to toggle the flag and call rebuild() directly. rebuild() starts with
-// lv_obj_clean(listCont) — which DELETES THE VERY BUTTON THAT IS DISPATCHING THIS EVENT. LVGL then
+// lv_obj_clean(listCont) - which DELETES THE VERY BUTTON THAT IS DISPATCHING THIS EVENT. LVGL then
 // carries on walking freed memory after the callback returns: a use-after-free, which hangs exactly
 // the way Jake describes rather than panicking. Screen loads (chat/map) are deferred for the same
 // reason: they tear down the screen these widgets live on.
@@ -165,7 +165,7 @@ lv_obj_t *starIcon(lv_obj_t *p, int size, uint32_t color, int w)
 }
 
 // ⚠️ DRAWN, NOT FONT GLYPHS. LV_SYMBOL_ENVELOPE / LV_SYMBOL_GPS rendered as EMPTY BOXES on the
-// device — this build's label font does not carry the symbol range, and a missing glyph draws as
+// device - this build's label font does not carry the symbol range, and a missing glyph draws as
 // nothing at all rather than as an error. Shapes always render, so the icons are primitives like the
 // star. Same static-points rule as starIcon(): lv_line does not copy its array, but the geometry is
 // identical for every row and the points are relative to each line object.
@@ -277,7 +277,7 @@ void buildSheet(void)
     sheet = lv_obj_create(lv_layer_top());
     lv_obj_set_size(sheet, 268, 228);
     lv_obj_center(sheet);
-    lv_obj_set_style_bg_color(sheet, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(sheet, lv_color_hex(0x1b283c), LV_PART_MAIN);
     lv_obj_set_style_border_color(sheet, lv_color_hex(0x48484a), LV_PART_MAIN);
     lv_obj_set_style_border_width(sheet, 1, LV_PART_MAIN);
     lv_obj_set_style_radius(sheet, 12, LV_PART_MAIN);
@@ -348,7 +348,7 @@ lv_obj_t *actionBtn(lv_obj_t *parent, int x, int w, lv_event_cb_t cb, int idx)
     lv_obj_remove_style_all(b);
     lv_obj_set_size(b, w, 38);
     lv_obj_set_pos(b, x, 46);
-    lv_obj_set_style_bg_color(b, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(b, lv_color_hex(0x30415a), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(b, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(b, 6, LV_PART_MAIN);
     lv_obj_clear_flag(b, LV_OBJ_FLAG_SCROLLABLE);
@@ -363,9 +363,9 @@ void addRow(lv_obj_t *parent, uint32_t num, int idx)
     lv_obj_t *row = lv_obj_create(parent);
     lv_obj_remove_style_all(row);
     // Twice the old height (Jake): the top half names the node, the bottom half carries three
-    // full-width action buttons — far better touch targets than icons squeezed onto one line.
+    // full-width action buttons - far better touch targets than icons squeezed onto one line.
     lv_obj_set_size(row, lv_pct(100), 88);
-    lv_obj_set_style_bg_color(row, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(row, lv_color_hex(0x1b283c), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(row, 8, LV_PART_MAIN);
     lv_obj_set_style_pad_all(row, 0, LV_PART_MAIN);
@@ -404,7 +404,7 @@ void addRow(lv_obj_t *parent, uint32_t num, int idx)
         snprintf(batt, sizeof(batt), "USB"); // Meshtastic sends >100 for "not on a battery"
     else
         snprintf(batt, sizeof(batt), "%d%%", b);
-    // Jake: "some dont allow me to click the maps on them?" — the pin is disabled when a node has
+    // Jake: "some dont allow me to click the maps on them?" - the pin is disabled when a node has
     // never reported a position, which was correct but invisible. Say "no position" instead of
     // leaving a gap, so the dead button explains itself.
     //
@@ -428,7 +428,7 @@ void addRow(lv_obj_t *parent, uint32_t num, int idx)
     const int bw = 82;
     envelopeIcon(actionBtn(row, 4, bw, onChat, idx));
 
-    // The map button is only live for a node that has actually reported a position — a dead button
+    // The map button is only live for a node that has actually reported a position - a dead button
     // is clearer than one that looks alive and does nothing.
     int32_t la = 0, lo = 0;
     const bool hasPos = tdeck_node_position(num, &la, &lo);
@@ -463,7 +463,7 @@ void rebuild(void)
     // the top, but keep your location on scrolling?)"
     //
     // lv_obj_clean throws the scroll away with the children. Remember where he was and put it back.
-    // The starred row really does move to the top — that is the sort doing its job — so everything
+    // The starred row really does move to the top - that is the sort doing its job - so everything
     // below it shifts by one row; holding the PIXEL offset keeps the view within a row of where it
     // was instead of jumping to the start of a long list.
     const int32_t keepScroll = lv_obj_get_scroll_y(listCont);
@@ -500,14 +500,14 @@ void buildScreen(void)
     // the app closes it.
     lv_obj_add_event_cb(
         screen, [](lv_event_t *) { closeSheet(); }, LV_EVENT_SCREEN_UNLOADED, nullptr);
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *back = lv_obj_create(screen);
     lv_obj_remove_style_all(back);
     lv_obj_set_size(back, 56, 28);
     lv_obj_align(back, LV_ALIGN_TOP_LEFT, 4, 2);
-    lv_obj_set_style_bg_color(back, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(back, lv_color_hex(0x30415a), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(back, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(back, 6, LV_PART_MAIN);
     lv_obj_add_flag(back, LV_OBJ_FLAG_CLICKABLE);

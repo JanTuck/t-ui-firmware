@@ -1,5 +1,5 @@
 // -----------------------------------------------------------------------------
-// T-UI Conversations — the people you are talking to, and the channels you listen to.
+// T-UI Conversations - the people you are talking to, and the channels you listen to.
 //
 // Started life as Channels. Jake, 2026-09-18: "channeks app needs to be renamed, include
 // covorsations too" / "should show all current conversations, not just channels". So the
@@ -12,7 +12,7 @@
 // channel."
 //
 // ⚠️ ONE HONEST LIMITATION, STATED ON THE SCREEN ITSELF. Meshtastic does not track
-// channel membership — a node never advertises which channels it is on, so "who is
+// channel membership - a node never advertises which channels it is on, so "who is
 // in this channel" is not a question the mesh can answer. What the device DOES know
 // is the channel it last heard each node's NodeInfo on, which NodeDB records
 // precisely so it knows how to reach them. So the member list is headed "heard here"
@@ -22,8 +22,8 @@
 // Same arrangement as NodesApp: its own launcher screen, fed by extern "C" bridges,
 // touching none of MUI's internals.
 // -----------------------------------------------------------------------------
+#include "graphics/view/TFT/TuiLabel.h"     // tui_one_line: LONG_DOT needs a height
 #include "graphics/view/TFT/TuiStatusBar.h" // the persistent top bar
-#include "graphics/view/TFT/TuiLabel.h" // tui_one_line: LONG_DOT needs a height
 #include "graphics/view/TFT/UnreadCounts.h" // how many are waiting in each conversation
 #include "lvgl.h"
 #include "util/ILog.h"
@@ -70,7 +70,6 @@ uint32_t members[kMaxMembers];
 // actually exchanged a direct message with.
 const int kMaxConvos = 24;
 uint32_t convos[kMaxConvos];
-
 
 // ---------------------------------------------------------------------------
 // The row. Jake, 2026-09-19: "make it look as professional and polished as possible...
@@ -123,8 +122,7 @@ void initialsOf(const char *name, char *out, size_t n)
     out[o] = 0;
 }
 
-lv_obj_t *convoRow(uint32_t num, const char *name, const char *preview, const char *when, uint32_t unread,
-                   bool isChannel)
+lv_obj_t *convoRow(uint32_t num, const char *name, const char *preview, const char *when, uint32_t unread, bool isChannel)
 {
     lv_obj_t *row = lv_obj_create(listCont);
     lv_obj_remove_style_all(row);
@@ -242,7 +240,7 @@ lv_obj_t *makeRow(int h)
     lv_obj_t *row = lv_obj_create(listCont);
     lv_obj_remove_style_all(row);
     lv_obj_set_size(row, lv_pct(100), h);
-    lv_obj_set_style_bg_color(row, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(row, lv_color_hex(0x1b283c), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(row, 8, LV_PART_MAIN);
     lv_obj_set_style_pad_all(row, 0, LV_PART_MAIN);
@@ -259,7 +257,7 @@ lv_obj_t *makeLabel(lv_obj_t *p, const char *txt, uint32_t colour, lv_align_t al
     return l;
 }
 
-// Two small torso silhouettes — the same shape as the Nodes tile, shrunk to a button.
+// Two small torso silhouettes - the same shape as the Nodes tile, shrunk to a button.
 void peopleIcon(lv_obj_t *p)
 {
     auto box = [&](int x, int y, int w, int h, uint32_t c, int r) {
@@ -329,8 +327,7 @@ void buildChannelList(void)
         if (!strncmp(age, "seen ", 5))
             when = age + 5;
 
-        lv_obj_t *row = convoRow(convos[i], tdeck_node_name(convos[i]), preview, when,
-                                 unread_get(convos[i]), false);
+        lv_obj_t *row = convoRow(convos[i], tdeck_node_name(convos[i]), preview, when, unread_get(convos[i]), false);
         lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(row, onOpenDm, LV_EVENT_CLICKED, (void *)(uintptr_t)convos[i]);
     }
@@ -352,8 +349,7 @@ void buildChannelList(void)
 
         // Channels get a count too now. They never had one: the old flag only ever knew about
         // direct messages, so a busy channel looked exactly as quiet as an empty one.
-        lv_obj_t *row = convoRow((uint32_t)i, tdeck_channel_name(i), sub, "",
-                                 unread_get(unreadKeyForChannel((uint8_t)i)), true);
+        lv_obj_t *row = convoRow((uint32_t)i, tdeck_channel_name(i), sub, "", unread_get(unreadKeyForChannel((uint8_t)i)), true);
         lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(row, onOpenChat, LV_EVENT_CLICKED, (void *)(intptr_t)i);
 
@@ -365,7 +361,7 @@ void buildChannelList(void)
             lv_obj_remove_style_all(btn);
             lv_obj_set_size(btn, 40, 40);
             lv_obj_align(btn, LV_ALIGN_RIGHT_MID, -8, 0);
-            lv_obj_set_style_bg_color(btn, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+            lv_obj_set_style_bg_color(btn, lv_color_hex(0x30415a), LV_PART_MAIN);
             lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN);
             lv_obj_set_style_radius(btn, 8, LV_PART_MAIN);
             lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
@@ -376,7 +372,8 @@ void buildChannelList(void)
     }
 
     if (!shown)
-        lv_label_set_text(noteLbl, "No conversations yet.\nChannels appear here once configured,\nand people once you have messaged.");
+        lv_label_set_text(noteLbl,
+                          "No conversations yet.\nChannels appear here once configured,\nand people once you have messaged.");
     else
         lv_label_set_text(noteLbl, "");
 }
@@ -424,14 +421,14 @@ void buildScreen(void)
 {
     screen = lv_obj_create(NULL);
     tui_statusbar_reserve(screen); // note item A4: the persistent top bar
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *back = lv_obj_create(screen);
     lv_obj_remove_style_all(back);
     lv_obj_set_size(back, 56, 28);
     lv_obj_align(back, LV_ALIGN_TOP_LEFT, 4, 2);
-    lv_obj_set_style_bg_color(back, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(back, lv_color_hex(0x30415a), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(back, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(back, 6, LV_PART_MAIN);
     lv_obj_add_flag(back, LV_OBJ_FLAG_CLICKABLE);

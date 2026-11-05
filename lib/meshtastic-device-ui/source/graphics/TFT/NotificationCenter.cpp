@@ -1,5 +1,5 @@
 // -----------------------------------------------------------------------------
-// T-UI Notification Centre — who messaged you, wherever you happen to be.
+// T-UI Notification Centre - who messaged you, wherever you happen to be.
 //
 // Jake, 2026-09-18 (written in the Notes app on the device):
 //   "way to show new message notification when screen locked who from too."
@@ -13,7 +13,7 @@
 // is a child of main_screen, so the launcher, every app, and the lock screen showed
 // nothing at all. The unread COUNT made it to the launcher top bar, but not who from.
 //
-// Three parts, and the same low-touch arrangement as NodesApp/ChannelsApp — its own
+// Three parts, and the same low-touch arrangement as NodesApp/ChannelsApp - its own
 // screen, extern "C" bridges, no reaching into MUI's internals:
 //   • a small store of recent arrivals (PSRAM),
 //   • a pop-up drawn on lv_layer_top(), so it is visible over ANY screen,
@@ -21,12 +21,12 @@
 //
 // ⚠️ THE POP-UP LIVES ON lv_layer_top() AND THEREFORE FLOATS OVER EVERYTHING,
 // including the PIN pad and the mesh pop-ups. It is deliberately NOT shown while a
-// lock screen is up (the lock screen gets its own display of this same store — that
+// lock screen is up (the lock screen gets its own display of this same store - that
 // is Jake's "when screen locked" item) and it takes taps only on its own two
 // buttons, so nothing underneath is ever silently swallowed.
 // -----------------------------------------------------------------------------
+#include "graphics/view/TFT/TuiLabel.h"     // tui_one_line: LONG_DOT needs a height
 #include "graphics/view/TFT/TuiStatusBar.h" // the persistent top bar
-#include "graphics/view/TFT/TuiLabel.h" // tui_one_line: LONG_DOT needs a height
 #include "graphics/view/TFT/UnreadCounts.h" // unread_clear_all
 #include "lvgl.h"
 #include <cstdio>
@@ -34,7 +34,7 @@
 
 // The generated UI's font, which this build definitely has. LVGL's own
 // lv_font_montserrat_12 is a config option and checking the LVGL source tree does not
-// tell you whether it is compiled IN — that mistake has cost a build here before.
+// tell you whether it is compiled IN - that mistake has cost a build here before.
 extern const lv_font_t ui_font_montserrat_12;
 
 #if !defined(ARCH_PORTDUINO)
@@ -46,10 +46,10 @@ extern const lv_font_t ui_font_montserrat_12;
 
 // --- what the rest of the firmware calls ---
 extern "C" void notif_add(uint32_t from, uint8_t ch, bool isChannel, const char *who, const char *text);
-extern "C" void notif_init(void);      // build the pop-up up front, on the UI task
-extern "C" void notif_open(void);      // the Notifications page
-extern "C" int notif_count(void);      // how many are being held
-extern "C" void notif_clear(void);     // "clear" button, and whenever messages are read
+extern "C" void notif_init(void);  // build the pop-up up front, on the UI task
+extern "C" void notif_open(void);  // the Notifications page
+extern "C" int notif_count(void);  // how many are being held
+extern "C" void notif_clear(void); // "clear" button, and whenever messages are read
 extern "C" bool notif_peek(int i, char *who, size_t whoN, char *text, size_t textN, uint32_t *ageSecs);
 extern "C" bool notif_unread_from(uint32_t nodeNum); // does this node have something unread?
 // Drop the entries for ONE conversation. isChannel picks which of from/ch identifies it.
@@ -66,21 +66,21 @@ extern "C" bool tdeck_device_locked(void);
 // unread_clear_all has C++ linkage, so it comes in by header rather than being re-declared
 // extern "C" here - which is what the linker objected to.
 extern "C" void tui_unread_recount(void); // push the new total into the top bar
-extern "C" void tdeck_pop_request(void); // TDeckPop.cpp - the pop. Safe from any task.
+extern "C" void tdeck_pop_request(void);  // TDeckPop.cpp - the pop. Safe from any task.
 
 namespace
 {
-// Sixteen is plenty: this is "what have I missed", not a message archive — the
+// Sixteen is plenty: this is "what have I missed", not a message archive - the
 // conversations themselves are MUI's job and it already keeps them.
 const int kMax = 16;
 
 struct Notif {
-    uint32_t from;     // sender node number
-    uint8_t ch;        // channel it came in on
-    bool isChannel;    // true = a group message, so opening it opens the channel
-    uint32_t when;     // lv_tick at arrival, for "3m ago"
-    char who[24];      // sender's name as MUI shows it
-    char text[56];     // the start of the message
+    uint32_t from;  // sender node number
+    uint8_t ch;     // channel it came in on
+    bool isChannel; // true = a group message, so opening it opens the channel
+    uint32_t when;  // lv_tick at arrival, for "3m ago"
+    char who[24];   // sender's name as MUI shows it
+    char text[56];  // the start of the message
 };
 
 Notif *store = nullptr; // kMax entries, PSRAM
@@ -90,7 +90,7 @@ lv_obj_t *screen = nullptr;
 lv_obj_t *listCont = nullptr;
 lv_obj_t *emptyLbl = nullptr;
 lv_obj_t *prevScreen = nullptr;
-lv_obj_t *lockedLbl = nullptr; // "Unlock to open a conversation"
+lv_obj_t *lockedLbl = nullptr;      // "Unlock to open a conversation"
 lv_obj_t *launcherScreen = nullptr; // captured at notif_init(): the always-safe way back
 
 lv_obj_t *popup = nullptr;
@@ -134,7 +134,7 @@ void buildPopup(void)
     popup = lv_obj_create(lv_layer_top());
     lv_obj_set_size(popup, 300, 56);
     lv_obj_align(popup, LV_ALIGN_TOP_MID, 0, 6);
-    lv_obj_set_style_bg_color(popup, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(popup, lv_color_hex(0x1b283c), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(popup, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_color(popup, lv_color_hex(0x30d158), LV_PART_MAIN);
     lv_obj_set_style_border_width(popup, 1, LV_PART_MAIN);
@@ -182,7 +182,8 @@ void buildPopup(void)
     lv_obj_align(x, LV_ALIGN_RIGHT_MID, -6, 0);
     lv_obj_set_style_bg_color(x, lv_color_hex(0x3a3a3c), LV_PART_MAIN);
     lv_obj_set_style_radius(x, 8, LV_PART_MAIN);
-    lv_obj_add_event_cb(x, [](lv_event_t *) { hidePopup(); }, LV_EVENT_CLICKED, nullptr);
+    lv_obj_add_event_cb(
+        x, [](lv_event_t *) { hidePopup(); }, LV_EVENT_CLICKED, nullptr);
     lv_obj_t *xl = lv_label_create(x);
     lv_label_set_text(xl, "x");
     lv_obj_center(xl);
@@ -192,7 +193,7 @@ void buildPopup(void)
     //
     // ⚠️ NOT lv_timer_set_repeat_count(t, 1). In this LVGL, a timer whose repeat count
     // reaches 0 is DELETED (lv_timer.c: "The repeat count is over, delete the timer"),
-    // and auto_delete is on by default — so popupTimer would dangle after the first
+    // and auto_delete is on by default - so popupTimer would dangle after the first
     // notification and the second one would reset freed memory. Infinite repeat, paused
     // when idle, and the callback pauses itself: the pointer stays valid for good.
     popupTimer = lv_timer_create(
@@ -214,7 +215,7 @@ void showPopup(const Notif &n)
     lv_label_set_text(popupText, n.text);
     lv_obj_move_foreground(popup);
     lv_obj_clear_flag(popup, LV_OBJ_FLAG_HIDDEN);
-    lv_timer_reset(popupTimer);   // a second message restarts the six seconds
+    lv_timer_reset(popupTimer); // a second message restarts the six seconds
     lv_timer_resume(popupTimer);
 }
 
@@ -239,7 +240,7 @@ void onRowTap(lv_event_t *e)
         }
         return;
     }
-    // Copy out BEFORE anything can rebuild or clear the store — the row we are
+    // Copy out BEFORE anything can rebuild or clear the store - the row we are
     // standing on is about to be destroyed by the screen change.
     const uint32_t from = store[idx].from;
     const uint8_t ch = store[idx].ch;
@@ -257,8 +258,7 @@ void onRowTap(lv_event_t *e)
         (void *)(uintptr_t)(isCh ? (0x80000000u | ch) : from));
 }
 
-lv_obj_t *barBtn(lv_obj_t *parent, const char *txt, int w, lv_align_t align, int xofs, uint32_t color,
-                 lv_event_cb_t cb)
+lv_obj_t *barBtn(lv_obj_t *parent, const char *txt, int w, lv_align_t align, int xofs, uint32_t color, lv_event_cb_t cb)
 {
     lv_obj_t *b = lv_btn_create(parent);
     lv_obj_set_size(b, w, 28);
@@ -277,15 +277,15 @@ void buildScreen(void)
 {
     screen = lv_obj_create(NULL);
     tui_statusbar_reserve(screen); // note item A4: the persistent top bar
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
 
     // Jake asked for both: a Close (leave the list alone) and a Clear (empty it).
     barBtn(screen, "Close", 62, LV_ALIGN_TOP_LEFT, 4, 0x2c2c2e, [](lv_event_t *) {
         lv_async_call(
             [](void *) {
-                // The screen we came from may be GONE — a Lua app deletes luaScreen when it
-                // closes — and loading a deleted screen is not a graceful failure. Check,
+                // The screen we came from may be GONE - a Lua app deletes luaScreen when it
+                // closes - and loading a deleted screen is not a graceful failure. Check,
                 // and otherwise go where Home goes.
                 if (prevScreen && lv_obj_is_valid(prevScreen))
                     lv_screen_load_anim(prevScreen, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
@@ -347,7 +347,7 @@ void rebuild(void)
         lv_obj_t *row = lv_obj_create(listCont);
         lv_obj_remove_style_all(row);
         lv_obj_set_size(row, 296, 52);
-        lv_obj_set_style_bg_color(row, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(row, lv_color_hex(0x1b283c), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_set_style_radius(row, 8, LV_PART_MAIN);
         lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
@@ -439,7 +439,12 @@ extern "C" void notif_add(uint32_t from, uint8_t ch, bool isChannel, const char 
     // Rebuilding the page deletes and recreates rows. Deferred not for thread reasons but
     // because notif_clear() shares this path with onRowTap(), which is a row's own handler.
     if (screen && lv_screen_active() == screen)
-        lv_async_call([](void *) { if (screen && lv_screen_active() == screen) rebuild(); }, nullptr);
+        lv_async_call(
+            [](void *) {
+                if (screen && lv_screen_active() == screen)
+                    rebuild();
+            },
+            nullptr);
 }
 
 // Called from createLauncher(). Builds the pop-up up front so that the first notification
@@ -455,7 +460,10 @@ extern "C" void notif_init(void)
         buildPopup();
 }
 
-extern "C" int notif_count(void) { return count; }
+extern "C" int notif_count(void)
+{
+    return count;
+}
 
 // Drop just this conversation's entries and close up the gap, keeping the newest-last order
 // the rest of the file relies on. Opening one chat should not wipe the notice that somebody
@@ -466,8 +474,7 @@ extern "C" void notif_clear_one(uint32_t from, uint8_t ch, bool isChannel)
         return;
     int w = 0;
     for (int r = 0; r < count; r++) {
-        const bool mine = isChannel ? (store[r].isChannel && store[r].ch == ch)
-                                    : (!store[r].isChannel && store[r].from == from);
+        const bool mine = isChannel ? (store[r].isChannel && store[r].ch == ch) : (!store[r].isChannel && store[r].from == from);
         if (mine)
             continue;
         if (w != r)
@@ -482,7 +489,12 @@ extern "C" void notif_clear_one(uint32_t from, uint8_t ch, bool isChannel)
     // Deferred for the same two reasons notif_clear() documents below: this can be called
     // from a row's own handler, and from message handling mid-refresh with the SPI lock held.
     if (screen && lv_screen_active() == screen)
-        lv_async_call([](void *) { if (screen && lv_screen_active() == screen) rebuild(); }, nullptr);
+        lv_async_call(
+            [](void *) {
+                if (screen && lv_screen_active() == screen)
+                    rebuild();
+            },
+            nullptr);
 }
 
 extern "C" void notif_clear(void)
@@ -491,7 +503,7 @@ extern "C" void notif_clear(void)
     hidePopup(); // a flag, safe from any task and safe inside any handler
 
     // ⚠️ THE REBUILD MUST BE DEFERRED, for two separate reasons, either one fatal:
-    //   1. onRowTap() calls this, and rebuild() starts with lv_obj_clean(listCont) — which
+    //   1. onRowTap() calls this, and rebuild() starts with lv_obj_clean(listCont) - which
     //      would destroy the row whose click handler is running. LVGL then walks freed
     //      memory and HANGS rather than panicking; that exact mistake once cost 250 nodes
     //      and every favourite, because the freeze landed mid-way through a flash write.
@@ -499,7 +511,12 @@ extern "C" void notif_clear(void)
     //      held - the wrong moment to be tearing a list down and rebuilding it.
     // lv_async_call answers both: it runs after the current handler has returned.
     if (screen && lv_screen_active() == screen)
-        lv_async_call([](void *) { if (screen && lv_screen_active() == screen) rebuild(); }, nullptr);
+        lv_async_call(
+            [](void *) {
+                if (screen && lv_screen_active() == screen)
+                    rebuild();
+            },
+            nullptr);
 }
 
 // Read one out, newest first, so the lock screen can draw the same list without

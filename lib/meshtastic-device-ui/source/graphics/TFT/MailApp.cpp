@@ -33,8 +33,7 @@ extern "C" bool tdeck_mail_list(int page);
 extern "C" int tdeck_mail_list_count(void);
 extern "C" int tdeck_mail_total(void);
 extern "C" int tdeck_mail_page(void);
-extern "C" bool tdeck_mail_item(int i, unsigned *seq, const char **from, const char **subj, const char **date,
-                                bool *seen);
+extern "C" bool tdeck_mail_item(int i, unsigned *seq, const char **from, const char **subj, const char **date, bool *seen);
 extern "C" bool tdeck_mail_read(unsigned seq);
 extern "C" const char *tdeck_mail_body(void);
 extern "C" bool tdeck_mail_send(const char *to, const char *subject, const char *body);
@@ -59,7 +58,7 @@ static lv_obj_t *listBox = nullptr, *readBox = nullptr, *composeBox = nullptr;
 static lv_obj_t *gateBox = nullptr, *gateWho = nullptr, *removeBtn = nullptr, *removeLbl = nullptr;
 static lv_obj_t *infoBox = nullptr;
 static bool removeArmed = false; // second tap confirms
-static void refreshGate(void); // defined below; used by handlers declared before it
+static void refreshGate(void);   // defined below; used by handlers declared before it
 static lv_obj_t *rowLbl[MAIL_ROWS] = {nullptr};
 static lv_obj_t *pageLbl = nullptr, *readHdr = nullptr, *readFrom = nullptr, *readTxt = nullptr;
 static lv_obj_t *toArea = nullptr, *subjArea = nullptr, *bodyArea = nullptr, *composeMsg = nullptr;
@@ -80,7 +79,7 @@ static unsigned rowSeq[MAIL_ROWS] = {0};
 // address a line, newest first) and the senders on the inbox page you last opened.
 enum ComposeKind { COMPOSE_NEW = 0, COMPOSE_REPLY, COMPOSE_FORWARD };
 static int composeKind = COMPOSE_NEW;
-static int composeReturn = 2;     // VIEW_STATUS - where Cancel goes (the read view, for a reply)
+static int composeReturn = 2;      // VIEW_STATUS - where Cancel goes (the read view, for a reply)
 static bool bodyLoaded = false;    // Reply/Forward quote the body, so they wait for it
 static lv_obj_t *whoBox = nullptr; // the address picker, built each time it opens
 static const char *kSentFile = "/mailto.txt";
@@ -297,7 +296,7 @@ static void onSave(lv_event_t *)
     memset(pass, 0, sizeof(pass));
     lv_textarea_set_text(passArea, "");
     forgetCredCache();
-    tdeck_mail_forget_creds(); // drop the cached copy so the new file is picked up
+    tdeck_mail_forget_creds();                         // drop the cached copy so the new file is picked up
     LOG_INFO("[MAIL] credentials saved for %s", addr); // the ADDRESS only, never the password
 
     showSetup(false);
@@ -563,8 +562,8 @@ static void openWho(lv_event_t *)
             for (; a[i] && i < (int)sizeof(low) - 1; i++)
                 low[i] = (char)tolower((unsigned char)a[i]);
             low[i] = 0;
-            if (strstr(low, "noreply") || strstr(low, "no-reply") || strstr(low, "donotreply") ||
-                strstr(low, "do-not-reply") || strstr(low, "mailer-daemon") || strstr(low, "bounce"))
+            if (strstr(low, "noreply") || strstr(low, "no-reply") || strstr(low, "donotreply") || strstr(low, "do-not-reply") ||
+                strstr(low, "mailer-daemon") || strstr(low, "bounce"))
                 return;
         }
         for (int i = 0; i < n; i++)
@@ -590,7 +589,7 @@ static void openWho(lv_event_t *)
     whoBox = lv_obj_create(composeBox);
     lv_obj_set_pos(whoBox, 4, 30);
     lv_obj_set_size(whoBox, 312, 158);
-    lv_obj_set_style_bg_color(whoBox, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(whoBox, lv_color_hex(0x1b283c), LV_PART_MAIN);
     lv_obj_set_style_border_color(whoBox, lv_color_hex(0x48484a), LV_PART_MAIN);
     lv_obj_set_style_border_width(whoBox, 1, LV_PART_MAIN);
     lv_obj_set_style_pad_all(whoBox, 4, LV_PART_MAIN);
@@ -610,7 +609,7 @@ static void openWho(lv_event_t *)
     for (int i = 0; i < n; i++) {
         lv_obj_t *b = lv_btn_create(whoBox);
         lv_obj_set_size(b, 296, 26);
-        lv_obj_set_style_bg_color(b, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(b, lv_color_hex(0x30415a), LV_PART_MAIN);
         lv_obj_set_style_radius(b, 6, LV_PART_MAIN);
         lv_obj_t *l = lv_label_create(b);
         lv_obj_set_width(l, 284);
@@ -678,8 +677,8 @@ static void onReplyOrForward(bool forward)
         return;
     int o;
     if (forward) {
-        o = snprintf(buf, cap, "\n\n---------- Forwarded message ---------\nFrom: %s\nDate: %s\nSubject: %s\n\n",
-                     from, date, subj);
+        o = snprintf(buf, cap, "\n\n---------- Forwarded message ---------\nFrom: %s\nDate: %s\nSubject: %s\n\n", from, date,
+                     subj);
         for (const char *p = body; *p && o < (int)cap - 1 && (p - body) < kQuote; p++)
             buf[o++] = *p;
     } else {
@@ -726,8 +725,8 @@ static void onSend(lv_event_t *)
     closeWho();
     lv_label_set_text(composeMsg, "Sending...");
     uiWant = WANT_SEND;
-    checking = tdeck_mail_send_ex(to, lv_textarea_get_text(subjArea), lv_textarea_get_text(bodyArea),
-                                  composeKind == COMPOSE_REPLY);
+    checking =
+        tdeck_mail_send_ex(to, lv_textarea_get_text(subjArea), lv_textarea_get_text(bodyArea), composeKind == COMPOSE_REPLY);
     if (!checking)
         lv_label_set_text(composeMsg, "Busy - try again in a moment");
 }
@@ -806,7 +805,7 @@ extern "C" void mail_open(void)
 {
     if (!screen) {
         screen = lv_obj_create(NULL);
-        lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
         lv_obj_clear_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
         tui_statusbar_reserve(screen);
 
@@ -860,14 +859,14 @@ extern "C" void mail_open(void)
         lv_obj_remove_style_all(infoBox);
         lv_obj_set_pos(infoBox, 0, 0);
         lv_obj_set_size(infoBox, 320, 218);
-        lv_obj_set_style_bg_color(infoBox, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(infoBox, lv_color_hex(0x0b1220), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(infoBox, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_add_flag(infoBox, LV_OBJ_FLAG_HIDDEN);
         {
             lv_obj_t *sc = lv_obj_create(infoBox);
             lv_obj_set_pos(sc, 4, 4);
             lv_obj_set_size(sc, 312, 174);
-            lv_obj_set_style_bg_color(sc, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+            lv_obj_set_style_bg_color(sc, lv_color_hex(0x1b283c), LV_PART_MAIN);
             lv_obj_set_style_border_width(sc, 0, LV_PART_MAIN);
             lv_obj_set_style_pad_all(sc, 6, LV_PART_MAIN);
             lv_obj_set_scroll_dir(sc, LV_DIR_VER);
@@ -876,24 +875,22 @@ extern "C" void mail_open(void)
             lv_label_set_long_mode(t, LV_LABEL_LONG_WRAP);
             lv_obj_set_style_text_font(t, &ui_font_montserrat_12, LV_PART_MAIN);
             lv_obj_set_style_text_color(t, lv_color_hex(0xffffff), LV_PART_MAIN);
-            lv_label_set_text(t,
-                              "Your password\n\n"
-                              "It is an app password, not your real Google one. Google stopped "
-                              "allowing real passwords for mail apps. It only works for mail, and "
-                              "you can revoke it at myaccount.google.com/apppasswords without "
-                              "changing anything else.\n\n"
-                              "Where it is kept\n\n"
-                              "In a plain text file called gmail.txt on this device's SD card. "
-                              "Not encrypted - anyone holding the card can read it. Remove "
-                              "account deletes that file.\n\n"
-                              "Where it is not\n\n"
-                              "Never written to the log. Never sent anywhere except Gmail, over a "
-                              "connection checked against Google's own certificate. Screenshots "
-                              "are refused while the login form is open, so it cannot be "
-                              "captured over the USB cable.");
-            lv_obj_t *ok = makeButton(infoBox, "Close", 0x3a3a3c, [](lv_event_t *) {
-                lv_obj_add_flag(infoBox, LV_OBJ_FLAG_HIDDEN);
-            });
+            lv_label_set_text(t, "Your password\n\n"
+                                 "It is an app password, not your real Google one. Google stopped "
+                                 "allowing real passwords for mail apps. It only works for mail, and "
+                                 "you can revoke it at myaccount.google.com/apppasswords without "
+                                 "changing anything else.\n\n"
+                                 "Where it is kept\n\n"
+                                 "In a plain text file called gmail.txt on this device's SD card. "
+                                 "Not encrypted - anyone holding the card can read it. Remove "
+                                 "account deletes that file.\n\n"
+                                 "Where it is not\n\n"
+                                 "Never written to the log. Never sent anywhere except Gmail, over a "
+                                 "connection checked against Google's own certificate. Screenshots "
+                                 "are refused while the login form is open, so it cannot be "
+                                 "captured over the USB cable.");
+            lv_obj_t *ok =
+                makeButton(infoBox, "Close", 0x3a3a3c, [](lv_event_t *) { lv_obj_add_flag(infoBox, LV_OBJ_FLAG_HIDDEN); });
             lv_obj_set_size(ok, 120, 32);
             lv_obj_set_pos(ok, 4, 182);
         }
@@ -938,7 +935,7 @@ extern "C" void mail_open(void)
         // at the START so the name goes in front of it rather than after the domain.
         lv_textarea_set_text(addrArea, "@gmail.com");
         lv_textarea_set_cursor_pos(addrArea, 0);
-        lv_obj_set_style_bg_color(addrArea, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(addrArea, lv_color_hex(0x1b283c), LV_PART_MAIN);
         lv_obj_set_style_text_color(addrArea, lv_color_hex(0xffffff), LV_PART_MAIN);
         lv_obj_set_style_border_width(addrArea, 0, LV_PART_MAIN);
         // Solid caret: a blinking one only repaints when something else changes, so on this
@@ -967,7 +964,7 @@ extern "C" void mail_open(void)
         lv_textarea_set_one_line(passArea, true);
         lv_textarea_set_max_length(passArea, 40);
         lv_textarea_set_placeholder_text(passArea, "abcd efgh ijkl mnop (16 letters)");
-        lv_obj_set_style_bg_color(passArea, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(passArea, lv_color_hex(0x1b283c), LV_PART_MAIN);
         lv_obj_set_style_text_color(passArea, lv_color_hex(0xffffff), LV_PART_MAIN);
         lv_obj_set_style_border_width(passArea, 0, LV_PART_MAIN);
         lv_obj_set_style_bg_color(passArea, lv_color_hex(0xffffff), LV_PART_CURSOR);
@@ -1035,8 +1032,7 @@ extern "C" void mail_open(void)
         });
         lv_obj_set_size(inbx, 150, 32);
         lv_obj_set_pos(inbx, 4, 92);
-        lv_obj_t *wr = makeButton(statusBox, "Write", 0xff9f0a,
-                                  [](lv_event_t *) { beginCompose(COMPOSE_NEW, VIEW_STATUS); });
+        lv_obj_t *wr = makeButton(statusBox, "Write", 0xff9f0a, [](lv_event_t *) { beginCompose(COMPOSE_NEW, VIEW_STATUS); });
         lv_obj_set_size(wr, 158, 32);
         lv_obj_set_pos(wr, 158, 92);
 
@@ -1078,12 +1074,10 @@ extern "C" void mail_open(void)
             });
             lv_obj_set_size(pv, 44, 28);
             lv_obj_set_pos(pv, 4, 184);
-            lv_obj_t *nx = makeButton(listBox, ">", 0x3a3a3c,
-                                      [](lv_event_t *) { loadPage(tdeck_mail_page() + 1); });
+            lv_obj_t *nx = makeButton(listBox, ">", 0x3a3a3c, [](lv_event_t *) { loadPage(tdeck_mail_page() + 1); });
             lv_obj_set_size(nx, 44, 28);
             lv_obj_set_pos(nx, 272, 184);
-            lv_obj_t *bk = makeButton(listBox, "Back", 0x3a3a3c,
-                                      [](lv_event_t *) { showView(VIEW_STATUS); });
+            lv_obj_t *bk = makeButton(listBox, "Back", 0x3a3a3c, [](lv_event_t *) { showView(VIEW_STATUS); });
             lv_obj_set_size(bk, 66, 28);
             lv_obj_set_pos(bk, 54, 184);
             pageLbl = lv_label_create(listBox);
@@ -1123,7 +1117,7 @@ extern "C" void mail_open(void)
             lv_obj_t *sc = lv_obj_create(readBox);
             lv_obj_set_pos(sc, 2, 32);
             lv_obj_set_size(sc, 316, 146);
-            lv_obj_set_style_bg_color(sc, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+            lv_obj_set_style_bg_color(sc, lv_color_hex(0x1b283c), LV_PART_MAIN);
             lv_obj_set_style_border_width(sc, 0, LV_PART_MAIN);
             lv_obj_set_style_pad_all(sc, 4, LV_PART_MAIN);
             lv_obj_set_scroll_dir(sc, LV_DIR_VER);
@@ -1161,7 +1155,7 @@ extern "C" void mail_open(void)
                 if (oneLine)
                     lv_textarea_set_one_line(t, true);
                 lv_textarea_set_placeholder_text(t, ph);
-                lv_obj_set_style_bg_color(t, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+                lv_obj_set_style_bg_color(t, lv_color_hex(0x1b283c), LV_PART_MAIN);
                 lv_obj_set_style_text_color(t, lv_color_hex(0xffffff), LV_PART_MAIN);
                 lv_obj_set_style_border_width(t, 0, LV_PART_MAIN);
                 lv_obj_set_style_text_font(t, &ui_font_montserrat_12, LV_PART_MAIN);

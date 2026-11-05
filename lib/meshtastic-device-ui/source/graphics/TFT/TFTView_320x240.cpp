@@ -1,8 +1,5 @@
 #if HAS_TFT && defined(VIEW_320x240) || defined(VIEW_240x320)
 
-#include "graphics/view/TFT/TuiLabel.h" // tui_one_line: LONG_DOT needs a height
-#include "graphics/view/TFT/TuiStatusBar.h" // the persistent top bar (note item A4)
-#include "graphics/view/TFT/UnreadCounts.h" // unread, counted per conversation
 #include "graphics/view/TFT/TFTView_320x240.h"
 #include "Arduino.h"
 #include "graphics/common/BatteryLevel.h"
@@ -14,8 +11,12 @@
 #include "graphics/map/MapPanel.h"
 #include "graphics/map/TileProvider.h"
 #include "graphics/map/URLService.h"
+#include "graphics/view/TFT/ControlCenter.h"
 #include "graphics/view/TFT/LockWidgets.h" // the three lock-screen widgets
 #include "graphics/view/TFT/Themes.h"
+#include "graphics/view/TFT/TuiLabel.h"     // tui_one_line: LONG_DOT needs a height
+#include "graphics/view/TFT/TuiStatusBar.h" // the persistent top bar (note item A4)
+#include "graphics/view/TFT/UnreadCounts.h" // unread, counted per conversation
 #include "images.h"
 #include "input/InputDriver.h"
 #include "lv_i18n.h"
@@ -28,10 +29,10 @@
 #include <cmath>
 #include <cstdio>
 #include <functional>
-#include <new> // std::nothrow, so a failed GUI allocation can't abort the boot
 #include <iomanip>
 #include <list>
 #include <locale>
+#include <new> // std::nothrow, so a failed GUI allocation can't abort the boot
 #include <random>
 #include <sstream>
 #include <time.h>
@@ -78,12 +79,12 @@ LV_IMAGE_DECLARE(node_location_pin24_image);
 // Linked across the UI/mesh boundary as a free function (no shared header).
 extern "C" void tdeck_set_mesh_enabled(bool on);
 extern "C" bool tdeck_get_mesh_enabled(void);
-// GPS status bridge (src/TDeckGpsBridge.cpp) — live sats-in-view / lock / fix from
+// GPS status bridge (src/TDeckGpsBridge.cpp) - live sats-in-view / lock / fix from
 // the GPS driver itself, available while acquiring, before any position packet.
 extern "C" uint32_t tdeck_gps_num_sats(void);
 extern "C" bool tdeck_gps_has_lock(void);
 extern "C" bool tdeck_gps_position(int32_t *lat, int32_t *lon);
-extern "C" bool tdeck_gps_altitude(int32_t *meters); // metres above sea level, 3D fix only
+extern "C" bool tdeck_gps_altitude(int32_t *meters);                               // metres above sea level, 3D fix only
 extern "C" void tdeck_coverage_sample(uint32_t fromNode, int32_t rssi, float snr); // TDeckCoverage.cpp
 extern "C" bool tdeck_coverage_enabled(void);
 extern "C" void tdeck_coverage_set_enabled(bool on);
@@ -98,7 +99,7 @@ extern "C" int tdeck_nodes_list(uint32_t *out, int maxN);
 extern "C" const char *tdeck_node_name(uint32_t num);
 extern "C" bool tdeck_node_position(uint32_t num, int32_t *latI, int32_t *lonI);
 extern "C" uint32_t tdeck_gps_dop(void); // PDOP x100, 0 = unknown
-// GPS on/off + check-interval control bridge (src/TDeckGpsControl.cpp) — applied
+// GPS on/off + check-interval control bridge (src/TDeckGpsControl.cpp) - applied
 // live with no reboot.
 extern "C" void tdeck_gps_set_enabled(bool on);
 extern "C" void tdeck_gps_set_interval(uint32_t secs);
@@ -116,14 +117,14 @@ extern "C" void tdeck_lock_set_grace_secs(uint32_t secs);
 extern "C" int tdeck_lock_mode(void);
 extern "C" void tdeck_lock_set_mode(int mode);
 extern "C" int tdeck_lock_widget(void);
-extern "C" bool tdeck_units_metric(void);         // F/C, src/TDeckUnits.cpp
+extern "C" bool tdeck_units_metric(void); // F/C, src/TDeckUnits.cpp
 extern "C" void tdeck_units_set_metric(bool metric);
 extern "C" void tdeck_lock_set_widget(int w);
 extern "C" uint32_t tdeck_lock_wx_minutes(void);
 // Keeping the lock screen lit (jeeab/t-ui#8, reshaped - see lockDevice).
-extern "C" int tdeck_lock_stayon_mins(void);   // 0 off, 255 always, else minutes
-extern "C" int tdeck_lock_dim_pct(void);       // 0-100
-extern "C" int tdeck_lock_unlock_key(void);    // 0 slide only, 1 space, 2 Alt+W
+extern "C" int tdeck_lock_stayon_mins(void); // 0 off, 255 always, else minutes
+extern "C" int tdeck_lock_dim_pct(void);     // 0-100
+extern "C" int tdeck_lock_unlock_key(void);  // 0 slide only, 1 space, 2 Alt+W
 extern "C" void tdeck_lock_set_stayon_mins(int m);
 extern "C" void tdeck_lock_set_dim_pct(int pct);
 extern "C" void tdeck_lock_set_unlock_key(int k);
@@ -146,13 +147,13 @@ extern "C" bool tdeck_trackball_nav_enabled(void);
 extern "C" bool tdeck_trackball_click_enabled(void);
 extern "C" void tdeck_trackball_click_set_enabled(bool en);
 extern "C" void tdeck_trackball_nav_set_enabled(bool en);
-extern "C" int tdeck_trackball_speed(void);            // 0 slow, 1 normal, 2 fast
+extern "C" int tdeck_trackball_speed(void); // 0 slow, 1 normal, 2 fast
 extern "C" void tdeck_trackball_set_speed(int v);
-extern "C" int tdeck_trackball_style(void);            // 0 see-through, 1 solid
+extern "C" int tdeck_trackball_style(void); // 0 see-through, 1 solid
 extern "C" void tdeck_trackball_set_style(int v);
-extern "C" void tdeck_trackball_cursor_restyle(void);  // repaint without a reboot
-extern "C" void tdeck_trackball_cursor_off(void);      // put the arrow away
-extern "C" bool tdeck_trackball_cursor_state(int *x, int *y); // where it is, if it is up
+extern "C" void tdeck_trackball_cursor_restyle(void);          // repaint without a reboot
+extern "C" void tdeck_trackball_cursor_off(void);              // put the arrow away
+extern "C" bool tdeck_trackball_cursor_state(int *x, int *y);  // where it is, if it is up
 extern "C" bool tdeck_trackball_take_scroll(int *dx, int *dy); // roll that hit an edge
 extern "C" bool tdeck_kbdlight_enabled(void);
 extern "C" void tdeck_kbdlight_set_enabled(bool en);
@@ -171,6 +172,10 @@ extern "C" int tdeck_channel_import_count(void);
 extern "C" void tdeck_channel_import_clear(void);
 
 // WiFi status bridge (src/TDeckWifi.cpp): 0=off/unconfigured, 1=connecting, 2=connected
+extern "C" bool tdeck_control_bluetooth_active(void);
+extern "C" bool tdeck_control_gps_available(void);
+extern "C" bool tdeck_control_wifi_available(void);
+extern "C" bool tdeck_control_bluetooth_available(void);
 extern "C" int tdeck_wifi_state(void);
 extern "C" void tdeck_wifi_ip(char *buf, int len);
 // WiFi network scan (for the pick-from-a-list chooser)
@@ -178,7 +183,7 @@ extern "C" void tdeck_wifi_scan_start(void);
 extern "C" int tdeck_wifi_scan_done(void); // -2 failed, -1 running, >=0 count
 extern "C" void tdeck_wifi_scan_get(int i, char *ssid, int len, int *rssi, int *secure);
 extern "C" void tdeck_wifi_scan_free(void);
-// On-demand WiFi (for the File Share screen — connect without a reboot, drop it after)
+// On-demand WiFi (for the File Share screen - connect without a reboot, drop it after)
 extern "C" bool tdeck_wifi_connect_now(const char *ssid, const char *psk);
 extern "C" void tdeck_wifi_disconnect_now(void);
 extern "C" bool tdeck_wifi_connected(void);
@@ -197,7 +202,7 @@ extern "C" void tdeck_ftp_start(const char *user, const char *pass);
 extern "C" void tdeck_ftp_stop(void);
 extern "C" void tdeck_ftp_service(void);
 extern "C" bool tdeck_ftp_running(void);
-// Snake game module (SnakeGame.cpp) — opened from its launcher tile.
+// Snake game module (SnakeGame.cpp) - opened from its launcher tile.
 extern "C" void snake_open(void);
 // Notification centre (NotificationCenter.cpp): who messaged you, visible from any app.
 extern "C" void notif_add(uint32_t from, uint8_t ch, bool isChannel, const char *who, const char *text);
@@ -219,34 +224,34 @@ extern "C" void notif_clear_one(uint32_t from, uint8_t ch, bool isChannel);
 // Redraw the Conversations list if it happens to be the screen you are looking at.
 extern "C" void channels_unread_changed(void);
 extern "C" bool notif_peek(int i, char *who, size_t whoN, char *text, size_t textN, uint32_t *ageSecs);
-// Stopwatch module (StopwatchApp.cpp) — opened from its launcher tile.
+// Stopwatch module (StopwatchApp.cpp) - opened from its launcher tile.
 extern "C" void stopwatch_open(void);
 // Nodes + Favorites (NodesApp.cpp). Two launcher screens over one list, fed by the
 // extern "C" bridge in src/TDeckNodesBridge.cpp so that MUI's own node panels are
-// left completely untouched — Jake wants future device-ui updates to merge cleanly.
+// left completely untouched - Jake wants future device-ui updates to merge cleanly.
 extern "C" void nodes_open(void);
 extern "C" void favorites_open(void);
 // Channels (ChannelsApp.cpp): what this device listens to, and who it has heard there.
 extern "C" void channels_open(void);
-// Notes module (NotesApp.cpp) — .txt notes on the SD card.
+// Notes module (NotesApp.cpp) - .txt notes on the SD card.
 extern "C" void notes_open(void);
-extern "C" void gemini_open(void); // GeminiApp.cpp - ask Gemini a question over wi-fi
-extern "C" void gemini_idle_check(void); // frees its screen + buffers when unused
-extern "C" void chess_open(void);        // ChessApp.cpp - play the engine
-extern "C" void tdeck_tile_cache_clear(void); // SdFatService.cpp - frees ~1.5MB of decoded tiles
-extern "C" void chess_idle_check(void);  // 128 objects; hands them back when unused
-extern "C" void mail_open(void);       // MailApp.cpp - Gmail setup form + inbox count
-extern "C" void mail_service_ui(void); // polls the inbox check while that screen is up
+extern "C" void gemini_open(void);                 // GeminiApp.cpp - ask Gemini a question over wi-fi
+extern "C" void gemini_idle_check(void);           // frees its screen + buffers when unused
+extern "C" void chess_open(void);                  // ChessApp.cpp - play the engine
+extern "C" void tdeck_tile_cache_clear(void);      // SdFatService.cpp - frees ~1.5MB of decoded tiles
+extern "C" void chess_idle_check(void);            // 128 objects; hands them back when unused
+extern "C" void mail_open(void);                   // MailApp.cpp - Gmail setup form + inbox count
+extern "C" void mail_service_ui(void);             // polls the inbox check while that screen is up
 extern "C" void notes_open_file(const char *path); // Files app opens .txt files with this
 // Calculator module (CalculatorApp.cpp).
 extern "C" void calculator_open(void);
-extern "C" void lua_app_open(void);   // Lua app engine — hello demo (from SD)
-extern "C" void breakout_open(void);  // Breakout game (Lua, from SD)
-extern "C" void metronome_open(void);  // Metronome tool (Lua, from SD)
-extern "C" void lua_seed_bundled(void); // first-run install of bundled SD apps (once, versioned)
+extern "C" void lua_app_open(void);             // Lua app engine - hello demo (from SD)
+extern "C" void breakout_open(void);            // Breakout game (Lua, from SD)
+extern "C" void metronome_open(void);           // Metronome tool (Lua, from SD)
+extern "C" void lua_seed_bundled(void);         // first-run install of bundled SD apps (once, versioned)
 extern "C" void lua_run_path(const char *path); // run a user app by its SD script path
 // Live RAM figures from the firmware side (TDeckMemInfo.cpp), linked across the
-// UI/firmware boundary — used by the launcher's memory readout.
+// UI/firmware boundary - used by the launcher's memory readout.
 extern "C" uint32_t tdeck_free_heap(void);
 extern "C" uint32_t tdeck_min_free_heap(void);
 extern "C" uint32_t tdeck_free_psram(void);
@@ -264,11 +269,11 @@ extern "C" uint32_t tdeck_prev_heap_low(void);
 // how long it was stuck and which OSThread it was stuck inside.
 extern "C" uint32_t tdeck_prev_stall_ms(void);
 extern "C" const char *tdeck_prev_stall_thread(void);
-extern "C" const char *tdeck_prev_stall_lock(void); // spiLock holder + loop state at stall time
-extern "C" void tdeck_diag_set_version(const char *ver);  // TDeckMemInfo.cpp - names the build in the fault log
-extern "C" void tdeck_prev_when(char *buf, int cap);      // " up=..s seen=..Z fw=.." for the previous run
-void playBeep(); // buzz.cpp (C++ linkage) — completion chirp for the map downloader
-// Sound toggle (TDeckBeep.cpp): drives Meshtastic's buzzer_mode — one switch for game/timer
+extern "C" const char *tdeck_prev_stall_lock(void);      // spiLock holder + loop state at stall time
+extern "C" void tdeck_diag_set_version(const char *ver); // TDeckMemInfo.cpp - names the build in the fault log
+extern "C" void tdeck_prev_when(char *buf, int cap);     // " up=..s seen=..Z fw=.." for the previous run
+void playBeep();                                         // buzz.cpp (C++ linkage) - completion chirp for the map downloader
+// Sound toggle (TDeckBeep.cpp): drives Meshtastic's buzzer_mode - one switch for game/timer
 // beeps AND message-notification sounds. Persists in the device config (no reboot).
 extern "C" bool tdeck_sound_get_enabled(void);
 extern "C" void tdeck_sound_set_enabled(bool on);
@@ -310,7 +315,7 @@ volatile bool tdeck_prog_key_exit = false; // a keypress in programming mode req
 //  wake (the trackball button is stiff in Jake's 3D case). Wakes + shows the PIN pad, same path.
 volatile bool tdeck_wake_request = false;
 //  tdeck_calib_request -> Alt+C was pressed (keyboard emits 0x0C). Polled by the launcher to run
-//  touch-screen calibration from the lock pad — a touch-independent fix when the screen is
+//  touch-screen calibration from the lock pad - a touch-independent fix when the screen is
 //  miscalibrated (set by the keyboard driver, see I2CKeyboardInputDriver.cpp).
 volatile bool tdeck_calib_request = false;
 //  tdeck_back_request -> the "erase" (backspace) key was pressed while nothing was being typed
@@ -485,10 +490,10 @@ void TFTView_320x240::init(IClientBase *client)
         lv_label_set_text(objects.firmware_label, "Booting...");
     }
 
-    // ---- T-UI splash restyle (cosmetic only — the boot->launcher handoff logic is untouched) ----
+    // ---- T-UI splash restyle (cosmetic only - the boot->launcher handoff logic is untouched) ----
     // Black screen, big "T-UI" title, "booting" below. The stock Meshtastic logo/URL are hidden,
     // not removed, so the reboot spinner and boot-message plumbing keep working.
-    lv_obj_set_style_bg_color(objects.boot_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(objects.boot_screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_add_flag(objects.boot_logo, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(objects.meshtastic_url, LV_OBJ_FLAG_HIDDEN);
     splash_title = lv_label_create(objects.boot_screen);
@@ -503,7 +508,7 @@ void TFTView_320x240::init(IClientBase *client)
     lv_obj_align(objects.firmware_label, LV_ALIGN_CENTER, 0, 14);
     // reboot spinner arc: recolor for the black background
     lv_obj_set_style_arc_color(objects.boot_logo_arc, lv_color_hex(0xffffff), LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(objects.boot_logo_arc, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_arc_color(objects.boot_logo_arc, lv_color_hex(0x30415a), LV_PART_MAIN);
 
     time(&lastrun60);
     time(&lastrun10);
@@ -674,17 +679,18 @@ void TFTView_320x240::updateBootMessage(const char *msg)
 //  Boots first; each tile loads MUI's main_screen and activates the matching panel.
 //  To add an app: add one entry to kApps[] below. (name, icon, button, panel, topPanel)
 // =====================================================================================
-namespace {
+namespace
+{
 struct LauncherApp {
     const char *name;
-    const void *icon;      // reuse MUI's existing button images
-    uint32_t color;        // per-app icon tint (iOS-style)
-    lv_obj_t **button;     // &objects.* addresses are stable after ui_init()
+    const void *icon;  // reuse MUI's existing button images
+    uint32_t color;    // per-app icon tint (iOS-style)
+    lv_obj_t **button; // &objects.* addresses are stable after ui_init()
     lv_obj_t **panel;
     lv_obj_t **topPanel;
-    void (*action)();      // optional custom open action; if set, overrides panel logic
-    const char *sdPath;    // if set, this is an SD-card app; its tile hides when the file is
-                           // deleted (uninstall). nullptr = built-in firmware app.
+    void (*action)();   // optional custom open action; if set, overrides panel logic
+    const char *sdPath; // if set, this is an SD-card app; its tile hides when the file is
+                        // deleted (uninstall). nullptr = built-in firmware app.
 };
 
 static const LauncherApp kApps[] = {
@@ -704,9 +710,8 @@ static const LauncherApp kApps[] = {
     // Breakout = a Lua GAME loaded from /apps/breakout/main.lua on the SD card.
     {"Breakout", &img_nodes_button_image, 0x0a84ff, nullptr, nullptr, nullptr, &breakout_open, "/apps/breakout/main.lua"},
     // Metronome = a Lua TOOL loaded from /apps/metronome/main.lua on the SD card.
-    // (Deleting its folder on the SD card uninstalls it — its tile then disappears on reboot.)
-    {"Metronome", &img_messages_button_image, 0xbf5af2, nullptr, nullptr, nullptr, &metronome_open,
-     "/apps/metronome/main.lua"},
+    // (Deleting its folder on the SD card uninstalls it - its tile then disappears on reboot.)
+    {"Metronome", &img_messages_button_image, 0xbf5af2, nullptr, nullptr, nullptr, &metronome_open, "/apps/metronome/main.lua"},
     // Files = our own SD-card browser screen.
     {"Files", &img_map_button_image, 0x0a84ff, nullptr, nullptr, nullptr, &TFTView_320x240::openFilesAction},
     // Maps = our own standalone map app (same SD-card tiles as the mesh map, own screen).
@@ -773,7 +778,7 @@ lv_obj_t *icRing(lv_obj_t *p, int x, int y, int d, uint32_t color, int borderW)
 }
 // A five-pointed star outline, drawn with lv_line.
 //
-// ⚠️ lv_line does NOT copy its point array — the points must outlive the object. So the shape is
+// ⚠️ lv_line does NOT copy its point array - the points must outlive the object. So the shape is
 // built ONCE into a static array in the line object's own coordinate space, and every star just
 // positions its object; they can all share the one array precisely because the points are relative.
 lv_obj_t *icStar(lv_obj_t *p, int x, int y, int size, uint32_t color, int w)
@@ -831,20 +836,20 @@ void buildTileIcon(lv_obj_t *tile, const char *name, uint32_t color)
         icBox(ic, 18, 19, 10, 8, 0xc7c7cc, 2); // hull
         icBox(ic, 12, 23, 6, 4, 0x0a84ff, 1);  // wings
         icBox(ic, 28, 23, 6, 4, 0x0a84ff, 1);
-        icBox(ic, 21, 27, 4, 6, 0xff9f0a, 2);  // thruster
+        icBox(ic, 21, 27, 4, 6, 0xff9f0a, 2); // thruster
     } else if (!strcmp(name, "Weather")) {
         // A sun in the top-left with a few rays, and a white cloud drifting across it. The
-        // cloud is drawn AFTER the sun so it sits in front — "partly cloudy" in one glance.
+        // cloud is drawn AFTER the sun so it sits in front - "partly cloudy" in one glance.
         icBox(ic, 6, 3, 15, 15, 0xffd60a, LV_RADIUS_CIRCLE); // sun disc
         icBox(ic, 12, 0, 3, 2, 0xffd60a, 1);                 // rays around the top/left
         icBox(ic, 1, 2, 3, 3, 0xffd60a, 1);
         icBox(ic, 0, 10, 2, 3, 0xffd60a, 1);
         icBox(ic, 23, 2, 3, 3, 0xffd60a, 1);
         icBox(ic, 1, 18, 3, 3, 0xffd60a, 1);
-        icBox(ic, 15, 20, 28, 12, 0xf2f2f7, 6);               // cloud base
+        icBox(ic, 15, 20, 28, 12, 0xf2f2f7, 6);                // cloud base
         icBox(ic, 18, 14, 14, 14, 0xf2f2f7, LV_RADIUS_CIRCLE); // left puff
         icBox(ic, 28, 16, 14, 13, 0xf2f2f7, LV_RADIUS_CIRCLE); // right puff
-    } else if (!strcmp(name, "Flashlight")) { // bulb + rays
+    } else if (!strcmp(name, "Flashlight")) {                  // bulb + rays
         icBox(ic, 17, 17, 12, 15, 0xffd60a, 4);
         icBox(ic, 19, 13, 8, 5, 0xfff3b0, 2);
         icBox(ic, 21, 2, 4, 8, 0xffd60a, 2);
@@ -865,42 +870,42 @@ void buildTileIcon(lv_obj_t *tile, const char *name, uint32_t color)
         icRing(ic, 10, 8, 26, color, 3);
         icBox(ic, 20, 2, 6, 6, color, 1);
         icBox(ic, 22, 15, 2, 9, color, 1);
-    } else if (!strcmp(name, "Nodes")) { // two upper-torso silhouettes, the back one offset
-        icBox(ic, 6, 16, 16, 12, 0x6a6a70, 6);  // back shoulders
-        icRing(ic, 9, 6, 10, 0x6a6a70, 5);      // back head (filled by a thick border)
-        icBox(ic, 18, 18, 20, 14, color, 7);    // front shoulders
-        icRing(ic, 23, 6, 12, color, 6);        // front head
-    } else if (!strcmp(name, "Favorites")) { // five-pointed star outline
+    } else if (!strcmp(name, "Nodes")) {       // two upper-torso silhouettes, the back one offset
+        icBox(ic, 6, 16, 16, 12, 0x6a6a70, 6); // back shoulders
+        icRing(ic, 9, 6, 10, 0x6a6a70, 5);     // back head (filled by a thick border)
+        icBox(ic, 18, 18, 20, 14, color, 7);   // front shoulders
+        icRing(ic, 23, 6, 12, color, 6);       // front head
+    } else if (!strcmp(name, "Favorites")) {   // five-pointed star outline
         icStar(ic, 8, 6, 30, color, 3);
-    } else if (!strcmp(name, "Chats")) { // two speech bubbles, the front one active
-        icBox(ic, 4, 4, 26, 18, 0x6a6a70, 6);  // back bubble
-        icBox(ic, 8, 20, 6, 5, 0x6a6a70, 1);   // its tail
-        icBox(ic, 14, 16, 26, 20, color, 6);   // front bubble
-        icBox(ic, 30, 34, 7, 6, color, 1);     // its tail
-    } else if (!strcmp(name, "Alerts")) { // a bell: dome, rim, clapper
-        icBox(ic, 13, 8, 20, 18, color, 8);           // dome
-        icBox(ic, 21, 3, 4, 5, color, 2);             // the little loop on top
-        icBox(ic, 9, 25, 28, 5, color, 2);            // rim
+    } else if (!strcmp(name, "Chats")) {                  // two speech bubbles, the front one active
+        icBox(ic, 4, 4, 26, 18, 0x6a6a70, 6);             // back bubble
+        icBox(ic, 8, 20, 6, 5, 0x6a6a70, 1);              // its tail
+        icBox(ic, 14, 16, 26, 20, color, 6);              // front bubble
+        icBox(ic, 30, 34, 7, 6, color, 1);                // its tail
+    } else if (!strcmp(name, "Alerts")) {                 // a bell: dome, rim, clapper
+        icBox(ic, 13, 8, 20, 18, color, 8);               // dome
+        icBox(ic, 21, 3, 4, 5, color, 2);                 // the little loop on top
+        icBox(ic, 9, 25, 28, 5, color, 2);                // rim
         icBox(ic, 20, 31, 6, 5, color, LV_RADIUS_CIRCLE); // clapper
-    } else if (!strcmp(name, "Files")) { // folder
+    } else if (!strcmp(name, "Files")) {                  // folder
         icBox(ic, 8, 7, 15, 5, color, 1);
         icBox(ic, 6, 11, 34, 24, color, 3);
-    } else if (!strcmp(name, "Gemini")) { // a four-pointed spark, drawn like the rest
-        icBox(ic, 19, 2, 6, 38, color, 3);  // vertical
-        icBox(ic, 2, 19, 40, 6, color, 3);  // horizontal
-        icBox(ic, 33, 5, 5, 5, color, LV_RADIUS_CIRCLE); // small spark off the shoulder
-    } else if (!strcmp(name, "Chess")) { // a pawn: head, collar, waist, base
+    } else if (!strcmp(name, "Gemini")) {                  // a four-pointed spark, drawn like the rest
+        icBox(ic, 19, 2, 6, 38, color, 3);                 // vertical
+        icBox(ic, 2, 19, 40, 6, color, 3);                 // horizontal
+        icBox(ic, 33, 5, 5, 5, color, LV_RADIUS_CIRCLE);   // small spark off the shoulder
+    } else if (!strcmp(name, "Chess")) {                   // a pawn: head, collar, waist, base
         icBox(ic, 16, 4, 10, 10, color, LV_RADIUS_CIRCLE); // head
         icBox(ic, 13, 15, 16, 4, color, 2);                // collar
         icBox(ic, 17, 19, 8, 10, color, 2);                // body
         icBox(ic, 10, 30, 22, 6, color, 2);                // base
-    } else if (!strcmp(name, "Mail")) { // envelope: body, then the flap as two leaning bars
-        icBox(ic, 4, 9, 36, 24, color, 3);                   // the envelope body
-        icBox(ic, 8, 13, 16, 4, 0x1c1c1e, 1);                // flap, left half, sloping down
-        icBox(ic, 10, 16, 14, 4, 0x1c1c1e, 1);               //  stepped rather than rotated -
-        icBox(ic, 13, 19, 10, 4, 0x1c1c1e, 1);               //  icBox cannot rotate, and three
-        icBox(ic, 20, 13, 16, 4, 0x1c1c1e, 1);               //  steps a side reads as a V at
-        icBox(ic, 20, 16, 14, 4, 0x1c1c1e, 1);               //  40px without needing one.
+    } else if (!strcmp(name, "Mail")) {                    // envelope: body, then the flap as two leaning bars
+        icBox(ic, 4, 9, 36, 24, color, 3);                 // the envelope body
+        icBox(ic, 8, 13, 16, 4, 0x1c1c1e, 1);              // flap, left half, sloping down
+        icBox(ic, 10, 16, 14, 4, 0x1c1c1e, 1);             //  stepped rather than rotated -
+        icBox(ic, 13, 19, 10, 4, 0x1c1c1e, 1);             //  icBox cannot rotate, and three
+        icBox(ic, 20, 13, 16, 4, 0x1c1c1e, 1);             //  steps a side reads as a V at
+        icBox(ic, 20, 16, 14, 4, 0x1c1c1e, 1);             //  40px without needing one.
         icBox(ic, 21, 19, 10, 4, 0x1c1c1e, 1);
     } else if (!strcmp(name, "Notes")) { // page with lines
         icBox(ic, 11, 3, 24, 34, 0xf2f2f2, 3);
@@ -923,13 +928,13 @@ void buildTileIcon(lv_obj_t *tile, const char *name, uint32_t color)
         icBox(ic, 21, 34, 4, 6, color, 1);
         icBox(ic, 1, 18, 6, 4, color, 1);
         icBox(ic, 39, 18, 6, 4, color, 1);
-    } else if (!strcmp(name, "Maps")) { // location pin on a patch of "map"
-        icBox(ic, 4, 6, 38, 28, 0x2f4f34, 4);          // map background
-        icBox(ic, 8, 22, 16, 3, 0x6b8e6b, 1);          // a faint road
+    } else if (!strcmp(name, "Maps")) {                       // location pin on a patch of "map"
+        icBox(ic, 4, 6, 38, 28, 0x2f4f34, 4);                 // map background
+        icBox(ic, 8, 22, 16, 3, 0x6b8e6b, 1);                 // a faint road
         icBox(ic, 18, 8, 14, 14, 0xff453a, LV_RADIUS_CIRCLE); // pin head
         icBox(ic, 22, 12, 6, 6, 0xffffff, LV_RADIUS_CIRCLE);  // pin hole
-        icBox(ic, 23, 20, 4, 8, 0xff453a, 1);          // pin point
-    } else if (!strcmp(name, "Mesh")) { // three connected nodes
+        icBox(ic, 23, 20, 4, 8, 0xff453a, 1);                 // pin point
+    } else if (!strcmp(name, "Mesh")) {                       // three connected nodes
         icBox(ic, 15, 2, 9, 9, color, LV_RADIUS_CIRCLE);
         icBox(ic, 4, 26, 9, 9, color, LV_RADIUS_CIRCLE);
         icBox(ic, 33, 26, 9, 9, color, LV_RADIUS_CIRCLE);
@@ -940,15 +945,15 @@ void buildTileIcon(lv_obj_t *tile, const char *name, uint32_t color)
         icBox(ic, 5, 9, 10, 4, 0x30d158, 1);
         icBox(ic, 17, 9, 10, 4, 0xff453a, 1);
         icBox(ic, 29, 9, 10, 4, 0xff9f0a, 1);
-        icBox(ic, 21, 22, 5, 5, 0xffffff, 2);      // ball
-        icBox(ic, 14, 33, 18, 4, 0x0a84ff, 2);     // paddle
-    } else if (!strcmp(name, "Metronome")) { // pyramid body + swinging bob
+        icBox(ic, 21, 22, 5, 5, 0xffffff, 2);  // ball
+        icBox(ic, 14, 33, 18, 4, 0x0a84ff, 2); // paddle
+    } else if (!strcmp(name, "Metronome")) {   // pyramid body + swinging bob
         icBox(ic, 12, 31, 22, 5, color, 1);
         icBox(ic, 15, 23, 16, 8, color, 1);
         icBox(ic, 18, 15, 10, 8, color, 1);
         icBox(ic, 21, 6, 5, 9, color, 1);
-        icBox(ic, 26, 13, 6, 6, 0xffffff, 2);      // the bob, off to one side
-    } else if (!strcmp(name, "Dice")) { // white die showing 5, red die showing 3
+        icBox(ic, 26, 13, 6, 6, 0xffffff, 2); // the bob, off to one side
+    } else if (!strcmp(name, "Dice")) {       // white die showing 5, red die showing 3
         icBox(ic, 3, 2, 20, 20, 0xf2f2f2, 5);
         icBox(ic, 6, 5, 4, 4, 0x1c1c1e, LV_RADIUS_CIRCLE);
         icBox(ic, 16, 5, 4, 4, 0x1c1c1e, LV_RADIUS_CIRCLE);
@@ -997,7 +1002,7 @@ void buildTileIcon(lv_obj_t *tile, const char *name, uint32_t color)
         icBox(ic, 23, 12, 3, 9, 0xffffff, 1); // hand
         icBox(ic, 20, 1, 6, 5, 0x30d158, 1);  // crown
         icBox(ic, 9, 18, 12, 3, 0x0a84ff, 1); // the rest half
-    } else if (!strcmp(name, "Breathe")) { // nested squares = the box expanding
+    } else if (!strcmp(name, "Breathe")) {    // nested squares = the box expanding
         icRing(ic, 5, 3, 34, 0x0a84ff, 2);
         icRing(ic, 12, 10, 20, 0x30d158, 2);
         icBox(ic, 20, 18, 5, 5, 0xffffff, LV_RADIUS_CIRCLE);
@@ -1017,7 +1022,7 @@ void buildTileIcon(lv_obj_t *tile, const char *name, uint32_t color)
 }
 
 // Draw an app's OWN icon from a little text file it shipped (via Get Apps), so a brand-new app
-// can have an icon with NO firmware flash — the whole point of an open app store. Format of
+// can have an icon with NO firmware flash - the whole point of an open app store. Format of
 // /apps/<id>/icon.txt:
 //     X=RRGGBB        one palette line per colour: a single char, '=', then 6 hex digits
 //     ...picture...   then the picture, one line per row, ONE CHARACTER per pixel
@@ -1094,7 +1099,7 @@ bool buildTileIconFromFile(lv_obj_t *tile, const char *path)
         width = 46;
     int height = rowCount;
 
-    int scale = 46 / width;         // fill the 46x40 area, whole pixels only
+    int scale = 46 / width; // fill the 46x40 area, whole pixels only
     int sy = 40 / height;
     if (sy < scale)
         scale = sy;
@@ -1198,9 +1203,15 @@ extern "C" bool tdeck_on_home_screen(void)
 // --- what the status bar needs from the view ----------------------------------------------
 // Static members, then extern "C" wrappers: launcherBatPct and db are private, and a free
 // function can reach neither. Same arrangement as every other bridge in this file.
-int TFTView_320x240::tuiBatteryPct(void) { return instance() ? instance()->launcherBatPct : -1; }
+int TFTView_320x240::tuiBatteryPct(void)
+{
+    return instance() ? instance()->launcherBatPct : -1;
+}
 
-bool TFTView_320x240::tuiBatteryPlugged(void) { return instance() && instance()->launcherBatPlugged; }
+bool TFTView_320x240::tuiBatteryPlugged(void)
+{
+    return instance() && instance()->launcherBatPlugged;
+}
 
 bool TFTView_320x240::tuiClockText(char *out, int outN)
 {
@@ -1223,9 +1234,18 @@ bool TFTView_320x240::tuiClockText(char *out, int outN)
     return true;
 }
 
-extern "C" int tdeck_battery_pct(void) { return TFTView_320x240::tuiBatteryPct(); }
-extern "C" bool tdeck_battery_plugged(void) { return TFTView_320x240::tuiBatteryPlugged(); }
-extern "C" bool tdeck_clock_text(char *out, int outN) { return TFTView_320x240::tuiClockText(out, outN); }
+extern "C" int tdeck_battery_pct(void)
+{
+    return TFTView_320x240::tuiBatteryPct();
+}
+extern "C" bool tdeck_battery_plugged(void)
+{
+    return TFTView_320x240::tuiBatteryPlugged();
+}
+extern "C" bool tdeck_clock_text(char *out, int outN)
+{
+    return TFTView_320x240::tuiClockText(out, outN);
+}
 
 // Static, like every other shim here: instance() is private, so a free extern "C" function
 // cannot reach it but a static member can. This file has taught me that more than once.
@@ -1256,7 +1276,10 @@ void TFTView_320x240::tuiUnreadRecount(void)
     instance()->updateUnreadMessages();
 }
 
-extern "C" void tui_unread_recount(void) { TFTView_320x240::tuiUnreadRecount(); }
+extern "C" void tui_unread_recount(void)
+{
+    TFTView_320x240::tuiUnreadRecount();
+}
 
 extern "C" bool tdeck_device_locked(void)
 {
@@ -1354,17 +1377,17 @@ void TFTView_320x240::createLauncher(void)
 
     launcher_screen = lv_obj_create(NULL);
     tdeck_launcher_scr = launcher_screen; // so tdeck_on_home_screen() can see it
-    lv_obj_set_style_bg_color(launcher_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(launcher_screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_clear_flag(launcher_screen, LV_OBJ_FLAG_SCROLLABLE);
 
     // ---- top status bar (~24px): mesh dot + label left, clock center, battery right ----
     // The centre label shows the time (from the GPS satellites, in the zone set in Settings).
-    // Tap it for the full diagnostics popup — that's where the RAM figures live now; it used
+    // Tap it for the full diagnostics popup - that's where the RAM figures live now; it used
     // to show "ram NNk/NNk" here permanently, which was crash-hunting scaffolding.
     // It still flips to a red "last: <reason>" for ~20s after a fault restart.
-    tdeck_diag_boot();   // capture last restart reason + last session's memory lows (once)
+    tdeck_diag_boot();                   // capture last restart reason + last session's memory lows (once)
     tdeck_diag_set_version(TUI_VERSION); // after the boot read, so the previous run's version survives
-    lua_seed_bundled();  // install bundled SD apps on first run of this firmware (once, then user-owned)
+    lua_seed_bundled();                  // install bundled SD apps on first run of this firmware (once, then user-owned)
     // The strip itself. Flat, not a gradient - Jake, 2026-09-19: "maybe no status bar
     // gradient". Same height, same colour and same hairline as TuiStatusBar draws on every
     // other screen, so Home does not look like a different device.
@@ -1376,7 +1399,7 @@ void TFTView_320x240::createLauncher(void)
         lv_obj_set_style_bg_color(bar, lv_color_hex(0x0a0a0c), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_BOTTOM, LV_PART_MAIN);
-        lv_obj_set_style_border_color(bar, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_border_color(bar, lv_color_hex(0x30415a), LV_PART_MAIN);
         lv_obj_set_style_border_width(bar, 1, LV_PART_MAIN);
         lv_obj_clear_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_clear_flag(bar, LV_OBJ_FLAG_CLICKABLE); // the labels on top of it stay tappable
@@ -1400,15 +1423,15 @@ void TFTView_320x240::createLauncher(void)
         [](lv_timer_t *) {
             if (!THIS->launcher_mem_label)
                 return;
-            tdeck_diag_tick();      // record new memory low-water marks (persists worst to NVS)
-            THIS->logDiagBoot();    // once SD is up, append a line if we restarted from a fault
+            tdeck_diag_tick();   // record new memory low-water marks (persists worst to NVS)
+            THIS->logDiagBoot(); // once SD is up, append a line if we restarted from a fault
             char buf[64];
             // For the first ~20s after a fault, flash WHY we last restarted (red) so
             // it can't be missed; then settle into the live heap/PSRAM readout.
             if (tdeck_prev_reason_bad() && lv_tick_get() < 20000) {
                 if (tdeck_prev_stall_ms()) // freeze detector caught it in the act: name the culprit
-                    snprintf(buf, sizeof(buf), "last: %s in %s (%lus)", tdeck_prev_reason_str(),
-                             tdeck_prev_stall_thread(), (unsigned long)(tdeck_prev_stall_ms() / 1000));
+                    snprintf(buf, sizeof(buf), "last: %s in %s (%lus)", tdeck_prev_reason_str(), tdeck_prev_stall_thread(),
+                             (unsigned long)(tdeck_prev_stall_ms() / 1000));
                 else
                     snprintf(buf, sizeof(buf), "last: %s  ps low %luk", tdeck_prev_reason_str(),
                              (unsigned long)(tdeck_prev_psram_low() / 1024));
@@ -1449,7 +1472,7 @@ void TFTView_320x240::createLauncher(void)
     //
     // Unread-message count, top-left. Green so a new message stands out; blank when there are
     // none. Fed by updateUnreadMessages() (incremented on arrival, cleared to 0 the moment the
-    // messages are opened — so checking your messages clears this count).
+    // messages are opened - so checking your messages clears this count).
     launcher_unread_label = lv_label_create(launcher_screen);
     lv_obj_set_style_text_color(launcher_unread_label, lv_color_hex(0x30d158), LV_PART_MAIN);
     lv_obj_set_style_text_font(launcher_unread_label, &ui_font_montserrat_12, LV_PART_MAIN);
@@ -1464,11 +1487,11 @@ void TFTView_320x240::createLauncher(void)
     lv_obj_add_flag(launcher_unread_label, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_ext_click_area(launcher_unread_label, 14);
     lv_obj_add_event_cb(
-        launcher_unread_label, [](lv_event_t *) { lv_async_call([](void *) { notif_open(); }, nullptr); },
-        LV_EVENT_CLICKED, NULL);
+        launcher_unread_label, [](lv_event_t *) { lv_async_call([](void *) { notif_open(); }, nullptr); }, LV_EVENT_CLICKED,
+        NULL);
 
     // The dot is gone, but going off-grid silently would be worse than the clutter was: when the
-    // radio is switched OFF, say so in words. Blank — and therefore invisible — the rest
+    // radio is switched OFF, say so in words. Blank - and therefore invisible - the rest
     // of the time, which is nearly always.
     launcher_mesh_off_label = lv_label_create(launcher_screen);
     lv_obj_set_style_text_color(launcher_mesh_off_label, lv_color_hex(0x8e8e93), LV_PART_MAIN);
@@ -1476,9 +1499,69 @@ void TFTView_320x240::createLauncher(void)
     lv_obj_align_to(launcher_mesh_off_label, launcher_unread_label, LV_ALIGN_OUT_RIGHT_MID, 0, 0);
     lv_label_set_text(launcher_mesh_off_label, meshEnabled ? "" : "mesh off");
     updateUnreadMessages(); // reflect any count that already accrued before the grid was built
-    tui_statusbar_init();   // the persistent top bar, on the top layer, hidden until a screen asks
-    notif_init();           // build the notification card NOW, on the UI task — a message can
-                            // arrive on the mesh task at any moment and must not create objects
+    ControlCenter::init(
+        []() {
+            ControlCenter::State state;
+            auto *self = instance();
+            state.allowed = self && self->lockState == LOCK_NONE && !screenLocked && !tdeck_input_gated && !tdeck_hold_dark &&
+                            !tdeck_prog_mode && !self->db.uiConfig.settings_lock && lv_screen_active() != objects.boot_screen &&
+                            lv_screen_active() != objects.lock_screen && !lv_obj_is_visible(objects.keyboard) &&
+                            !lv_obj_is_visible(objects.alert_panel);
+            if (!self)
+                return state;
+            lv_obj_t *overlays[] = {self->pins_overlay,   self->share_overlay,   self->confirm_overlay,
+                                    self->rename_overlay, self->arrange_overlay, self->maps_style_ovl,
+                                    self->wifi_ovl,       self->wifi_scan_ovl,   self->files_newfolder_ovl};
+            for (auto *overlay : overlays)
+                if (overlay && lv_obj_is_visible(overlay))
+                    state.allowed = false;
+            state.wifiAvailable = tdeck_control_wifi_available();
+            state.bluetoothAvailable = tdeck_control_bluetooth_available();
+            state.gpsAvailable = tdeck_control_gps_available();
+            state.wifiEnabled = self->db.config.network.wifi_enabled;
+            state.wifiConfigured = self->db.config.network.wifi_ssid[0] != 0;
+            state.wifiConnected = tdeck_wifi_connected();
+            state.bluetoothEnabled = self->db.config.bluetooth.enabled;
+            state.bluetoothActive = tdeck_control_bluetooth_active();
+            state.gpsEnabled = tdeck_gps_get_enabled();
+            state.brightness = self->db.uiConfig.screen_brightness;
+            return state;
+        },
+        [](ControlCenter::Action action, int value, bool persist) {
+            auto *self = instance();
+            switch (action) {
+            case ControlCenter::Wifi:
+                self->wifiApplyEnabled(value);
+                break;
+            case ControlCenter::Bluetooth: {
+                if (value && self->db.config.network.wifi_enabled) {
+                    self->db.config.network.wifi_enabled = false;
+                    self->controller->sendConfig(meshtastic_Config_NetworkConfig{self->db.config.network});
+                }
+                auto &bluetooth = self->db.config.bluetooth;
+                bluetooth.enabled = value;
+                self->controller->sendConfig(meshtastic_Config_BluetoothConfig{bluetooth}, self->ownNode);
+                break;
+            }
+            case ControlCenter::Gps:
+                self->setGpsEnabled(value);
+                break;
+            case ControlCenter::Brightness:
+                if (!tdeck_input_gated && !tdeck_hold_dark && !screenLocked && self->lockState == LOCK_NONE)
+                    self->setBrightness(value);
+                if (persist) {
+                    self->db.uiConfig.screen_brightness = value;
+                    self->controller->storeUIConfig(self->db.uiConfig);
+                }
+                break;
+            case ControlCenter::Settings:
+                self->openSettings();
+                break;
+            }
+        });
+    tui_statusbar_init(); // the persistent top bar, on the top layer, hidden until a screen asks
+    notif_init();         // build the notification card NOW, on the UI task - a message can
+                          // arrive on the mesh task at any moment and must not create objects
 
     // battery percentage (top-right); fed by updateMetrics()->updateLauncherBattery().
     launcher_battery_label = lv_label_create(launcher_screen);
@@ -1490,8 +1573,8 @@ void TFTView_320x240::createLauncher(void)
     updateLauncherBattery();
 
     // ---- paged app grid (built into buildAppGrid so it can be rebuilt live) ----
-    scanUserApps();  // discover any user apps on the SD card (once per boot)
-    buildAppGrid();  // assemble the ordered list + build the tiles
+    scanUserApps(); // discover any user apps on the SD card (once per boot)
+    buildAppGrid(); // assemble the ordered list + build the tiles
 
     // NOTE: no on-screen "return to launcher" button. Home is reached exclusively by
     // trackball double-click (see the poll timer below + EncoderInputDriver). A focusable
@@ -1563,6 +1646,7 @@ void TFTView_320x240::createLauncher(void)
             // The persistent top bar. Cheap: it returns immediately unless the screen showing
             // has asked for it, and lv_label_set_text skips unchanged strings.
             tui_statusbar_tick();
+            ControlCenter::tick();
             // The PIN pad had no timeout of its own: wake the device, don't type the code, and
             // it sat there lit until the battery ran down. The main screen timeout does not cover
             // it, because the pad counts as an active screen. Ten seconds without a touch and it
@@ -1621,8 +1705,7 @@ void TFTView_320x240::createLauncher(void)
                 if (lv_screen_active() == objects.main_screen) {
                     if (++strikes >= 2) {
                         strikes = 0;
-                        lv_obj_t *want =
-                            (THIS->lockState == LOCK_GLANCE) ? THIS->lockglance_screen : THIS->lockpad_screen;
+                        lv_obj_t *want = (THIS->lockState == LOCK_GLANCE) ? THIS->lockglance_screen : THIS->lockpad_screen;
                         if (want) {
                             ILOG_WARN("lock: the Meshtastic UI appeared while locked - putting the lock back");
                             lv_screen_load_anim(want, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
@@ -1633,7 +1716,7 @@ void TFTView_320x240::createLauncher(void)
                 }
             }
 
-            mail_service_ui(); // no-op unless the Mail screen is up and a check is running
+            mail_service_ui();   // no-op unless the Mail screen is up and a check is running
             gemini_idle_check(); // hands Gemini's memory back once it has been left alone
             chess_idle_check();  // and the chess board, which is the biggest of them
 
@@ -1645,8 +1728,7 @@ void TFTView_320x240::createLauncher(void)
             // Keep the glance honest while it is up: its clock would otherwise be frozen at
             // whatever time it was built, and a message arriving would not appear. Cheap -
             // it only does anything on the one screen, and only twice a second.
-            if (THIS->lockState == LOCK_GLANCE && THIS->lockglance_screen &&
-                lv_screen_active() == THIS->lockglance_screen) {
+            if (THIS->lockState == LOCK_GLANCE && THIS->lockglance_screen && lv_screen_active() == THIS->lockglance_screen) {
                 static uint32_t lastGlance = 0;
                 uint32_t nowT = lv_tick_get();
                 if (nowT - lastGlance > 500) {
@@ -1714,7 +1796,7 @@ void TFTView_320x240::createLauncher(void)
     // week. A fifth of a second later is imperceptible to a human reaching for Alt+C, and it is
     // ~13 fewer wake-ups per second on a chip that has plenty else to do.
     // Poll the Alt+C calibration request (keyboard-driven, so NOT gated on the trackball). When the
-    // lock pad is up, Alt+C runs touch calibration then re-shows the pad — a reliable way to fix a
+    // lock pad is up, Alt+C runs touch calibration then re-shows the pad - a reliable way to fix a
     // miscalibrated screen without needing a working touch to reach Settings.
     lv_timer_create(
         [](lv_timer_t *) {
@@ -1728,7 +1810,7 @@ void TFTView_320x240::createLauncher(void)
         250, NULL); // was 60ms - see note above
 
 #if HAS_SDCARD && !HAS_SD_MMC && !ARCH_PORTDUINO
-    // The SD card often isn't mounted yet the instant the grid first builds — which leaves
+    // The SD card often isn't mounted yet the instant the grid first builds - which leaves
     // user apps unscanned, uninstalls not applied, and the saved /apps/order.txt ignored
     // (falls back to default order). Once the card shows up, rebuild the grid ONCE so all of
     // that takes effect. Gives up after ~10s if no card ever appears.
@@ -1738,7 +1820,7 @@ void TFTView_320x240::createLauncher(void)
             if (sdCard) {
                 tries = 0;
                 lv_timer_delete(t);
-                // Seed bundled apps HERE, now that the card is actually mounted — the earlier
+                // Seed bundled apps HERE, now that the card is actually mounted - the earlier
                 // createLauncher call runs before SD is up and silently installs nothing, which
                 // left deleted (or never-installed) bundled apps missing forever.
                 lua_seed_bundled();
@@ -1787,7 +1869,7 @@ void TFTView_320x240::scanUserApps(void)
         entry.close();
         if (!isDir || nm[0] == '.')
             continue;
-        // our bundled apps already appear via kApps (with custom icons) — skip them here
+        // our bundled apps already appear via kApps (with custom icons) - skip them here
         if (!strcmp(nm, "breakout") || !strcmp(nm, "metronome") || !strcmp(nm, "hello"))
             continue;
         char lp[48];
@@ -1824,7 +1906,7 @@ void TFTView_320x240::runUserApp(int userIdx)
 //
 // The RAM copy is what makes reordering work on a device with NO SD card. buildAppGrid()
 // reassembles launchList from kApps + userAppDirs on every rebuild, and the rebuild happens
-// immediately after every move — so when the order could only be read back from a card,
+// immediately after every move - so when the order could only be read back from a card,
 // a cardless device threw the move away the moment the grid refreshed. That is the
 // "Organize apps does not work" report.
 void TFTView_320x240::applyAppOrder(void)
@@ -2002,7 +2084,7 @@ void TFTView_320x240::buildAppGrid(void)
 
     // tap -> launch (built-in panel/action or a user Lua app); index into launchList
     auto tile_cb = [](lv_event_t *e) {
-        if (THIS->suppressTileClick) { // a long-press just opened Arrange — swallow this click
+        if (THIS->suppressTileClick) { // a long-press just opened Arrange - swallow this click
             THIS->suppressTileClick = false;
             return;
         }
@@ -2026,8 +2108,7 @@ void TFTView_320x240::buildAppGrid(void)
         // and queued the first-run setup panel (requestSetup), but the launcher was
         // covering it. Re-present setup instead of Home, or the user lands on a
         // dead-sidebar Home with no way to ever set the region (brother's install).
-        if (app->panel == &objects.home_panel &&
-            THIS->db.config.lora.region == meshtastic_Config_LoRaConfig_RegionCode_UNSET) {
+        if (app->panel == &objects.home_panel && THIS->db.config.lora.region == meshtastic_Config_LoRaConfig_RegionCode_UNSET) {
             THIS->requestSetup();
             return;
         }
@@ -2071,28 +2152,27 @@ void TFTView_320x240::buildAppGrid(void)
             //
             // 8%, not the 16% first tried: "maybe just less vibrant". At 8 the tile is grey
             // with a hint of the app in it; at 16 it was six coloured boxes.
-            lv_obj_set_style_bg_color(tile, lv_color_hex(tintAccent(0x131316, a, 4)), LV_PART_MAIN);
-            lv_obj_set_style_bg_grad_color(tile, lv_color_hex(tintAccent(0x2e2e34, a, 8)), LV_PART_MAIN);
+            lv_obj_set_style_bg_color(tile, lv_color_hex(tintAccent(0x192337, a, 4)), LV_PART_MAIN);
+            lv_obj_set_style_bg_grad_color(tile, lv_color_hex(tintAccent(0x2a3950, a, 8)), LV_PART_MAIN);
             lv_obj_set_style_bg_grad_dir(tile, LV_GRAD_DIR_VER, LV_PART_MAIN);
             lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, LV_PART_MAIN);
             lv_obj_set_style_border_side(tile, LV_BORDER_SIDE_TOP, LV_PART_MAIN);
             lv_obj_set_style_border_color(tile, lv_color_hex(0x35353a), LV_PART_MAIN);
             lv_obj_set_style_border_width(tile, 1, LV_PART_MAIN);
-            lv_obj_set_style_shadow_width(tile, 10, LV_PART_MAIN);
-            lv_obj_set_style_shadow_color(tile, lv_color_hex(0x000000), LV_PART_MAIN);
+            lv_obj_set_style_shadow_width(tile, 0, LV_PART_MAIN);
+            lv_obj_set_style_shadow_color(tile, lv_color_hex(0x0b1220), LV_PART_MAIN);
             lv_obj_set_style_shadow_opa(tile, 110, LV_PART_MAIN);
             lv_obj_set_style_shadow_offset_y(tile, 4, LV_PART_MAIN);
             // Pressed: brighter and pushed down a couple of pixels, so a tap on a touchscreen
             // this size gives you something back before the app has finished opening.
-            lv_obj_set_style_bg_color(tile, lv_color_hex(tintAccent(0x3a3a41, a, 14)),
-                                      LV_PART_MAIN | LV_STATE_PRESSED);
+            lv_obj_set_style_bg_color(tile, lv_color_hex(tintAccent(0x3a3a41, a, 14)), LV_PART_MAIN | LV_STATE_PRESSED);
             lv_obj_set_style_translate_y(tile, 2, LV_PART_MAIN | LV_STATE_PRESSED);
             lv_obj_set_style_shadow_opa(tile, 40, LV_PART_MAIN | LV_STATE_PRESSED);
         }
         lv_obj_add_event_cb(tile, tile_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
         lv_obj_add_event_cb(tile, tile_long_cb, LV_EVENT_LONG_PRESSED, NULL);
 
-        // A user app may ship its own icon at /apps/<id>/icon.txt (delivered by Get Apps) — try
+        // A user app may ship its own icon at /apps/<id>/icon.txt (delivered by Get Apps) - try
         // that first, so new apps get an icon with no firmware flash. Fall back to the built-in
         // name-based icon (and, past that, a plain coloured square) when there's no file.
         bool drewIcon = false;
@@ -2222,7 +2302,7 @@ void TFTView_320x240::openArrange(void)
     arrange_overlay = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(arrange_overlay);
     lv_obj_set_size(arrange_overlay, 320, 240);
-    lv_obj_set_style_bg_color(arrange_overlay, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(arrange_overlay, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(arrange_overlay, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(arrange_overlay, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -2234,7 +2314,8 @@ void TFTView_320x240::openArrange(void)
     lv_obj_t *doneBtn = lv_btn_create(arrange_overlay);
     lv_obj_set_size(doneBtn, 62, 28);
     lv_obj_align(doneBtn, LV_ALIGN_TOP_RIGHT, -8, 6);
-    lv_obj_add_event_cb(doneBtn, [](lv_event_t *) { THIS->closeArrange(); }, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(
+        doneBtn, [](lv_event_t *) { THIS->closeArrange(); }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *dl = lv_label_create(doneBtn);
     lv_label_set_text(dl, "Done");
     lv_obj_center(dl);
@@ -2252,7 +2333,7 @@ void TFTView_320x240::openArrange(void)
         lv_obj_t *row = lv_obj_create(list);
         lv_obj_remove_style_all(row);
         lv_obj_set_size(row, 302, 40);
-        lv_obj_set_style_bg_color(row, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(row, lv_color_hex(0x1b283c), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_set_style_radius(row, 8, LV_PART_MAIN);
         lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
@@ -2269,9 +2350,8 @@ void TFTView_320x240::openArrange(void)
         lv_obj_set_size(up, 44, 30);
         lv_obj_align(up, LV_ALIGN_RIGHT_MID, -54, 0);
         lv_obj_add_event_cb(
-            up,
-            [](lv_event_t *e) { THIS->moveAppInArrange((int)(intptr_t)lv_event_get_user_data(e), -1); },
-            LV_EVENT_CLICKED, (void *)(intptr_t)i);
+            up, [](lv_event_t *e) { THIS->moveAppInArrange((int)(intptr_t)lv_event_get_user_data(e), -1); }, LV_EVENT_CLICKED,
+            (void *)(intptr_t)i);
         lv_obj_t *ul = lv_label_create(up);
         // Plain "<" text, not LV_SYMBOL_LEFT: the custom EEZ font has no FontAwesome glyphs, so
         // the symbol rendered as a blank blue square. "<" is in the font and reads as a left arrow.
@@ -2283,9 +2363,8 @@ void TFTView_320x240::openArrange(void)
         lv_obj_set_size(dn, 44, 30);
         lv_obj_align(dn, LV_ALIGN_RIGHT_MID, -6, 0);
         lv_obj_add_event_cb(
-            dn,
-            [](lv_event_t *e) { THIS->moveAppInArrange((int)(intptr_t)lv_event_get_user_data(e), +1); },
-            LV_EVENT_CLICKED, (void *)(intptr_t)i);
+            dn, [](lv_event_t *e) { THIS->moveAppInArrange((int)(intptr_t)lv_event_get_user_data(e), +1); }, LV_EVENT_CLICKED,
+            (void *)(intptr_t)i);
         lv_obj_t *dnl = lv_label_create(dn);
         lv_label_set_text(dnl, ">"); // move later in the order (right on the grid)
         lv_obj_set_style_text_font(dnl, &ui_font_montserrat_20, LV_PART_MAIN);
@@ -2320,7 +2399,7 @@ void TFTView_320x240::setMeshEnabled(bool on)
 /**
  * @brief The GPS on/off switch. On = GPS always searching (continuous)
  *        (Continuous = always looking); off = GPS powered down (saves battery).
- *        Applied live in the firmware via the control bridge — no reboot. Keeps the
+ *        Applied live in the firmware via the control bridge - no reboot. Keeps the
  *        local config mirror in sync so the Maps "N sats / GPS off" readout stays correct.
  */
 void TFTView_320x240::setGpsEnabled(bool on)
@@ -2331,8 +2410,8 @@ void TFTView_320x240::setGpsEnabled(bool on)
     tdeck_gps_set_enabled(on);      // enable/disable the GPS driver in the firmware (deferred, no reboot)
 
     // Mirror the firmware config locally so the Maps screen and switch don't drift.
-    db.config.position.gps_mode = on ? meshtastic_Config_PositionConfig_GpsMode_ENABLED
-                                     : meshtastic_Config_PositionConfig_GpsMode_DISABLED;
+    db.config.position.gps_mode =
+        on ? meshtastic_Config_PositionConfig_GpsMode_ENABLED : meshtastic_Config_PositionConfig_GpsMode_DISABLED;
     if (on)
         db.config.position.gps_update_interval = 10;
 
@@ -2376,7 +2455,7 @@ void TFTView_320x240::createSettingsScreen(void)
 {
     settings_screen = lv_obj_create(NULL);
     tui_statusbar_reserve(settings_screen); // 20px of top padding moves every child down
-    lv_obj_set_style_bg_color(settings_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(settings_screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_set_scroll_dir(settings_screen, LV_DIR_VER); // scrollable now that there are more rows
     lv_obj_set_scrollbar_mode(settings_screen, LV_SCROLLBAR_MODE_AUTO);
 
@@ -2391,7 +2470,7 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_obj_set_size(topBack, 62, 28);
     lv_obj_align(topBack, LV_ALIGN_TOP_LEFT, 8, 4);
     lv_obj_set_style_radius(topBack, 8, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(topBack, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(topBack, lv_color_hex(0x30415a), LV_PART_MAIN);
     lv_obj_add_event_cb(
         topBack,
         [](lv_event_t *) {
@@ -2455,21 +2534,15 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_obj_align(lockBtn, LV_ALIGN_TOP_RIGHT, -16, 72);
     lv_obj_set_style_radius(lockBtn, 8, LV_PART_MAIN);
     lv_obj_add_event_cb(
-        lockBtn, [](lv_event_t *) { lv_async_call([](void *) { THIS->openLockSettings(); }, nullptr); },
-        LV_EVENT_CLICKED, NULL);
+        lockBtn, [](lv_event_t *) { lv_async_call([](void *) { THIS->openLockSettings(); }, nullptr); }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *lockBtnLbl = lv_label_create(lockBtn);
     lv_label_set_text(lockBtnLbl, "Open");
     lv_obj_center(lockBtnLbl);
 
-
-    // (The old "Mesh radio" kill-switch row was removed at Jake's request — mesh just stays on.
+    // (The old "Mesh radio" kill-switch row was removed at Jake's request - mesh just stays on.
     // setMeshEnabled/tdeck bridge remain, null-guarded on mesh_switch, if it ever comes back.)
 
-
-
-
-
-    // "Brightness" row — live slider; persisted on release
+    // "Brightness" row - live slider; persisted on release
     lv_obj_t *briLbl = lv_label_create(settings_screen);
     lv_label_set_text(briLbl, "Brightness");
     lv_obj_set_style_text_color(briLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
@@ -2496,7 +2569,7 @@ void TFTView_320x240::createSettingsScreen(void)
         },
         LV_EVENT_ALL, NULL);
 
-    // "GPS" row — on = always searching (continuous); off = powered down
+    // "GPS" row - on = always searching (continuous); off = powered down
     lv_obj_t *gpsLbl = lv_label_create(settings_screen);
     lv_label_set_text(gpsLbl, "GPS");
     lv_obj_set_style_text_color(gpsLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
@@ -2517,9 +2590,9 @@ void TFTView_320x240::createSettingsScreen(void)
         },
         LV_EVENT_VALUE_CHANGED, NULL);
 
-    // "Share location" row — Meshtastic's own per-channel position precision (primary channel).
+    // "Share location" row - Meshtastic's own per-channel position precision (primary channel).
     // Exact = 32 bits, Rough = 13 (~1.5 km area, the Meshtastic default), Off = never send.
-    // On public-key channels the firmware itself clamps anything finer than ~350 m — rule kept.
+    // On public-key channels the firmware itself clamps anything finer than ~350 m - rule kept.
     lv_obj_t *locLbl = lv_label_create(settings_screen);
     lv_label_set_text(locLbl, "Share location");
     lv_obj_set_style_text_color(locLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
@@ -2539,7 +2612,8 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_obj_set_width(gpsHint, 288); // bounded + wrapped so it never runs off-screen
     lv_label_set_long_mode(gpsHint, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_font(gpsHint, &ui_font_montserrat_12, LV_PART_MAIN);
-    lv_label_set_text(gpsHint, "GPS on = always searching, even while asleep. Share location = how exactly others on the mesh see you.");
+    lv_label_set_text(gpsHint,
+                      "GPS on = always searching, even while asleep. Share location = how exactly others on the mesh see you.");
     lv_obj_set_style_text_color(gpsHint, lv_color_hex(0x8e8e93), LV_PART_MAIN);
     lv_obj_align(gpsHint, LV_ALIGN_TOP_LEFT, 16, 264);
 
@@ -2585,7 +2659,7 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_label_set_text(pwBtnLbl, "Set");
     lv_obj_center(pwBtnLbl);
 
-    // WiFi on/off — applying writes the network config (device reboots to connect)
+    // WiFi on/off - applying writes the network config (device reboots to connect)
     lv_obj_t *wifiLbl = lv_label_create(settings_screen);
     lv_label_set_text(wifiLbl, "Turn WiFi on");
     lv_obj_set_style_text_color(wifiLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
@@ -2624,7 +2698,7 @@ void TFTView_320x240::createSettingsScreen(void)
     // refresh the status line every couple seconds while this screen is up
     wifi_status_timer = lv_timer_create([](lv_timer_t *) { THIS->updateWifiStatus(); }, 2000, NULL);
 
-    // File Share (FTP) — opens the on-demand share screen (turns WiFi on just for transfers)
+    // File Share (FTP) - opens the on-demand share screen (turns WiFi on just for transfers)
     lv_obj_t *shareLbl = lv_label_create(settings_screen);
     lv_label_set_text(shareLbl, "Share files (Wi-Fi)");
     lv_obj_set_style_text_color(shareLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
@@ -2640,7 +2714,7 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_label_set_text(shareBtnLbl, "Open");
     lv_obj_center(shareBtnLbl);
 
-    // "Screen timeout" row — how long until the screen dims to dark (then PIN to wake).
+    // "Screen timeout" row - how long until the screen dims to dark (then PIN to wake).
     // Cycle button; persists in uiConfig like brightness.
     lv_obj_t *toLbl = lv_label_create(settings_screen);
     lv_label_set_text(toLbl, "Screen timeout");
@@ -2657,7 +2731,7 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_obj_center(timeout_btn_label);
     updateTimeoutBtnLabel();
 
-    // "Sound" row — off = mute the beeps (games, metronome, timer alarm, Lua apps).
+    // "Sound" row - off = mute the beeps (games, metronome, timer alarm, Lua apps).
     lv_obj_t *sndLbl = lv_label_create(settings_screen);
     lv_label_set_text(sndLbl, "Sound");
     lv_obj_set_style_text_color(sndLbl, lv_color_hex(0xffffff), LV_PART_MAIN);
@@ -2684,7 +2758,7 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_obj_set_style_text_color(sndHint, lv_color_hex(0x8e8e93), LV_PART_MAIN);
     lv_obj_align(sndHint, LV_ALIGN_TOP_LEFT, 16, 638);
 
-    // "Add channel" row — reads a Meshtastic channel link from /channel.txt on the card.
+    // "Add channel" row - reads a Meshtastic channel link from /channel.txt on the card.
     // Typing a 150-character link on the thumb keyboard isn't realistic, and there's no
     // camera for the usual QR code, so a file on the card is the practical route.
     lv_obj_t *chLbl = lv_label_create(settings_screen);
@@ -2712,7 +2786,7 @@ void TFTView_320x240::createSettingsScreen(void)
     lv_obj_add_event_cb(
         chBtn, [](lv_event_t *) { THIS->importChannelFromCard(); }, LV_EVENT_CLICKED, NULL);
 
-    // "Time zone" row — makes the clock on the home screen read local time. The device gets
+    // "Time zone" row - makes the clock on the home screen read local time. The device gets
     // UTC from the GPS satellites; without a zone the firmware falls back to GMT, which is
     // why the clock would otherwise be hours out. Order must match kTdeckZones[].
     lv_obj_t *tzLbl = lv_label_create(settings_screen);
@@ -2722,7 +2796,7 @@ void TFTView_320x240::createSettingsScreen(void)
 
     // When no zone is set the device silently runs on GMT. Showing the list's first entry in
     // that case made it look like Pacific was already chosen while the clock was really on
-    // UTC — so an unset device gets an explicit "Not set" entry at the top instead, and the
+    // UTC - so an unset device gets an explicit "Not set" entry at the top instead, and the
     // zone indices shift by one while it's there.
     lv_obj_t *tzDd = lv_dropdown_create(settings_screen);
     int tzCur = tdeck_tz_get();
@@ -2746,12 +2820,12 @@ void TFTView_320x240::createSettingsScreen(void)
             int offset = (int)(intptr_t)lv_obj_get_user_data(dd); // 1 while "Not set" is present
             if (offset && sel == 0)
                 return; // "Not set" isn't a choice you can apply
-            // Records intent only — the main loop applies and persists it (see TDeckTimeZone.cpp).
+            // Records intent only - the main loop applies and persists it (see TDeckTimeZone.cpp).
             tdeck_tz_set(sel - offset);
         },
         LV_EVENT_VALUE_CHANGED, NULL);
 
-    // "24-hour clock" — sits with Time zone because it's the same subject. This drives
+    // "24-hour clock" - sits with Time zone because it's the same subject. This drives
     // Meshtastic's OWN display setting rather than a private copy, so the phone app and the
     // device can't disagree about it. Asked for by a European user; the launcher's clock used
     // to be hard-wired to 12-hour even when the Meshtastic screens beside it showed 24.
@@ -2778,9 +2852,9 @@ void TFTView_320x240::createSettingsScreen(void)
         },
         LV_EVENT_VALUE_CHANGED, NULL);
 
-    // "Keyboard light" — no software switch. The keyboard's own chip ACCEPTS the I2C brightness
+    // "Keyboard light" - no software switch. The keyboard's own chip ACCEPTS the I2C brightness
     // command (it ACKs, i2c_rc=0) but doesn't actually light the backlight from that path on this
-    // hardware — only its built-in Alt+B shortcut drives it (likely a keyboard-firmware quirk:
+    // hardware - only its built-in Alt+B shortcut drives it (likely a keyboard-firmware quirk:
     // the PWM write from the I2C callback context doesn't take effect). Rather than ship a switch
     // that silently does nothing, point people at the shortcut that works. Software control is
     // parked for a later deep-dive (see src/TDeckKeyboardLight.cpp, left dormant).
@@ -2844,7 +2918,7 @@ void TFTView_320x240::createSettingsScreen(void)
         lv_obj_set_size(b, 110, 30);
         lv_obj_align(b, LV_ALIGN_RIGHT_MID, -16, 0);
         lv_obj_set_style_radius(b, 8, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(b, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(b, lv_color_hex(0x30415a), LV_PART_MAIN);
         lv_obj_add_event_cb(
             b,
             [](lv_event_t *) {
@@ -2872,7 +2946,7 @@ void TFTView_320x240::createSettingsScreen(void)
         lv_obj_set_size(b, 110, 30);
         lv_obj_align(b, LV_ALIGN_RIGHT_MID, -16, 0);
         lv_obj_set_style_radius(b, 8, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(b, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(b, lv_color_hex(0x30415a), LV_PART_MAIN);
         lv_obj_add_event_cb(
             b,
             [](lv_event_t *) {
@@ -2918,7 +2992,7 @@ void TFTView_320x240::createSettingsScreen(void)
     // Versions, last lines on the screen. Two of them, because there are two: this launcher
     // has its own version, and underneath it sits the Meshtastic firmware that does the radio.
     // A user asked "how do I know what Meshtastic version this is?" and there was genuinely
-    // nowhere to look — firmware_version is the string Meshtastic itself reports.
+    // nowhere to look - firmware_version is the string Meshtastic itself reports.
     lv_obj_t *verLbl = lv_label_create(settings_screen);
     lv_obj_set_style_text_font(verLbl, &ui_font_montserrat_12, LV_PART_MAIN);
     static char verBuf[72];
@@ -3089,8 +3163,8 @@ static lv_obj_t *tdeckScrollableAt(lv_obj_t *parent, int x, int y)
         if (deeper) {
             best = deeper;
         } else if (lv_obj_has_flag(c, LV_OBJ_FLAG_SCROLLABLE) &&
-                   (lv_obj_get_scroll_bottom(c) > 0 || lv_obj_get_scroll_top(c) > 0 ||
-                    lv_obj_get_scroll_left(c) > 0 || lv_obj_get_scroll_right(c) > 0)) {
+                   (lv_obj_get_scroll_bottom(c) > 0 || lv_obj_get_scroll_top(c) > 0 || lv_obj_get_scroll_left(c) > 0 ||
+                    lv_obj_get_scroll_right(c) > 0)) {
             best = c;
         }
     }
@@ -3106,6 +3180,8 @@ void TFTView_320x240::trackballEdgeScroll(void)
 {
     int dx = 0, dy = 0;
     if (!tdeck_trackball_take_scroll(&dx, &dy))
+        return;
+    if (ControlCenter::isOpen())
         return;
     int cx = 0, cy = 0;
     if (!tdeck_trackball_cursor_state(&cx, &cy))
@@ -3134,11 +3210,21 @@ void TFTView_320x240::updateTrackballRows(void)
     }
     if (settings_tb_speed_label) {
         switch (tdeck_trackball_speed()) {
-        case 0:  lv_label_set_text(settings_tb_speed_label, "Slow"); break;
-        case 1:  lv_label_set_text(settings_tb_speed_label, "Normal"); break;
-        case 3:  lv_label_set_text(settings_tb_speed_label, "Faster"); break;
-        case 4:  lv_label_set_text(settings_tb_speed_label, "Max"); break;
-        default: lv_label_set_text(settings_tb_speed_label, "Fast"); break;
+        case 0:
+            lv_label_set_text(settings_tb_speed_label, "Slow");
+            break;
+        case 1:
+            lv_label_set_text(settings_tb_speed_label, "Normal");
+            break;
+        case 3:
+            lv_label_set_text(settings_tb_speed_label, "Faster");
+            break;
+        case 4:
+            lv_label_set_text(settings_tb_speed_label, "Max");
+            break;
+        default:
+            lv_label_set_text(settings_tb_speed_label, "Fast");
+            break;
         }
     }
     if (settings_tb_style_label)
@@ -3152,13 +3238,12 @@ void TFTView_320x240::updateTrackballRows(void)
         lv_obj_align(settings_tb_hint, LV_ALIGN_TOP_LEFT, 16, on ? 1076 : 1006);
         // The hold gesture is no longer traded away: at 1.5s it cannot be confused with a
         // click, so it works with the cursor on as well. Both modes read the same.
-        lv_label_set_text(settings_tb_hint,
-                          on ? "Roll to move the arrow, click to press what it is on.\n"
-                               "Hold the ball 1.5s for Back. Double-click for Home, or to lock "
-                               "from Home."
-                             : "Off: rolling does nothing and everything is chosen by touch.\n"
-                               "Hold the ball 1.5s for Back. Double-click for Home, or to lock "
-                               "from Home.");
+        lv_label_set_text(settings_tb_hint, on ? "Roll to move the arrow, click to press what it is on.\n"
+                                                 "Hold the ball 1.5s for Back. Double-click for Home, or to lock "
+                                                 "from Home."
+                                               : "Off: rolling does nothing and everything is chosen by touch.\n"
+                                                 "Hold the ball 1.5s for Back. Double-click for Home, or to lock "
+                                                 "from Home.");
     }
 }
 
@@ -3186,7 +3271,7 @@ void TFTView_320x240::openFileShare(void)
     if (!fileshare_screen) {
         fileshare_screen = lv_obj_create(NULL);
         tui_statusbar_reserve(fileshare_screen); // 20px of top padding moves every child down
-        lv_obj_set_style_bg_color(fileshare_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(fileshare_screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
         lv_obj_clear_flag(fileshare_screen, LV_OBJ_FLAG_SCROLLABLE);
 
         lv_obj_t *title = lv_label_create(fileshare_screen);
@@ -3238,21 +3323,19 @@ void TFTView_320x240::openFileShare(void)
     fileshare_own_wifi = !already;
     if (!already && !tdeck_wifi_connect_now(db.config.network.wifi_ssid, db.config.network.wifi_psk)) {
         lv_label_set_text(fileshare_status_label, "No Wi-Fi network saved");
-        lv_label_set_text(fileshare_info_label,
-                          "Set one first: Settings -> Wi-Fi -> Network + Password, then come back here.");
+        lv_label_set_text(fileshare_info_label, "Set one first: Settings -> Wi-Fi -> Network + Password, then come back here.");
         return;
     }
 
     fileshare_ftp_up = false;
     fileshare_deadline = lv_tick_get() + 25000; // ~25s to associate before we give up
-    lv_label_set_text(fileshare_status_label,
-                      already ? "Wi-Fi on, starting share..." : "Turning Wi-Fi on, connecting...");
+    lv_label_set_text(fileshare_status_label, already ? "Wi-Fi on, starting share..." : "Turning Wi-Fi on, connecting...");
 
     if (!fileshare_timer) {
         // One fast timer: pump the FTP server every tick AND advance the connect state machine.
         fileshare_timer = lv_timer_create(
             [](lv_timer_t *) {
-                // Keep the screen awake for the WHOLE sharing session — otherwise it idle-dims,
+                // Keep the screen awake for the WHOLE sharing session - otherwise it idle-dims,
                 // locks, and waking it jumps to Home and tears the FTP server down mid-transfer.
                 lv_display_trigger_activity(NULL);
                 if (THIS->fileshare_ftp_up) {
@@ -3299,11 +3382,11 @@ void TFTView_320x240::closeFileShare(void)
     fileshare_ftp_up = false;
 }
 
-// "Share location" — Meshtastic's own per-channel position precision, applied to the
+// "Share location" - Meshtastic's own per-channel position precision, applied to the
 // primary channel with the exact same admin path the channel-mute long-press uses (no
 // reboot). Exact = 32 bits, Rough = 13 (~1.5 km area, the Meshtastic default), Off = 0
 // (never send position). NOTE the firmware independently clamps public-key channels to
-// ~350 m (MAX_POSITION_PRECISION_PUBLIC_KEY) — "Exact" is only truly exact on a private
+// ~350 m (MAX_POSITION_PRECISION_PUBLIC_KEY) - "Exact" is only truly exact on a private
 // channel, which is Meshtastic's privacy rule, not ours to bypass.
 void TFTView_320x240::updateLocPrecisionLabel(void)
 {
@@ -3362,7 +3445,7 @@ void TFTView_320x240::cycleScreenTimeout(void)
 // -----------------------------------------------------------------------------
 // Settings: WiFi. The network name + password are typed on-device (so the
 // password never leaves the T-Deck). Turning WiFi on writes Meshtastic's network
-// config and applies it — the firmware reboots to connect, and because WiFi and
+// config and applies it - the firmware reboots to connect, and because WiFi and
 // Bluetooth share the radio, enabling WiFi disables BT pairing (mesh is separate
 // and unaffected). Live status comes from the TDeckWifi firmware bridge.
 // -----------------------------------------------------------------------------
@@ -3398,7 +3481,7 @@ void TFTView_320x240::updateWifiStatus(void)
 void TFTView_320x240::wifiApplyEnabled(bool enable)
 {
     meshtastic_Config_NetworkConfig &net = db.config.network;
-    if (enable && !net.wifi_ssid[0]) { // nothing to connect to — bounce the switch back
+    if (enable && !net.wifi_ssid[0]) { // nothing to connect to - bounce the switch back
         messageAlert(_("Set a network name first"), true);
         if (wifi_switch)
             lv_obj_remove_state(wifi_switch, LV_STATE_CHECKED);
@@ -3407,7 +3490,7 @@ void TFTView_320x240::wifiApplyEnabled(bool enable)
     net.wifi_enabled = enable;
 
     // Applying network config restarts the device. That's normal Meshtastic behaviour, but
-    // with no warning it looks exactly like a crash — Jake's brother thought the firmware
+    // with no warning it looks exactly like a crash - Jake's brother thought the firmware
     // had died. Say what's about to happen, leave it on screen long enough to read, THEN
     // apply. The delay is the point: without it the reboot eats the message.
     if (wifi_status_label) {
@@ -3421,10 +3504,7 @@ void TFTView_320x240::wifiApplyEnabled(bool enable)
     lv_refr_now(NULL); // make sure it's actually on screen before we hand over
 
     lv_timer_t *t = lv_timer_create(
-        [](lv_timer_t *) {
-            THIS->controller->sendConfig(meshtastic_Config_NetworkConfig{THIS->db.config.network});
-        },
-        1800, NULL);
+        [](lv_timer_t *) { THIS->controller->sendConfig(meshtastic_Config_NetworkConfig{THIS->db.config.network}); }, 1800, NULL);
     lv_timer_set_repeat_count(t, 1);
 }
 
@@ -3459,7 +3539,7 @@ void TFTView_320x240::wifiEntryCommit(void)
 }
 
 // Type the network name (psk=false) or password (psk=true) on the T-Deck's PHYSICAL
-// keyboard — no on-screen keyboard. The textarea joins LVGL's default input group
+// keyboard - no on-screen keyboard. The textarea joins LVGL's default input group
 // (the same way the mesh chat input is typed into), with a guard that re-grabs focus
 // if the trackball nudges it. Enter or the OK button confirms.
 void TFTView_320x240::wifiEntryPrompt(bool psk)
@@ -3469,7 +3549,7 @@ void TFTView_320x240::wifiEntryPrompt(bool psk)
     wifi_ovl = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(wifi_ovl);
     lv_obj_set_size(wifi_ovl, 320, 240);
-    lv_obj_set_style_bg_color(wifi_ovl, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(wifi_ovl, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(wifi_ovl, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(wifi_ovl, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -3486,12 +3566,12 @@ void TFTView_320x240::wifiEntryPrompt(bool psk)
     wifi_ta = lv_textarea_create(wifi_ovl);
     lv_textarea_set_one_line(wifi_ta, true);
     lv_textarea_set_password_mode(wifi_ta, psk);
-    lv_textarea_set_max_length(wifi_ta, psk ? sizeof(db.config.network.wifi_psk) - 1
-                                            : sizeof(db.config.network.wifi_ssid) - 1);
+    lv_textarea_set_max_length(wifi_ta, psk ? sizeof(db.config.network.wifi_psk) - 1 : sizeof(db.config.network.wifi_ssid) - 1);
     lv_textarea_set_text(wifi_ta, psk ? db.config.network.wifi_psk : db.config.network.wifi_ssid);
     lv_obj_set_width(wifi_ta, 292);
     lv_obj_align(wifi_ta, LV_ALIGN_TOP_MID, 0, 74);
-    lv_obj_add_event_cb(wifi_ta, [](lv_event_t *) { THIS->wifiEntryCommit(); }, LV_EVENT_READY, NULL);
+    lv_obj_add_event_cb(
+        wifi_ta, [](lv_event_t *) { THIS->wifiEntryCommit(); }, LV_EVENT_READY, NULL);
 
     // "Show password" (t-ui#12). Typing a long Wi-Fi key blind is bad enough; the same report
     // also said "the text is out of the screen", because a one-line box shows only as much as
@@ -3544,7 +3624,8 @@ void TFTView_320x240::wifiEntryPrompt(bool psk)
     lv_obj_align(okBtn, LV_ALIGN_BOTTOM_RIGHT, -16, -26);
     lv_obj_set_style_radius(okBtn, 8, LV_PART_MAIN);
     lv_obj_set_style_bg_color(okBtn, lv_color_hex(0x0a84ff), LV_PART_MAIN);
-    lv_obj_add_event_cb(okBtn, [](lv_event_t *) { THIS->wifiEntryCommit(); }, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(
+        okBtn, [](lv_event_t *) { THIS->wifiEntryCommit(); }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *okl = lv_label_create(okBtn);
     lv_label_set_text(okl, "OK");
     lv_obj_center(okl);
@@ -3554,7 +3635,8 @@ void TFTView_320x240::wifiEntryPrompt(bool psk)
     lv_obj_align(cxBtn, LV_ALIGN_BOTTOM_LEFT, 16, -26);
     lv_obj_set_style_radius(cxBtn, 8, LV_PART_MAIN);
     lv_obj_set_style_bg_color(cxBtn, lv_color_hex(0x3a3a3c), LV_PART_MAIN);
-    lv_obj_add_event_cb(cxBtn, [](lv_event_t *) { THIS->closeWifiEntry(); }, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(
+        cxBtn, [](lv_event_t *) { THIS->closeWifiEntry(); }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *cxl = lv_label_create(cxBtn);
     lv_label_set_text(cxl, "Cancel");
     lv_obj_center(cxl);
@@ -3582,7 +3664,7 @@ void TFTView_320x240::wifiScanOpen(void)
     wifi_scan_ovl = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(wifi_scan_ovl);
     lv_obj_set_size(wifi_scan_ovl, 320, 240);
-    lv_obj_set_style_bg_color(wifi_scan_ovl, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(wifi_scan_ovl, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(wifi_scan_ovl, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(wifi_scan_ovl, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -3638,7 +3720,7 @@ void TFTView_320x240::wifiScanPoll(void)
     int r = tdeck_wifi_scan_done();
     if (r == -1) // still scanning
         return;
-    if (wifi_scan_timer) { // finished or failed — stop polling
+    if (wifi_scan_timer) { // finished or failed - stop polling
         lv_timer_delete(wifi_scan_timer);
         wifi_scan_timer = nullptr;
     }
@@ -3687,7 +3769,7 @@ void TFTView_320x240::wifiScanPoll(void)
 }
 
 // -----------------------------------------------------------------------------
-// Files app — browse SD card + T-Deck internal memory, with copy & paste.
+// Files app - browse SD card + T-Deck internal memory, with copy & paste.
 //
 // SD access uses the same SdFat instance (SDFs) the map-tile loader reads from,
 // on the UI task, so no new cross-thread hardware access is introduced. Internal
@@ -3702,7 +3784,7 @@ void TFTView_320x240::openFilesAction(void)
 }
 
 // -----------------------------------------------------------------------------
-// Flashlight app — full-white screen at max backlight. Tap anywhere (or the usual
+// Flashlight app - full-white screen at max backlight. Tap anywhere (or the usual
 // double-click Home) to exit; brightness is restored on the way out. A slow timer
 // keeps LVGL's inactivity clock reset so the screen never idle-dims while it's up.
 // -----------------------------------------------------------------------------
@@ -3712,7 +3794,7 @@ void TFTView_320x240::openFlashlightAction(void)
 }
 
 // -----------------------------------------------------------------------------
-// Maps app — our OWN standalone map screen, fully separate from Meshtastic's map.
+// Maps app - our OWN standalone map screen, fully separate from Meshtastic's map.
 // Same SD-card x/y/z tiles (via a second MapPanel instance on our own screen), but
 // its own top bar (Back / zoom / Me / Pins) and the pin features live only here.
 // Swipe scrolls, long-press drops a pin, double-click Home exits like any app.
@@ -3791,7 +3873,7 @@ void TFTView_320x240::mapsInitTileStyle(void)
 }
 
 extern "C" void tdeck_url_tiles_hangup(bool onlyIfIdle); // URLService.cpp - hang up the tile server
-extern "C" void tdeck_chess_release(void); // TDeckChess.cpp - no-op while it is thinking
+extern "C" void tdeck_chess_release(void);               // TDeckChess.cpp - no-op while it is thinking
 
 void TFTView_320x240::openMaps(void)
 {
@@ -3801,7 +3883,7 @@ void TFTView_320x240::openMaps(void)
     tdeck_chess_release();
     if (!maps_screen) {
         maps_screen = lv_obj_create(NULL);
-        lv_obj_set_style_bg_color(maps_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
         lv_obj_clear_flag(maps_screen, LV_OBJ_FLAG_SCROLLABLE);
 
         // tile canvas below the top bar; children outside its area are clipped
@@ -3840,7 +3922,7 @@ void TFTView_320x240::openMaps(void)
         // and grey-on-terrain was hard to read. The dark translucent backing behind it is
         // what keeps it legible, so the text itself should be at full contrast.
         lv_obj_set_style_text_color(maps_credit_label, lv_color_hex(0xffffff), LV_PART_MAIN);
-        lv_obj_set_style_bg_color(maps_credit_label, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_credit_label, lv_color_hex(0x0b1220), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(maps_credit_label, LV_OPA_50, LV_PART_MAIN);
         lv_obj_set_style_pad_all(maps_credit_label, 2, LV_PART_MAIN);
         lv_label_set_text(maps_credit_label, "");
@@ -3851,7 +3933,7 @@ void TFTView_320x240::openMaps(void)
         // read as the device ignoring you.
         maps_hold_label = lv_label_create(maps_screen);
         lv_obj_set_style_text_font(maps_hold_label, &ui_font_montserrat_12, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(maps_hold_label, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_hold_label, lv_color_hex(0x0b1220), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(maps_hold_label, LV_OPA_70, LV_PART_MAIN);
         lv_obj_set_style_pad_all(maps_hold_label, 5, LV_PART_MAIN);
         lv_obj_set_style_radius(maps_hold_label, 6, LV_PART_MAIN);
@@ -3966,10 +4048,14 @@ void TFTView_320x240::openMaps(void)
                 THIS->mapsPanY = pt.y;
 
                 // A single step must stay under a tile (see scrollBy); clamp hard drags.
-                if (dx > 120) dx = 120;
-                if (dx < -120) dx = -120;
-                if (dy > 120) dy = 120;
-                if (dy < -120) dy = -120;
+                if (dx > 120)
+                    dx = 120;
+                if (dx < -120)
+                    dx = -120;
+                if (dy > 120)
+                    dy = 120;
+                if (dy < -120)
+                    dy = -120;
                 // A refused scroll (edge of the world, or a tile not loaded yet) leaves the
                 // panel and the stored centre disagreeing. The gesture version always
                 // resynced here; dropping that is the other half of the snap-back.
@@ -4018,7 +4104,7 @@ void TFTView_320x240::openMaps(void)
                 THIS->userMap->setScrolledPosition(lat * 1e-7, lon * 1e-7);
             } else if (THIS->hasPosition) { // fallback: last own-position packet the UI saw
                 THIS->userMap->setScrolledPosition(THIS->myLatitude * 1e-7, THIS->myLongitude * 1e-7);
-            } else { // no fix at all — say so instead of silently doing nothing
+            } else { // no fix at all - say so instead of silently doing nothing
                 char buf[40];
                 snprintf(buf, sizeof(buf), "No GPS fix yet (%u sats)", (unsigned)tdeck_gps_num_sats());
                 THIS->mapsShowNotice(buf);
@@ -4061,8 +4147,7 @@ void TFTView_320x240::openMaps(void)
                 else if (THIS->nodeMarkerIdByNode.empty())
                     snprintf(msg, sizeof(msg), "Nodes on - none have sent a position yet");
                 else
-                    snprintf(msg, sizeof(msg), "Nodes on - %u on the map",
-                             (unsigned)THIS->nodeMarkerIdByNode.size());
+                    snprintf(msg, sizeof(msg), "Nodes on - %u on the map", (unsigned)THIS->nodeMarkerIdByNode.size());
                 THIS->mapsShowNotice(msg);
             },
             LV_EVENT_CLICKED, NULL);
@@ -4075,11 +4160,11 @@ void TFTView_320x240::openMaps(void)
         maps_gear_btn = lv_btn_create(maps_screen);
         lv_obj_set_size(maps_gear_btn, 36, 36);
         lv_obj_set_style_radius(maps_gear_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(maps_gear_btn, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_gear_btn, lv_color_hex(0x30415a), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(maps_gear_btn, LV_OPA_80, LV_PART_MAIN);
         lv_obj_align(maps_gear_btn, LV_ALIGN_BOTTOM_RIGHT, -6, -6);
         {
-            // draw a mini gear, 8 teeth (4 cardinal + 4 diagonal), like a real cog —
+            // draw a mini gear, 8 teeth (4 cardinal + 4 diagonal), like a real cog -
             // this build's font has no symbol glyphs, so LV_SYMBOL_SETTINGS renders blank
             lv_obj_set_style_pad_all(maps_gear_btn, 0, LV_PART_MAIN);
             icRing(maps_gear_btn, 10, 10, 16, 0xffffff, 3);
@@ -4101,11 +4186,11 @@ void TFTView_320x240::openMaps(void)
         maps_search_btn = lv_btn_create(maps_screen);
         lv_obj_set_size(maps_search_btn, 36, 36);
         lv_obj_set_style_radius(maps_search_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(maps_search_btn, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_search_btn, lv_color_hex(0x30415a), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(maps_search_btn, LV_OPA_80, LV_PART_MAIN);
         lv_obj_set_style_pad_all(maps_search_btn, 0, LV_PART_MAIN);
         lv_obj_align(maps_search_btn, LV_ALIGN_BOTTOM_RIGHT, -48, -6);
-        icRing(maps_search_btn, 7, 6, 17, 0xffffff, 3);   // the lens
+        icRing(maps_search_btn, 7, 6, 17, 0xffffff, 3);    // the lens
         icBox(maps_search_btn, 21, 21, 5, 5, 0xffffff, 2); // the handle, stepped down-right:
         icBox(maps_search_btn, 24, 24, 5, 5, 0xffffff, 2); //  icBox cannot rotate, and three
         icBox(maps_search_btn, 27, 27, 4, 4, 0xffffff, 2); //  steps read as a line at this size
@@ -4121,7 +4206,7 @@ void TFTView_320x240::openMaps(void)
         maps_measure_btn = lv_btn_create(maps_screen);
         lv_obj_set_size(maps_measure_btn, 36, 36);
         lv_obj_set_style_radius(maps_measure_btn, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(maps_measure_btn, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_measure_btn, lv_color_hex(0x30415a), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(maps_measure_btn, LV_OPA_80, LV_PART_MAIN);
         lv_obj_set_style_pad_all(maps_measure_btn, 0, LV_PART_MAIN);
         lv_obj_align(maps_measure_btn, LV_ALIGN_BOTTOM_RIGHT, -90, -6);
@@ -4137,7 +4222,7 @@ void TFTView_320x240::openMaps(void)
         lv_obj_set_style_text_font(maps_measure_label, &ui_font_montserrat_14, LV_PART_MAIN);
         lv_obj_set_style_text_color(maps_measure_label, lv_color_hex(0xffd60a), LV_PART_MAIN);
         lv_obj_set_style_text_align(maps_measure_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(maps_measure_label, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_measure_label, lv_color_hex(0x0b1220), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(maps_measure_label, LV_OPA_70, LV_PART_MAIN);
         lv_obj_set_style_pad_all(maps_measure_label, 5, LV_PART_MAIN);
         lv_obj_set_style_radius(maps_measure_label, 6, LV_PART_MAIN);
@@ -4149,7 +4234,7 @@ void TFTView_320x240::openMaps(void)
         // Height above sea level from the GPS, over the zoom readout. Only with a 3D fix.
         maps_alt_label = lv_label_create(maps_screen);
         lv_obj_set_style_text_color(maps_alt_label, lv_color_hex(0xffffff), LV_PART_MAIN);
-        lv_obj_set_style_bg_color(maps_alt_label, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_alt_label, lv_color_hex(0x30415a), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(maps_alt_label, LV_OPA_80, LV_PART_MAIN);
         lv_obj_set_style_pad_hor(maps_alt_label, 6, LV_PART_MAIN);
         lv_obj_set_style_pad_ver(maps_alt_label, 2, LV_PART_MAIN);
@@ -4161,7 +4246,7 @@ void TFTView_320x240::openMaps(void)
         // zoom level readout, bottom-left over the map
         maps_zoom_label = lv_label_create(maps_screen);
         lv_obj_set_style_text_color(maps_zoom_label, lv_color_hex(0xffffff), LV_PART_MAIN);
-        lv_obj_set_style_bg_color(maps_zoom_label, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_zoom_label, lv_color_hex(0x30415a), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(maps_zoom_label, LV_OPA_80, LV_PART_MAIN);
         lv_obj_set_style_pad_hor(maps_zoom_label, 6, LV_PART_MAIN);
         lv_obj_set_style_pad_ver(maps_zoom_label, 2, LV_PART_MAIN);
@@ -4328,14 +4413,13 @@ void TFTView_320x240::updateMapsSats(void)
         uint32_t sats = tdeck_gps_num_sats();
         lv_label_set_text_fmt(maps_sats_label, "%u sats", (unsigned)sats);
         // Green only when the fix is trustworthy. A 3-sat "lock" (or bad satellite
-        // geometry, PDOP > 5) is a marginal 2D fix that can sit blocks away — show
+        // geometry, PDOP > 5) is a marginal 2D fix that can sit blocks away - show
         // it AMBER so a wandering dot reads as "weak signal", not a broken map.
         uint32_t dop = tdeck_gps_dop();
         bool weak = sats < 4 || dop > 500;
-        lv_obj_set_style_text_color(maps_sats_label, lv_color_hex(!lock ? 0x8e8e93 : (weak ? 0xff9f0a : 0x30d158)),
-                                    LV_PART_MAIN);
-        // Keep the "you are here" dot on the RAW GPS fix — the same source the "Me"
-        // button uses — instead of the mesh node position, which Meshtastic snaps to
+        lv_obj_set_style_text_color(maps_sats_label, lv_color_hex(!lock ? 0x8e8e93 : (weak ? 0xff9f0a : 0x30d158)), LV_PART_MAIN);
+        // Keep the "you are here" dot on the RAW GPS fix - the same source the "Me"
+        // button uses - instead of the mesh node position, which Meshtastic snaps to
         // a privacy grid (that mismatch is why the dot sat in the wrong spot).
         if (lock && userMap) {
             int32_t glat = 0, glon = 0;
@@ -4358,7 +4442,7 @@ void TFTView_320x240::mapsShowNotice(const char *msg)
         return;
     if (!maps_notice) {
         maps_notice = lv_label_create(maps_screen);
-        lv_obj_set_style_bg_color(maps_notice, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_notice, lv_color_hex(0x30415a), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(maps_notice, LV_OPA_90, LV_PART_MAIN);
         lv_obj_set_style_radius(maps_notice, 8, LV_PART_MAIN);
         lv_obj_set_style_pad_hor(maps_notice, 10, LV_PART_MAIN);
@@ -4372,15 +4456,22 @@ void TFTView_320x240::mapsShowNotice(const char *msg)
 }
 
 // ===== Maps app: style picker (gear) + USGS region downloader =============================
-namespace {
+namespace
+{
 // slippy-map tile math (float is plenty at our zooms)
-inline float lon2tx(float lon, uint8_t z) { return (lon + 180.0f) / 360.0f * exp2f(z); }
+inline float lon2tx(float lon, uint8_t z)
+{
+    return (lon + 180.0f) / 360.0f * exp2f(z);
+}
 inline float lat2ty(float lat, uint8_t z)
 {
     float r = lat * (float)M_PI / 180.0f;
     return (1.0f - asinhf(tanf(r)) / (float)M_PI) / 2.0f * exp2f(z);
 }
-inline float tx2lon(float x, uint8_t z) { return x / exp2f(z) * 360.0f - 180.0f; }
+inline float tx2lon(float x, uint8_t z)
+{
+    return x / exp2f(z) * 360.0f - 180.0f;
+}
 inline float ty2lat(float y, uint8_t z)
 {
     float v = (float)M_PI * (1.0f - 2.0f * y / exp2f(z));
@@ -4399,8 +4490,8 @@ inline void boxTiles(float latN, float latS, float lonW, float lonE, uint8_t z, 
 }
 
 // Downloadable tile sources. Only services whose terms allow bulk downloads make this
-// list (government mapping agencies, basically). The template is {z}/{y}/{x} form —
-// mapdlBuildUrl fills it — and doubles as the .url browse-fill line written to the
+// list (government mapping agencies, basically). The template is {z}/{y}/{x} form -
+// mapdlBuildUrl fills it - and doubles as the .url browse-fill line written to the
 // card. estKB feeds the size/time estimate (USGS jpg ≈ 20KB, TopPlus png ≈ 35KB).
 struct MapDlSource {
     const char *label;  // shown in the Source dropdown, region-prefixed
@@ -4478,8 +4569,8 @@ void mapdlBuildUrl(char *out, size_t cap, const char *tpl, uint8_t z, uint32_t x
 // kNamesMaxSquares (a view zoomed out over several states) they are skipped: that is tens of MB,
 // and the website has the whole of the USA or Europe as one zip for exactly that.
 const int kNamesMaxSquares = 100;
-int namesSquareCount(float latN, float latS, float lonW, float lonE, int *la0 = nullptr, int *la1 = nullptr,
-                     int *lo0 = nullptr, int *lo1 = nullptr)
+int namesSquareCount(float latN, float latS, float lonW, float lonE, int *la0 = nullptr, int *la1 = nullptr, int *lo0 = nullptr,
+                     int *lo1 = nullptr)
 {
     const int a0 = (int)floorf(latS), a1 = (int)floorf(latN), o0 = (int)floorf(lonW), o1 = (int)floorf(lonE);
     if (la0) {
@@ -4493,7 +4584,7 @@ int namesSquareCount(float latN, float latS, float lonW, float lonE, int *la0 = 
 
 #ifdef ARDUINO_ARCH_ESP32
 // One TLS connection reused for the whole download (a handshake per tile would be
-// brutally slow and heap-hungry). Created on start, freed on stop — TLS holds ~45KB
+// brutally slow and heap-hungry). Created on start, freed on stop - TLS holds ~45KB
 // of heap while alive, which the mesh needs back afterwards.
 WiFiClientSecure *mapdlClient = nullptr;
 // ⭐ ONE HTTPClient FOR THE WHOLE DOWNLOAD, alongside the client. HTTPClient's destructor calls
@@ -4538,7 +4629,7 @@ bool mapdlFetch(uint8_t z, uint32_t x, uint32_t y)
         // whole download; mapdlStop() takes the reserve back when it's deleted.
         tdeck_tls_reserve_release();
         mapdlClient = new WiFiClientSecure();
-        mapdlClient->setInsecure(); // public map data; no room for a CA bundle
+        mapdlClient->setInsecure();           // public map data; no room for a CA bundle
         mapdlClient->setHandshakeTimeout(15); // default 120s outlives the ~90s watchdog
     }
     if (!mapdlHttp) {
@@ -4673,24 +4764,24 @@ struct NamesCell {
     int16_t la, lo; // the square's south-west corner, whole degrees
 };
 struct NamesDl {
-    bool active;        // this download still has place names to fetch
-    bool tooBig;        // a map box of more than kNamesMaxSquares: skipped (the region choices cover it)
-    bool listPending;   // a whole region: its list of squares is still to be fetched
-    bool listFailed;    // ...and fetching it failed
-    char listRel[12];   // "us.lst" / "eu.lst"
-    float cLat, cLon;   // nearest squares first, from here - a half-finished run is still useful
-    NamesCell *cells;   // PSRAM
+    bool active;      // this download still has place names to fetch
+    bool tooBig;      // a map box of more than kNamesMaxSquares: skipped (the region choices cover it)
+    bool listPending; // a whole region: its list of squares is still to be fetched
+    bool listFailed;  // ...and fetching it failed
+    char listRel[12]; // "us.lst" / "eu.lst"
+    float cLat, cLon; // nearest squares first, from here - a half-finished run is still useful
+    NamesCell *cells; // PSRAM
     int ncells, next;
     bool citiesChecked;
     uint16_t got, had, none, failed, total;
-    uint32_t bytes;     // fetched so far, for the progress line
-    bool open;          // a file is streaming
+    uint32_t bytes; // fetched so far, for the progress line
+    bool open;      // a file is streaming
     FsFile f;
     int len, recv;
     uint32_t lastData;
     uint32_t tAsk, tGot; // when the request went out and when its headers came back - for the log
     char path[40], tmp[48];
-    uint8_t *buf;       // 4KB, PSRAM, only while the phase runs
+    uint8_t *buf; // 4KB, PSRAM, only while the phase runs
 };
 NamesDl s_names{};
 WiFiClientSecure *namesClient = nullptr;
@@ -5240,7 +5331,7 @@ void TFTView_320x240::mapsApplyStyle(const char *style, bool persist)
 
     if (userMap)
         userMap->setZoom(MapTileSettings::getZoomLevel()); // re-center + full tile rebuild
-    meshMapStale = true; // the mesh map shares this state; it re-syncs on next load
+    meshMapStale = true;                                   // the mesh map shares this state; it re-syncs on next load
 }
 
 void TFTView_320x240::closeMapsMenu(void)
@@ -5254,14 +5345,15 @@ void TFTView_320x240::closeMapsMenu(void)
     }
 }
 
-namespace {
+namespace
+{
 // One row of the Maps settings: a full-width button with its text on the left.
 lv_obj_t *mapsMenuRow(lv_obj_t *parent, const char *txt, uint32_t color, lv_event_cb_t cb, void *ud)
 {
     lv_obj_t *b = lv_btn_create(parent);
     lv_obj_set_width(b, LV_PCT(100));
     lv_obj_set_height(b, 34);
-    lv_obj_set_style_bg_color(b, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(b, lv_color_hex(0x30415a), LV_PART_MAIN);
     lv_obj_set_style_radius(b, 8, LV_PART_MAIN);
     lv_obj_t *l = lv_label_create(b);
     lv_label_set_text(l, txt);
@@ -5290,7 +5382,7 @@ lv_obj_t *TFTView_320x240::mapsMenuShell(const char *title)
     maps_style_ovl = lv_obj_create(maps_screen);
     lv_obj_set_size(maps_style_ovl, 292, 228);
     lv_obj_center(maps_style_ovl);
-    lv_obj_set_style_bg_color(maps_style_ovl, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(maps_style_ovl, lv_color_hex(0x1b283c), LV_PART_MAIN);
     lv_obj_set_style_border_color(maps_style_ovl, lv_color_hex(0x3a3a3c), LV_PART_MAIN);
     lv_obj_set_style_radius(maps_style_ovl, 12, LV_PART_MAIN);
     lv_obj_set_flex_flow(maps_style_ovl, LV_FLEX_FLOW_COLUMN);
@@ -5322,113 +5414,124 @@ void TFTView_320x240::openMapsMenu(void)
         if (cl && cur[cl - 1] == '/')
             cur[cl - 1] = 0;
         snprintf(txt, sizeof(txt), "Map style: %s", cur[0] ? cur : "none");
-        mapsMenuRow(m, txt, 0xffffff,
-                    [](lv_event_t *) {
-                        THIS->closeMapsMenu();
-                        lv_async_call([](void *) { THIS->openMapsStyleMenu(); }, nullptr);
-                    },
-                    NULL);
+        mapsMenuRow(
+            m, txt, 0xffffff,
+            [](lv_event_t *) {
+                THIS->closeMapsMenu();
+                lv_async_call([](void *) { THIS->openMapsStyleMenu(); }, nullptr);
+            },
+            NULL);
     }
 
     // Offline: the tiles for what is on screen, and now its place names with them.
-    mapsMenuRow(m, mapdl_running ? "Download: see progress..." : "Download this area...", 0x30d158,
-                [](lv_event_t *) {
-                    if (!THIS->mapdl_running)
-                        THIS->mapdl_names_mode = 0;
-                    THIS->closeMapsMenu();
-                    // Async: this switches screens, which unloads the one this menu lives on.
-                    lv_async_call([](void *) { THIS->openMapDownload(); }, nullptr);
-                },
-                NULL);
+    mapsMenuRow(
+        m, mapdl_running ? "Download: see progress..." : "Download this area...", 0x30d158,
+        [](lv_event_t *) {
+            if (!THIS->mapdl_running)
+                THIS->mapdl_names_mode = 0;
+            THIS->closeMapsMenu();
+            // Async: this switches screens, which unloads the one this menu lives on.
+            lv_async_call([](void *) { THIS->openMapDownload(); }, nullptr);
+        },
+        NULL);
 
     // Place names on their own, for search - for a card that already has its maps.
-    mapsMenuRow(m, "Place names for search...", 0x30d158,
-                [](lv_event_t *) {
-                    THIS->closeMapsMenu();
-                    lv_async_call([](void *) { THIS->openNamesMenu(); }, nullptr);
-                },
-                NULL);
+    mapsMenuRow(
+        m, "Place names for search...", 0x30d158,
+        [](lv_event_t *) {
+            THIS->closeMapsMenu();
+            lv_async_call([](void *) { THIS->openNamesMenu(); }, nullptr);
+        },
+        NULL);
 
     // Units. The device has ONE switch for this (the weather's F/C is the same one), so it says
     // so rather than letting the map disagree with everything else.
     snprintf(txt, sizeof(txt), "Units: %s", mapsMetric() ? "km and metres" : "miles and feet");
-    mapsMenuRow(m, txt, 0xffffff,
-                [](lv_event_t *) {
-                    const bool metric = !THIS->mapsMetric();
-                    tdeck_units_set_metric(metric); // saved by the main loop
-                    THIS->db.config.display.units = metric ? meshtastic_Config_DisplayConfig_DisplayUnits_METRIC
-                                                           : meshtastic_Config_DisplayConfig_DisplayUnits_IMPERIAL;
-                    THIS->mapsMenuReopen();
-                },
-                NULL);
+    mapsMenuRow(
+        m, txt, 0xffffff,
+        [](lv_event_t *) {
+            const bool metric = !THIS->mapsMetric();
+            tdeck_units_set_metric(metric); // saved by the main loop
+            THIS->db.config.display.units = metric ? meshtastic_Config_DisplayConfig_DisplayUnits_METRIC
+                                                   : meshtastic_Config_DisplayConfig_DisplayUnits_IMPERIAL;
+            THIS->mapsMenuReopen();
+        },
+        NULL);
 
     // Starting position when there is no GPS fix.
     const bool homeSet = db.uiConfig.map_data.has_home;
     snprintf(txt, sizeof(txt), "No GPS fix: open at %s",
              mapsStartMode == 0 ? "last view" : (homeSet ? "home" : "home (not set)"));
-    mapsMenuRow(m, txt, 0xffffff,
-                [](lv_event_t *) {
-                    THIS->mapsStartMode = THIS->mapsStartMode ? 0 : 1;
-                    THIS->savePins();
-                    THIS->mapsMenuReopen();
-                },
-                NULL);
-    mapsMenuRow(m, "Set home to this spot", 0xffffff,
-                [](lv_event_t *) {
-                    if (!THIS->userMap)
-                        return;
-                    float la = 0, lo = 0;
-                    THIS->userMap->getCenter(la, lo);
-                    THIS->db.uiConfig.has_map_data = true;
-                    THIS->db.uiConfig.map_data.has_home = true;
-                    THIS->db.uiConfig.map_data.home.latitude = (int32_t)(la * 1e7f);
-                    THIS->db.uiConfig.map_data.home.longitude = (int32_t)(lo * 1e7f);
-                    THIS->db.uiConfig.map_data.home.zoom = MapTileSettings::getZoomLevel();
-                    THIS->controller->storeUIConfig(THIS->db.uiConfig);
-                    // Setting a home is asking to start there, so say that is what happens now.
-                    THIS->mapsStartMode = 1;
-                    THIS->savePins();
-                    THIS->closeMapsMenu();
-                    THIS->mapsShowNotice("Home set - with no GPS fix, Maps opens here");
-                },
-                NULL);
+    mapsMenuRow(
+        m, txt, 0xffffff,
+        [](lv_event_t *) {
+            THIS->mapsStartMode = THIS->mapsStartMode ? 0 : 1;
+            THIS->savePins();
+            THIS->mapsMenuReopen();
+        },
+        NULL);
+    mapsMenuRow(
+        m, "Set home to this spot", 0xffffff,
+        [](lv_event_t *) {
+            if (!THIS->userMap)
+                return;
+            float la = 0, lo = 0;
+            THIS->userMap->getCenter(la, lo);
+            THIS->db.uiConfig.has_map_data = true;
+            THIS->db.uiConfig.map_data.has_home = true;
+            THIS->db.uiConfig.map_data.home.latitude = (int32_t)(la * 1e7f);
+            THIS->db.uiConfig.map_data.home.longitude = (int32_t)(lo * 1e7f);
+            THIS->db.uiConfig.map_data.home.zoom = MapTileSettings::getZoomLevel();
+            THIS->controller->storeUIConfig(THIS->db.uiConfig);
+            // Setting a home is asking to start there, so say that is what happens now.
+            THIS->mapsStartMode = 1;
+            THIS->savePins();
+            THIS->closeMapsMenu();
+            THIS->mapsShowNotice("Home set - with no GPS fix, Maps opens here");
+        },
+        NULL);
 
     snprintf(txt, sizeof(txt), "Nodes on map: %s", showNodesOnUserMap ? "ON" : "off");
-    mapsMenuRow(m, txt, showNodesOnUserMap ? 0x30d158 : 0x8e8e93,
-                [](lv_event_t *) {
-                    THIS->setShowNodesOnUserMap(!THIS->showNodesOnUserMap);
-                    THIS->mapsMenuReopen();
-                },
-                NULL);
+    mapsMenuRow(
+        m, txt, showNodesOnUserMap ? 0x30d158 : 0x8e8e93,
+        [](lv_event_t *) {
+            THIS->setShowNodesOnUserMap(!THIS->showNodesOnUserMap);
+            THIS->mapsMenuReopen();
+        },
+        NULL);
 
     // Coverage mapper. Two rows, deliberately separate: you want to record on a drive without the
     // overlay cluttering the map, and to study it afterwards without still recording.
     snprintf(txt, sizeof(txt), "Record coverage: %s", tdeck_coverage_enabled() ? "ON" : "off");
-    mapsMenuRow(m, txt, tdeck_coverage_enabled() ? 0x30d158 : 0x8e8e93,
-                [](lv_event_t *) {
-                    tdeck_coverage_set_enabled(!tdeck_coverage_enabled());
-                    THIS->mapsMenuReopen();
-                },
-                NULL);
+    mapsMenuRow(
+        m, txt, tdeck_coverage_enabled() ? 0x30d158 : 0x8e8e93,
+        [](lv_event_t *) {
+            tdeck_coverage_set_enabled(!tdeck_coverage_enabled());
+            THIS->mapsMenuReopen();
+        },
+        NULL);
     snprintf(txt, sizeof(txt), "Show coverage (%d): %s", tdeck_coverage_count(), coverage_overlay_on ? "ON" : "off");
-    mapsMenuRow(m, txt, coverage_overlay_on ? 0x30d158 : 0x8e8e93,
-                [](lv_event_t *) {
-                    THIS->coverage_overlay_on = !THIS->coverage_overlay_on;
-                    if (THIS->coverage_overlay_on)
-                        tdeck_coverage_load(); // a survey may be on the card from a previous session
-                    THIS->mapsMenuReopen();
-                },
-                NULL);
+    mapsMenuRow(
+        m, txt, coverage_overlay_on ? 0x30d158 : 0x8e8e93,
+        [](lv_event_t *) {
+            THIS->coverage_overlay_on = !THIS->coverage_overlay_on;
+            if (THIS->coverage_overlay_on)
+                tdeck_coverage_load(); // a survey may be on the card from a previous session
+            THIS->mapsMenuReopen();
+        },
+        NULL);
 
     if (foundActive)
-        mapsMenuRow(m, "Clear the search marker", 0xffd60a,
-                    [](lv_event_t *) {
-                        THIS->clearFoundMarker();
-                        THIS->closeMapsMenu();
-                    },
-                    NULL);
+        mapsMenuRow(
+            m, "Clear the search marker", 0xffd60a,
+            [](lv_event_t *) {
+                THIS->clearFoundMarker();
+                THIS->closeMapsMenu();
+            },
+            NULL);
 
-    mapsMenuRow(m, "Close", 0x8e8e93, [](lv_event_t *) { THIS->closeMapsMenu(); }, NULL);
+    mapsMenuRow(
+        m, "Close", 0x8e8e93, [](lv_event_t *) { THIS->closeMapsMenu(); }, NULL);
 }
 
 // Gear > Place names for search: where to get them for. Downloads run on the map download screen.
@@ -5446,15 +5549,16 @@ void TFTView_320x240::openNamesMenu(void)
         THIS->closeMapsMenu();
         lv_async_call([](void *) { THIS->openMapDownload(); }, nullptr); // it switches screens
     };
-    mapsMenuRow(m, mapsMetric() ? "Near the map (150 km)" : "Near the map (100 miles)", 0xffffff, choose,
-                (void *)(uintptr_t)1);
+    mapsMenuRow(m, mapsMetric() ? "Near the map (150 km)" : "Near the map (100 miles)", 0xffffff, choose, (void *)(uintptr_t)1);
     mapsMenuRow(m, "All of the USA  (70 MB)", 0xffffff, choose, (void *)(uintptr_t)2);
     mapsMenuRow(m, "All of Europe  (130 MB)", 0xffffff, choose, (void *)(uintptr_t)3);
     lv_obj_t *note = lv_label_create(m);
-    lv_label_set_text(note, "Over Wi-Fi. Areas already on the card\nare skipped, so it can stop and carry\non later. Download this area brings\nthem too, along with the map.");
+    lv_label_set_text(note, "Over Wi-Fi. Areas already on the card\nare skipped, so it can stop and carry\non later. Download "
+                            "this area brings\nthem too, along with the map.");
     lv_obj_set_style_text_font(note, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_obj_set_style_text_color(note, lv_color_hex(0x8e8e93), LV_PART_MAIN);
-    mapsMenuRow(m, "Back", 0x8e8e93, [](lv_event_t *) { THIS->mapsMenuReopen(); }, NULL);
+    mapsMenuRow(
+        m, "Back", 0x8e8e93, [](lv_event_t *) { THIS->mapsMenuReopen(); }, NULL);
 }
 
 // Gear > Map style: one row per style folder on the card.
@@ -5480,7 +5584,7 @@ void TFTView_320x240::openMapsStyleMenu(void)
             const char *region = "";
             for (auto &s : kMapDlSources) {
                 if (strcmp(styleNames[i], s.folder) == 0) {
-                    region = s.label; // starts with "(US) " / "(EU) " — use just that bit
+                    region = s.label; // starts with "(US) " / "(EU) " - use just that bit
                     break;
                 }
             }
@@ -5497,16 +5601,17 @@ void TFTView_320x240::openMapsStyleMenu(void)
             // font has no symbol glyphs, so the tick drew as nothing and every row looked the same.
             char lbl[48];
             snprintf(lbl, sizeof(lbl), "%s%s%s", pre, styleNames[i], current ? "  - in use" : "");
-            mapsMenuRow(m, lbl, current ? 0x30d158 : 0xffffff,
-                        [](lv_event_t *e) {
-                            const char *style = (const char *)lv_event_get_user_data(e);
-                            THIS->closeMapsMenu();
-                            THIS->mapsApplyStyle(style, true);
-                            char msg[40];
-                            snprintf(msg, sizeof(msg), "map: %s", style);
-                            THIS->mapsShowNotice(msg);
-                        },
-                        styleNames[i]);
+            mapsMenuRow(
+                m, lbl, current ? 0x30d158 : 0xffffff,
+                [](lv_event_t *e) {
+                    const char *style = (const char *)lv_event_get_user_data(e);
+                    THIS->closeMapsMenu();
+                    THIS->mapsApplyStyle(style, true);
+                    char msg[40];
+                    snprintf(msg, sizeof(msg), "map: %s", style);
+                    THIS->mapsShowNotice(msg);
+                },
+                styleNames[i]);
             i++;
         }
     }
@@ -5521,25 +5626,27 @@ void TFTView_320x240::openMapsStyleMenu(void)
         lv_obj_set_style_text_color(none, lv_color_hex(readFailed ? 0xff9f0a : 0x8e8e93), LV_PART_MAIN);
         if (readFailed) {
             // One tap to recover, instead of a reboot. Re-mounts the card and reopens the list.
-            mapsMenuRow(m, "Retry card", 0xffffff,
-                        [](lv_event_t *) {
-                            THIS->closeMapsMenu();
-                            // Async: updateSDCard() deletes and rebuilds the card object, and
-                            // reopening builds a new overlay - neither belongs inside the event
-                            // handler of the overlay being destroyed.
-                            lv_async_call(
-                                [](void *) {
-                                    THIS->updateSDCard();
-                                    THIS->mapsStyleInited = false; // let the style restore run again
-                                    THIS->mapsInitTileStyle();
-                                    THIS->openMapsStyleMenu();
-                                },
-                                nullptr);
+            mapsMenuRow(
+                m, "Retry card", 0xffffff,
+                [](lv_event_t *) {
+                    THIS->closeMapsMenu();
+                    // Async: updateSDCard() deletes and rebuilds the card object, and
+                    // reopening builds a new overlay - neither belongs inside the event
+                    // handler of the overlay being destroyed.
+                    lv_async_call(
+                        [](void *) {
+                            THIS->updateSDCard();
+                            THIS->mapsStyleInited = false; // let the style restore run again
+                            THIS->mapsInitTileStyle();
+                            THIS->openMapsStyleMenu();
                         },
-                        NULL);
+                        nullptr);
+                },
+                NULL);
         }
     }
-    mapsMenuRow(m, "Back", 0x8e8e93, [](lv_event_t *) { THIS->mapsMenuReopen(); }, NULL);
+    mapsMenuRow(
+        m, "Back", 0x8e8e93, [](lv_event_t *) { THIS->mapsMenuReopen(); }, NULL);
 }
 
 // Leaving Maps: note where it was, for "No GPS fix: open at last view". Written to the card only
@@ -5553,8 +5660,8 @@ void TFTView_320x240::mapsRememberView(void)
     const uint8_t z = MapTileSettings::getZoomLevel();
     if (la < -85 || la > 85 || lo < -180 || lo > 180)
         return;
-    const bool moved = !mapsLastValid || fabsf(la - mapsLastLat) > 0.0005f || fabsf(lo - mapsLastLon) > 0.0005f ||
-                       z != mapsLastZoom;
+    const bool moved =
+        !mapsLastValid || fabsf(la - mapsLastLat) > 0.0005f || fabsf(lo - mapsLastLon) > 0.0005f || z != mapsLastZoom;
     mapsLastLat = la;
     mapsLastLon = lo;
     mapsLastZoom = z;
@@ -5618,7 +5725,7 @@ void TFTView_320x240::openMapDownload(void)
 
     if (!mapdl_screen) {
         mapdl_screen = lv_obj_create(NULL);
-        lv_obj_set_style_bg_color(mapdl_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(mapdl_screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
         lv_obj_clear_flag(mapdl_screen, LV_OBJ_FLAG_SCROLLABLE);
 
         mapdl_title = lv_label_create(mapdl_screen);
@@ -5637,7 +5744,7 @@ void TFTView_320x240::openMapDownload(void)
         lv_label_set_text(mapdl_status, "");
 
         // NOTE this screen is a fixed 320x240 budget: title 4-25, status 26-72 (2 lines
-        // max), info 76-116 (two SHORT lines — this font fits ~26 chars in 300px and a
+        // max), info 76-116 (two SHORT lines - this font fits ~26 chars in 300px and a
         // wrapped third line slides under the rows below; keep every info string short),
         // Source row 120-155, Detail row 158-193, buttons 196-234.
         mapdl_info = lv_label_create(mapdl_screen);
@@ -5726,7 +5833,7 @@ void TFTView_320x240::openMapDownload(void)
         lv_obj_align(mapdl_btn, LV_ALIGN_BOTTOM_LEFT, 12, -6);
         mapdl_btn_lbl = lv_label_create(mapdl_btn);
         lv_label_set_text(mapdl_btn_lbl, "Start");
-        lv_obj_set_style_text_color(mapdl_btn_lbl, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_text_color(mapdl_btn_lbl, lv_color_hex(0x0b1220), LV_PART_MAIN);
         lv_obj_center(mapdl_btn_lbl);
         lv_obj_add_event_cb(
             mapdl_btn,
@@ -5758,13 +5865,13 @@ void TFTView_320x240::openMapDownload(void)
 
         lv_obj_t *back = lv_btn_create(mapdl_screen);
         lv_obj_set_size(back, 70, 38);
-        lv_obj_set_style_bg_color(back, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(back, lv_color_hex(0x30415a), LV_PART_MAIN);
         lv_obj_align(back, LV_ALIGN_BOTTOM_RIGHT, -10, -6);
         lv_obj_t *bl = lv_label_create(back);
         lv_label_set_text(bl, "Back");
         lv_obj_set_style_text_color(bl, lv_color_hex(0xffffff), LV_PART_MAIN);
         lv_obj_center(bl);
-        // Back just leaves the screen — a running download keeps going headless.
+        // Back just leaves the screen - a running download keeps going headless.
         lv_obj_add_event_cb(
             back, [](lv_event_t *) { THIS->openMaps(); }, LV_EVENT_CLICKED, NULL);
     }
@@ -5792,8 +5899,7 @@ void TFTView_320x240::mapdlShowMode(void)
         return;
     const bool namesOnly = mapdl_names_mode != 0;
     lv_label_set_text(mapdl_title, namesOnly ? "Download place names" : "Download map area");
-    lv_obj_t *mapOnly[] = {mapdl_opt_lbls[0], mapdl_opt_lbls[1], mapdl_opt_lbls[2], mapdl_src_dd, mapdl_zmin_dd,
-                           mapdl_zmax_dd};
+    lv_obj_t *mapOnly[] = {mapdl_opt_lbls[0], mapdl_opt_lbls[1], mapdl_opt_lbls[2], mapdl_src_dd, mapdl_zmin_dd, mapdl_zmax_dd};
     for (lv_obj_t *o : mapOnly) {
         if (!o)
             continue;
@@ -5873,12 +5979,12 @@ void TFTView_320x240::mapdlStart(void)
         }
     }
     mapdl_running = true;
-    // Two SHORT lines only — see the layout note in openMapDownload. Leaving this screen
+    // Two SHORT lines only - see the layout note in openMapDownload. Leaving this screen
     // currently stops the download (Jake hit this on 16.7); sleeping is safe, so say both.
     lv_label_set_text(mapdl_info, "Stay on this screen while\ndownloading. Sleep is OK.");
     lv_label_set_text(mapdl_btn_lbl, "Stop");
     lv_obj_add_flag(mapdl_use_btn, LV_OBJ_FLAG_HIDDEN);
-    // lock the knobs while running — the cursor math depends on them
+    // lock the knobs while running - the cursor math depends on them
     if (mapdl_src_dd)
         lv_obj_add_state(mapdl_src_dd, LV_STATE_DISABLED);
     if (mapdl_zmin_dd)
@@ -5903,8 +6009,8 @@ void TFTView_320x240::mapdlStop(bool finished)
         lv_timer_delete(mapdl_timer);
         mapdl_timer = nullptr;
     }
-    namesFinish();          // a stop during the names phase: close the file, free that connection
-    mapdlDropConnection();  // free the TLS heap (~45KB) the moment we're done with it
+    namesFinish();         // a stop during the names phase: close the file, free that connection
+    mapdlDropConnection(); // free the TLS heap (~45KB) the moment we're done with it
     if (mapdl_own_wifi && mapdl_wifi_up)
         tdeck_wifi_disconnect_now();
     if (mapdl_own_wifi && !mapdl_wifi_up)
@@ -5933,10 +6039,10 @@ void TFTView_320x240::mapdlStop(bool finished)
         // short lines only - see the layout note in openMapDownload
         const char *info = "Progress is saved.\nStart continues it.";
         if (finished)
-            info = s_names.tooBig                    ? "Saved. Too wide for place\nnames: Gear > Place names."
-                   : (s_names.got || s_names.had)    ? "Saved, with place names.\nTap \"Use this map\"."
-                   : s_names.failed                  ? "Saved. Place names failed:\nStart again to retry."
-                                                     : "Saved to the card.\nTap \"Use this map\".";
+            info = s_names.tooBig                 ? "Saved. Too wide for place\nnames: Gear > Place names."
+                   : (s_names.got || s_names.had) ? "Saved, with place names.\nTap \"Use this map\"."
+                   : s_names.failed               ? "Saved. Place names failed:\nStart again to retry."
+                                                  : "Saved to the card.\nTap \"Use this map\".";
         if (mapdl_names_mode) {
             // Place names on their own: count areas, not tiles.
             const unsigned seen = s_names.got + s_names.had + s_names.none + s_names.failed;
@@ -5949,7 +6055,7 @@ void TFTView_320x240::mapdlStop(bool finished)
                 snprintf(buf, sizeof(buf), "Done: %u new, %u already here", (unsigned)s_names.got, (unsigned)s_names.had);
             else
                 snprintf(buf, sizeof(buf), "Stopped at %u of %u areas", seen, (unsigned)s_names.total);
-            info = s_names.listFailed ? "Check Wi-Fi, then Start\nagain."
+            info = s_names.listFailed            ? "Check Wi-Fi, then Start\nagain."
                    : finished && !s_names.failed ? "Try the magnifier on the\nmap - it knows them now."
                                                  : "Start again carries on -\nit skips what it has.";
         }
@@ -5987,7 +6093,7 @@ void TFTView_320x240::mapdlPump(void)
         return;
     }
 
-    // each fetch blocks the UI task for its duration — while the user is actively
+    // each fetch blocks the UI task for its duration - while the user is actively
     // touching (dragging a map, playing a game), sit this tick out; idle ticks do
     // the fetching. Costs a little download speed only while the screen is in use.
     for (lv_indev_t *i = lv_indev_get_next(NULL); i; i = lv_indev_get_next(i)) {
@@ -6073,14 +6179,15 @@ void TFTView_320x240::mapdlPump(void)
 // installing is: fetch the catalog -> fetch one text file -> write /apps/<id>/main.lua ->
 // rescan. No reboot: scanUserApps() + rebuildAppGrid() make the new tile appear live.
 #ifdef ARDUINO_ARCH_ESP32
-namespace {
+namespace
+{
 const char *kGetAppsCatalogUrl = "https://jeeab.github.io/t-ui/apps/catalog.json";
 const char *kGetAppsBaseUrl = "https://jeeab.github.io/t-ui/";
 WiFiClientSecure *getappsClient = nullptr;
 
 // Why the last fetch failed, in a few characters, so the on-screen message can say which of the
 // five very different causes it hit. "Couldn't reach the app list" on its own sent us chasing the
-// wrong one twice. Short strings only — the status label is one line on a 320px screen.
+// wrong one twice. Short strings only - the status label is one line on a 320px screen.
 char getappsFail[24] = "";
 
 // Download a whole (small) file into PSRAM. Returns nullptr on any failure; the caller
@@ -6097,7 +6204,7 @@ uint8_t *getappsGet(const char *url, int *outLen)
     tdeck_tls_reserve_release();
     if (!getappsClient) {
         getappsClient = new WiFiClientSecure();
-        getappsClient->setInsecure(); // public, read-only content; no room for a CA bundle
+        getappsClient->setInsecure();           // public, read-only content; no room for a CA bundle
         getappsClient->setHandshakeTimeout(15); // default 120s outlives the ~90s watchdog
     }
     HTTPClient http;
@@ -6190,7 +6297,7 @@ bool getappsGetToFile(const char *url, const char *path, int *outLen)
     tdeck_tls_reserve_release();
     if (!getappsClient) {
         getappsClient = new WiFiClientSecure();
-        getappsClient->setInsecure(); // public, read-only content; no room for a CA bundle
+        getappsClient->setInsecure();           // public, read-only content; no room for a CA bundle
         getappsClient->setHandshakeTimeout(15); // default 120s outlives the ~90s watchdog
     }
     HTTPClient http;
@@ -6336,7 +6443,8 @@ void TFTView_320x240::getappsInstalledVer(const char *id, char *out, size_t cap)
         }
     }
 #else
-    (void)id; (void)cap;
+    (void)id;
+    (void)cap;
 #endif
 }
 
@@ -6465,7 +6573,7 @@ bool TFTView_320x240::getappsInstall(int idx)
 
 // Delete an installed app: its script, anything it saved, then the folder itself.
 //
-// Installing was one tap while removing meant taking the SD card out to a computer —
+// Installing was one tap while removing meant taking the SD card out to a computer -
 // a door that only opened one way. An app's folder can't contain sub-folders (store
 // names reject slashes), so a flat sweep is enough.
 bool TFTView_320x240::getappsRemove(int idx)
@@ -6496,7 +6604,7 @@ bool TFTView_320x240::getappsRemove(int idx)
     }
     SDFs.rmdir(dir);
 
-    // Gone only if the script is actually gone — an rmdir that quietly failed would
+    // Gone only if the script is actually gone - an rmdir that quietly failed would
     // otherwise leave the row claiming success while the tile stayed on the grid.
     char main[80];
     snprintf(main, sizeof(main), "/apps/%s/main.lua", a.id);
@@ -6583,18 +6691,16 @@ void TFTView_320x240::getappsBuildList(void)
         // An update is the one people would otherwise never notice, so it gets the
         // loud colour and the install action rather than the remove one.
         bool updatable = a.installed && a.outdated;
-        lv_obj_set_style_bg_color(btn, lv_color_hex(updatable ? 0xff9f0a : (a.installed ? 0x2c2c2e : 0x30d158)),
-                                  LV_PART_MAIN);
+        lv_obj_set_style_bg_color(btn, lv_color_hex(updatable ? 0xff9f0a : (a.installed ? 0x2c2c2e : 0x30d158)), LV_PART_MAIN);
         lv_obj_t *bl = lv_label_create(btn);
         lv_obj_set_style_text_font(bl, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_label_set_text(bl, updatable ? "Update" : (a.installed ? "Remove" : "Install"));
-        lv_obj_set_style_text_color(bl, lv_color_hex(updatable ? 0x000000 : (a.installed ? 0xff453a : 0x000000)),
-                                    LV_PART_MAIN);
+        lv_obj_set_style_text_color(bl, lv_color_hex(updatable ? 0x000000 : (a.installed ? 0xff453a : 0x000000)), LV_PART_MAIN);
         lv_obj_center(bl);
 
         if (a.installed && !updatable) {
             // Removing deletes saved data too (high scores, settings), so it asks first.
-            // The confirmation lives on the button itself — there's no room for a dialog.
+            // The confirmation lives on the button itself - there's no room for a dialog.
             lv_obj_set_user_data(btn, (void *)(intptr_t)i);
             lv_obj_add_event_cb(
                 btn,
@@ -6612,8 +6718,8 @@ void TFTView_320x240::getappsBuildList(void)
                     }
                     bool okGone = THIS->getappsRemove(idx);
                     THIS->getapps_confirm = -1;
-                    lv_label_set_text(THIS->getapps_status, okGone ? "Removed from your device"
-                                                                  : "Couldn't remove it - card busy?");
+                    lv_label_set_text(THIS->getapps_status,
+                                      okGone ? "Removed from your device" : "Couldn't remove it - card busy?");
                     if (okGone)
                         THIS->getappsScheduleRebuild(); // row flips back to Install
                     else
@@ -6680,7 +6786,7 @@ void TFTView_320x240::getappsSetFilter(int which)
 // failure only happens on the device: reproducing it needed a person to open Get Apps and read
 // a one-line message back, which is a very slow way to test a guess. This closes the loop.
 //
-// Ticks once a second on the LVGL task — the same task the real fetch runs on, so it reproduces
+// Ticks once a second on the LVGL task - the same task the real fetch runs on, so it reproduces
 // the true memory conditions rather than a friendlier version of them.
 void TFTView_320x240::getappsSelfTest(void)
 {
@@ -6832,7 +6938,7 @@ void TFTView_320x240::closeGetApps(void)
         getapps_own_wifi = false;
     }
     // Claim the TLS block back now the secure client is gone, so the next visit has it too.
-    // Deliberately after `delete getappsClient` — that is what frees the handshake buffers, and
+    // Deliberately after `delete getappsClient` - that is what frees the handshake buffers, and
     // taking the reserve before them would just fail.
     tdeck_tls_reserve_take();
 #endif
@@ -6844,7 +6950,7 @@ void TFTView_320x240::openGetApps(void)
     if (!getapps_screen) {
         getapps_screen = lv_obj_create(NULL);
         tui_statusbar_reserve(getapps_screen); // 20px of top padding moves every child down
-        lv_obj_set_style_bg_color(getapps_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(getapps_screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
         lv_obj_clear_flag(getapps_screen, LV_OBJ_FLAG_SCROLLABLE);
 
         lv_obj_t *title = lv_label_create(getapps_screen);
@@ -6898,7 +7004,7 @@ void TFTView_320x240::openGetApps(void)
 
         lv_obj_t *back = lv_btn_create(getapps_screen);
         lv_obj_set_size(back, 80, 34);
-        lv_obj_set_style_bg_color(back, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(back, lv_color_hex(0x30415a), LV_PART_MAIN);
         lv_obj_align(back, LV_ALIGN_BOTTOM_MID, 0, -4);
         lv_obj_t *bl = lv_label_create(back);
         lv_label_set_text(bl, "Back");
@@ -6933,7 +7039,7 @@ void TFTView_320x240::openGetApps(void)
     // share one 2.4 GHz radio, and the BT stack also holds the internal RAM a TLS handshake needs.
     // This deliberately sits OUTSIDE the "we turned wi-fi on" branch: when wi-fi is enabled in
     // Settings the device joins at boot, so `already` is true, the branch never runs, and the
-    // teardown never happened — which is exactly the case that was still failing. Latched, because
+    // teardown never happened - which is exactly the case that was still failing. Latched, because
     // deinit on an already-down stack is pointless and a place double-frees could hide. BT stays
     // down until the next reboot.
     static bool s_getappsBtDown = false;
@@ -6958,7 +7064,8 @@ void TFTView_320x240::openGetApps(void)
 }
 
 // ===== Maps app: user pins (live only on the Maps app's own map) ==========================
-namespace {
+namespace
+{
 const uint32_t kPinColors[] = {0xff453a, 0xff9f0a, 0xffd60a, 0x30d158, 0x64d2ff, 0x0a84ff, 0xbf5af2};
 const int kPinColorCount = 7;
 } // namespace
@@ -6993,7 +7100,7 @@ void TFTView_320x240::stylePinMarker(lv_obj_t *m, uint32_t color, bool theirs)
         lv_obj_set_style_bg_opa(m, LV_OPA_TRANSP, LV_PART_MAIN);
         lv_obj_set_style_border_color(m, lv_color_hex(color), LV_PART_MAIN);
         lv_obj_set_style_border_width(m, 3, LV_PART_MAIN);
-        lv_obj_set_style_outline_color(m, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_outline_color(m, lv_color_hex(0x0b1220), LV_PART_MAIN);
         lv_obj_set_style_outline_width(m, 1, LV_PART_MAIN);
         lv_obj_set_style_outline_opa(m, LV_OPA_60, LV_PART_MAIN);
     } else {
@@ -7059,7 +7166,7 @@ lv_obj_t *TFTView_320x240::makePinLabel(const char *name, uint32_t color)
     // Latin-1, Latin Extended-A, Greek, Cyrillic and the emoji the rest of the UI already shows.
     lv_obj_set_style_text_font(l, &ui_font_montserrat_14, LV_PART_MAIN);
     lv_obj_set_style_text_color(l, lv_color_hex(0xffffff), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(l, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(l, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(l, LV_OPA_60, LV_PART_MAIN);
     lv_obj_set_style_pad_hor(l, 4, LV_PART_MAIN);
     lv_obj_set_style_pad_ver(l, 2, LV_PART_MAIN);
@@ -7162,7 +7269,7 @@ void TFTView_320x240::addOrUpdateUserMapNode(uint32_t nodeNum, float lat, float 
     lv_obj_set_style_bg_opa(n.marker, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_color(n.marker, lv_color_hex(bgColor), LV_PART_MAIN);
     lv_obj_set_style_border_width(n.marker, 3, LV_PART_MAIN);
-    lv_obj_set_style_outline_color(n.marker, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_outline_color(n.marker, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_set_style_outline_width(n.marker, 1, LV_PART_MAIN);
     lv_obj_set_style_outline_opa(n.marker, LV_OPA_60, LV_PART_MAIN);
     lv_obj_add_flag(n.marker, LV_OBJ_FLAG_HIDDEN);
@@ -7245,7 +7352,7 @@ void TFTView_320x240::setShowNodesOnUserMap(bool on)
         while (!nodeMarkerIdByNode.empty())
             removeUserMapNode(nodeMarkerIdByNode.begin()->first);
     }
-    savePins(); // the setting rides along in the pins file
+    savePins();           // the setting rides along in the pins file
     updateMapsNodesBtn(); // the pill on the map and the button in the Pins list are one setting
     if (userMap)
         userMap->forceRedraw(true);
@@ -7266,7 +7373,7 @@ void TFTView_320x240::dropPinAt(float lat, float lon)
     p.labelObj = makePinLabel(p.label, p.color);
     mapPins.push_back(p);
     userMap->add(p.id, lat, lon, drawPinCB); // draws it immediately
-    // Confirm on-screen whether it actually persisted — this is how we're chasing the
+    // Confirm on-screen whether it actually persisted - this is how we're chasing the
     // "pins don't survive reboot" report without digging through files.
     mapsShowNotice(savePins() ? "Pin saved" : "Pin SAVE FAILED (SD?)");
 }
@@ -7329,7 +7436,7 @@ const char *TFTView_320x240::pinNodeName(uint32_t nodeNum)
 }
 
 // An unnamed channel shows as its modem preset ("LongFast"), which is what the settings screens
-// already do — the name Jake sees here matches the name he sees there.
+// already do - the name Jake sees here matches the name he sees there.
 const char *TFTView_320x240::pinChannelName(uint8_t ch)
 {
     if (ch >= c_max_channels)
@@ -7557,8 +7664,7 @@ void TFTView_320x240::sharePin(uint32_t id, uint8_t kind, uint32_t dest)
     savePins();
 
     char msg[48];
-    snprintf(msg, sizeof(msg), "Shared with %s",
-             kind == ePinSharedToChannel ? pinChannelName((uint8_t)dest) : pinNodeName(dest));
+    snprintf(msg, sizeof(msg), "Shared with %s", kind == ePinSharedToChannel ? pinChannelName((uint8_t)dest) : pinNodeName(dest));
     mapsShowNotice(msg);
 }
 
@@ -7569,7 +7675,7 @@ void TFTView_320x240::unsharePin(uint32_t id)
         return;
     if (!p->fromNode) {
         queueRetract(*p);          // remembered first: the send below is only the first attempt
-        sendPinWaypoint(*p, true); // asks the mesh to drop it — cannot be forced, see the UI wording
+        sendPinWaypoint(*p, true); // asks the mesh to drop it - cannot be forced, see the UI wording
     }
     p->shareKind = ePinNotShared;
     p->shareDest = 0;
@@ -7615,7 +7721,7 @@ void TFTView_320x240::handleWaypoint(uint32_t from, uint8_t ch, const meshtastic
         return;
 
     if (p) {
-        if (p->fromNode != from) // ours, or another node's — don't let a stranger move it
+        if (p->fromNode != from) // ours, or another node's - don't let a stranger move it
             return;
         p->lat = lat;
         p->lon = lon;
@@ -7666,22 +7772,22 @@ bool TFTView_320x240::savePins(void)
 {
     // Both of these used to be reachable only from the Maps app, i.e. long after the card was
     // mounted. An incoming shared waypoint can now call them at any point after boot, so they have
-    // to check the card is actually there first — same guard diagLog() already uses.
+    // to check the card is actually there first - same guard diagLog() already uses.
     if (!sdCard)
         return false;
     FsFile f = SDFs.open("/pins.csv", O_WRONLY | O_CREAT | O_TRUNC);
     if (!f)
         return false;
     char line[112];
-    // The Nodes-on-map switch rides along here rather than in the protobuf config — one line, and
+    // The Nodes-on-map switch rides along here rather than in the protobuf config - one line, and
     // the old parser already skips anything that doesn't start with "<number>|", so a file written
     // by this build still loads on a build that predates it.
     snprintf(line, sizeof(line), "#nodes|%u\n", showNodesOnUserMap ? 1u : 0u);
     f.print(line);
     // Where Maps opens with no GPS fix, and the last view it opens at. Same trick as #nodes: a
     // build that does not know the line skips it.
-    snprintf(line, sizeof(line), "#start|%u|%u|%.5f|%.5f|%u\n", (unsigned)mapsStartMode, mapsLastValid ? 1u : 0u,
-             mapsLastLat, mapsLastLon, (unsigned)mapsLastZoom);
+    snprintf(line, sizeof(line), "#start|%u|%u|%.5f|%.5f|%u\n", (unsigned)mapsStartMode, mapsLastValid ? 1u : 0u, mapsLastLat,
+             mapsLastLon, (unsigned)mapsLastZoom);
     f.print(line);
     for (auto &p : mapPins) {
         snprintf(line, sizeof(line), "%u|%.6f|%.6f|%u|%u|%s\n", (unsigned)p.id, p.lat, p.lon, (unsigned)p.color,
@@ -7690,7 +7796,7 @@ bool TFTView_320x240::savePins(void)
     }
     // Share state goes in its own "#share|" lines AFTER the pins, for two reasons: the loader has
     // to have the pin in hand before it can attach anything to it, and a build that predates
-    // sharing skips every "#" line it doesn't know — so this file still opens cleanly there
+    // sharing skips every "#" line it doesn't know - so this file still opens cleanly there
     // instead of losing all the pins.
     for (auto &p : mapPins) {
         if (p.shareKind == ePinNotShared && !p.fromNode)
@@ -7702,8 +7808,8 @@ bool TFTView_320x240::savePins(void)
     // Retractions still in flight. These outlive the pin they came from - a deleted shared pin
     // leaves one behind on purpose - so they are keyed by waypoint id and stand on their own.
     for (auto &r : pendingRetracts) {
-        snprintf(line, sizeof(line), "#retract|%u|%u|%u|%.6f|%.6f|%u|%u\n", (unsigned)r.wpId, (unsigned)r.kind,
-                 (unsigned)r.dest, r.lat, r.lon, (unsigned)r.giveUpAt, (unsigned)r.tries);
+        snprintf(line, sizeof(line), "#retract|%u|%u|%u|%.6f|%.6f|%u|%u\n", (unsigned)r.wpId, (unsigned)r.kind, (unsigned)r.dest,
+                 r.lat, r.lon, (unsigned)r.giveUpAt, (unsigned)r.tries);
         f.print(line);
     }
     f.sync(); // force the write + directory entry out to the card before we drop the handle
@@ -7782,14 +7888,13 @@ void TFTView_320x240::loadPins(void)
                 r.tries = (uint16_t)tries;
                 // A deadline written before the mesh handed us real time is meaningless now, so
                 // give it a fresh week rather than expiring it the instant it loads.
-                r.giveUpAt =
-                    (time_t)giveup > (time_t)1700000000 ? (time_t)giveup : curtime + (time_t)kRetractDays * 86400;
+                r.giveUpAt = (time_t)giveup > (time_t)1700000000 ? (time_t)giveup : curtime + (time_t)kRetractDays * 86400;
                 // Try again shortly after boot: a device that just came on is often a device that
                 // just went out, which is exactly when the missing node may be within reach again.
                 r.lastSend = curtime - (time_t)retractInterval(r.tries) + 120;
                 pendingRetracts.push_back(r);
             } else if (!strncmp(line, "#share|", 7)) {
-                // "#share|id|kind|dest|from|wpid" — written after every pin, so the pin exists.
+                // "#share|id|kind|dest|from|wpid" - written after every pin, so the pin exists.
                 char *e = line + 7;
                 unsigned sid = strtoul(e, &e, 10);
                 if (*e != '|')
@@ -7817,7 +7922,7 @@ void TFTView_320x240::loadPins(void)
         }
         // Parse "id|lat|lon|color|when|label" WITHOUT scanf %f. THE PINS BUG: on this
         // ESP32's newlib-nano, scanf's float conversion is compiled out, so sscanf("%f")
-        // silently failed and EVERY saved pin was dropped on load (the file was fine — the
+        // silently failed and EVERY saved pin was dropped on load (the file was fine - the
         // reader was broken). strtof/strtoul are unaffected.
         char *endp = line;
         unsigned id = strtoul(line, &endp, 10);
@@ -7869,7 +7974,7 @@ void TFTView_320x240::loadPins(void)
     diagLog(msg);
 }
 
-// Append a line to /diaglog.txt (SD). Persistent, survives reboots — our only
+// Append a line to /diaglog.txt (SD). Persistent, survives reboots - our only
 // log channel on a board where serial resets the chip.
 void TFTView_320x240::diagLog(const char *line)
 {
@@ -7884,8 +7989,14 @@ void TFTView_320x240::diagLog(const char *line)
     f.close();
 }
 #else
-bool TFTView_320x240::savePins(void) { return false; }
-void TFTView_320x240::loadPins(void) { pinsLoaded = true; }
+bool TFTView_320x240::savePins(void)
+{
+    return false;
+}
+void TFTView_320x240::loadPins(void)
+{
+    pinsLoaded = true;
+}
 void TFTView_320x240::diagLog(const char *) {}
 #endif
 
@@ -7910,7 +8021,7 @@ void TFTView_320x240::openPinsList(bool search)
     pins_overlay = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(pins_overlay);
     lv_obj_set_size(pins_overlay, 320, 240);
-    lv_obj_set_style_bg_color(pins_overlay, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(pins_overlay, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(pins_overlay, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(pins_overlay, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -7922,12 +8033,13 @@ void TFTView_320x240::openPinsList(bool search)
     lv_obj_t *closeBtn = lv_btn_create(pins_overlay);
     lv_obj_set_size(closeBtn, 62, 28);
     lv_obj_align(closeBtn, LV_ALIGN_TOP_RIGHT, -8, 6);
-    lv_obj_add_event_cb(closeBtn, [](lv_event_t *) { THIS->closePinsList(); }, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(
+        closeBtn, [](lv_event_t *) { THIS->closePinsList(); }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *cl = lv_label_create(closeBtn);
     lv_label_set_text(cl, "Close");
     lv_obj_center(cl);
 
-    // "Add pin" — closes this list, then the next tap on the map places the pin.
+    // "Add pin" - closes this list, then the next tap on the map places the pin.
     // This replaced holding the map: a hold has to be distinguished from a pan, so it
     // either fires while you're dragging or doesn't fire at all. Aiming a tap is
     // unambiguous, and you can see exactly where it's going.
@@ -7951,13 +8063,13 @@ void TFTView_320x240::openPinsList(bool search)
     lv_obj_t *al = lv_label_create(addBtn);
     lv_obj_set_style_text_font(al, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_label_set_text(al, "Add pin");
-    lv_obj_set_style_text_color(al, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_text_color(al, lv_color_hex(0x0b1220), LV_PART_MAIN);
 
     // Mesh nodes on/off. It lives here because this overlay is already "what gets drawn on my map",
     // and the top bar has no room left. Off by choice matters: on a busy mesh a few dozen rings will
     // bury the terrain the tiles were downloaded for.
     {
-        // Header row, in the gap between the "Pins" title and "Add pin" — the list body starts at
+        // Header row, in the gap between the "Pins" title and "Add pin" - the list body starts at
         // y=42, so anything lower would sit on top of it.
         lv_obj_t *nodesBtn = lv_btn_create(pins_overlay);
         lv_obj_set_size(nodesBtn, 92, 28);
@@ -7993,7 +8105,7 @@ void TFTView_320x240::openPinsList(bool search)
     // Dark, like everything else here. An unstyled lv_textarea is WHITE, which on this screen
     // looks like a rendering fault rather than a place to type. Seen on the device, not in a
     // build log.
-    lv_obj_set_style_bg_color(pins_search_ta, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(pins_search_ta, lv_color_hex(0x1b283c), LV_PART_MAIN);
     lv_obj_set_style_border_color(pins_search_ta, lv_color_hex(0x3a3a3c), LV_PART_MAIN);
     lv_obj_set_style_border_width(pins_search_ta, 1, LV_PART_MAIN);
     lv_obj_set_style_radius(pins_search_ta, 8, LV_PART_MAIN);
@@ -8291,9 +8403,7 @@ void TFTView_320x240::placeRow(lv_obj_t *list, int idx)
     lv_obj_set_style_bg_color(pin, lv_color_hex(0x3a3a3c), LV_PART_MAIN);
     lv_obj_add_event_cb(
         pin,
-        [](lv_event_t *e) {
-            lv_async_call([](void *ud) { THIS->pinPlace((int)(uintptr_t)ud); }, lv_event_get_user_data(e));
-        },
+        [](lv_event_t *e) { lv_async_call([](void *ud) { THIS->pinPlace((int)(uintptr_t)ud); }, lv_event_get_user_data(e)); },
         LV_EVENT_CLICKED, (void *)(uintptr_t)idx);
     lv_obj_t *pl = lv_label_create(pin);
     lv_label_set_text(pl, "Pin");
@@ -8375,7 +8485,7 @@ void TFTView_320x240::setFoundMarker(float lat, float lon, const char *name)
         lv_obj_set_style_bg_opa(found_marker, LV_OPA_TRANSP, LV_PART_MAIN);
         lv_obj_set_style_border_color(found_marker, lv_color_hex(0xffd60a), LV_PART_MAIN);
         lv_obj_set_style_border_width(found_marker, 4, LV_PART_MAIN);
-        lv_obj_set_style_outline_color(found_marker, lv_color_hex(0x000000), LV_PART_MAIN); // shows on pale tiles
+        lv_obj_set_style_outline_color(found_marker, lv_color_hex(0x0b1220), LV_PART_MAIN); // shows on pale tiles
         lv_obj_set_style_outline_width(found_marker, 1, LV_PART_MAIN);
         lv_obj_add_flag(found_marker, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(found_marker, LV_OBJ_FLAG_SCROLLABLE);
@@ -8411,7 +8521,8 @@ void TFTView_320x240::setFoundMarker(float lat, float lon, const char *name)
 // one point, tap another. A tap near a pin snaps to the pin, so pin-to-pin is just two taps on the
 // pins; anywhere else on the map works too. The line and its two dots are ordinary map objects, so
 // they follow panning and zooming like the pins do.
-namespace {
+namespace
+{
 void bearingDistance(double la1, double lo1, double la2, double lo2, double &meters, const char *&dir)
 {
     const double a = la1 * M_PI / 180.0, b = lo1 * M_PI / 180.0;
@@ -8481,7 +8592,7 @@ void TFTView_320x240::measureRedraw(void)
             lv_obj_set_style_radius(measure_dot[i], LV_RADIUS_CIRCLE, LV_PART_MAIN);
             lv_obj_set_style_bg_color(measure_dot[i], lv_color_hex(0xffd60a), LV_PART_MAIN);
             lv_obj_set_style_bg_opa(measure_dot[i], LV_OPA_COVER, LV_PART_MAIN);
-            lv_obj_set_style_border_color(measure_dot[i], lv_color_hex(0x000000), LV_PART_MAIN);
+            lv_obj_set_style_border_color(measure_dot[i], lv_color_hex(0x0b1220), LV_PART_MAIN);
             lv_obj_set_style_border_width(measure_dot[i], 2, LV_PART_MAIN);
             lv_obj_clear_flag(measure_dot[i], LV_OBJ_FLAG_CLICKABLE);
             lv_obj_clear_flag(measure_dot[i], LV_OBJ_FLAG_SCROLLABLE);
@@ -8494,8 +8605,7 @@ void TFTView_320x240::measureRedraw(void)
     for (int i = 0; i < pts; i++) {
         // geoToScreen fills in x/y even for a point off the edge (it only refuses absurd ones), so
         // the line still runs off the screen towards a far end you have panned away from.
-        known[i] = userMap->geoToScreen(i ? measBLat : measALat, i ? measBLon : measALon, x[i], y[i]) ||
-                   (x[i] || y[i]);
+        known[i] = userMap->geoToScreen(i ? measBLat : measALat, i ? measBLon : measALon, x[i], y[i]) || (x[i] || y[i]);
     }
     for (int i = 0; i < 2; i++) {
         const bool show = i < pts && known[i] && x[i] > -20 && x[i] < 340 && y[i] > -20 && y[i] < 230;
@@ -8535,7 +8645,7 @@ void TFTView_320x240::measureClear(void)
             lv_obj_add_flag(d, LV_OBJ_FLAG_HIDDEN);
     measureShowText();
     if (maps_measure_btn)
-        lv_obj_set_style_bg_color(maps_measure_btn, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(maps_measure_btn, lv_color_hex(0x30415a), LV_PART_MAIN);
 }
 
 // The ruler button: start measuring, or put the ruler away.
@@ -8631,13 +8741,15 @@ void TFTView_320x240::rebuildPinRows(void)
 
     if (mapPins.empty() && !filtering) {
         lv_obj_t *empty = lv_label_create(list);
-        lv_label_set_text(empty, "No pins yet.\nTap Add pin, then tap the map.\n\nThe box above finds towns, lakes, peaks\nand your nodes too.");
+        lv_label_set_text(
+            empty,
+            "No pins yet.\nTap Add pin, then tap the map.\n\nThe box above finds towns, lakes, peaks\nand your nodes too.");
         lv_obj_set_style_text_color(empty, lv_color_hex(0x8e8e93), LV_PART_MAIN);
         return;
     }
 
     // A-Z by name, which is the one ordering Jake asked for. Sorted by pointer so the pins vector
-    // itself keeps its id order — everything else (findPin, the file, the map ids) leans on that.
+    // itself keeps its id order - everything else (findPin, the file, the map ids) leans on that.
     std::vector<MapPin *> sorted;
     sorted.reserve(mapPins.size());
     for (auto &p : mapPins)
@@ -8662,7 +8774,7 @@ void TFTView_320x240::rebuildPinRows(void)
         lv_obj_t *row = lv_obj_create(list);
         lv_obj_remove_style_all(row);
         lv_obj_set_size(row, 302, 74); // share line, then the coordinates line, under the buttons
-        lv_obj_set_style_bg_color(row, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(row, lv_color_hex(0x1b283c), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_set_style_radius(row, 8, LV_PART_MAIN);
         lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
@@ -8696,7 +8808,7 @@ void TFTView_320x240::rebuildPinRows(void)
         // Jake, 2026-08-26: sharing is a button now, sitting right after the name, and it flips to
         // Unshare once the pin is out there. The line underneath went back to just reporting the
         // state, because two things you can tap that do the same job is one thing too many.
-        // Somebody else's pin gets no button at all — it isn't mine to hand around.
+        // Somebody else's pin gets no button at all - it isn't mine to hand around.
         if (mine) {
             lv_obj_t *shr = lv_btn_create(row);
             lv_obj_set_size(shr, 56, 28);
@@ -8713,8 +8825,7 @@ void TFTView_320x240::rebuildPinRows(void)
                         lv_async_call([](void *ud) { THIS->openPinConfirm((uint32_t)(uintptr_t)ud, ePinNotShared, 0); },
                                       (void *)(uintptr_t)id);
                     else
-                        lv_async_call([](void *ud) { THIS->openSharePicker((uint32_t)(uintptr_t)ud); },
-                                      (void *)(uintptr_t)id);
+                        lv_async_call([](void *ud) { THIS->openSharePicker((uint32_t)(uintptr_t)ud); }, (void *)(uintptr_t)id);
                 },
                 LV_EVENT_CLICKED, (void *)(uintptr_t)p.id);
             lv_obj_t *sl = lv_label_create(shr);
@@ -8723,7 +8834,7 @@ void TFTView_320x240::rebuildPinRows(void)
             lv_obj_center(sl);
         }
 
-        // Name (rename), Go (center map), Del — the rest of the top row, right of Share.
+        // Name (rename), Go (center map), Del - the rest of the top row, right of Share.
         lv_obj_t *ren = lv_btn_create(row);
         lv_obj_set_size(ren, 40, 28);
         lv_obj_align(ren, LV_ALIGN_TOP_LEFT, 172, 2);
@@ -8772,7 +8883,7 @@ void TFTView_320x240::rebuildPinRows(void)
         lv_obj_center(dl);
 
         // The share line. Full width, plain English, and purely a readout now that the Share
-        // button above does the acting — Jake liked the sentence, so it stays; it just no longer
+        // button above does the acting - Jake liked the sentence, so it stays; it just no longer
         // pretends to be a control. Somebody else's pin reads "From <them>".
         char status[80];
         pinShareText(p, status, sizeof(status));
@@ -8913,13 +9024,18 @@ void TFTView_320x240::rebuildPinRows(void)
         // place names on it, and those need opposite things from you.
         char msg[200];
         if (strlen(pinFilter) < 2)
-            snprintf(msg, sizeof(msg), "No pin or node called \"%s\".\nType 2 letters or more to search\ntowns, lakes and peaks too.", pinFilter);
+            snprintf(msg, sizeof(msg),
+                     "No pin or node called \"%s\".\nType 2 letters or more to search\ntowns, lakes and peaks too.", pinFilter);
         else if (!placeInfo.files)
-            snprintf(msg, sizeof(msg), "Nothing called \"%s\".\n\nNo place names on this card yet:\nGear > Place names for search.", pinFilter);
+            snprintf(msg, sizeof(msg),
+                     "Nothing called \"%s\".\n\nNo place names on this card yet:\nGear > Place names for search.", pinFilter);
         else if (!placeInfo.haveHere && strlen(pinFilter) >= 3)
-            snprintf(msg, sizeof(msg), "Nothing called \"%s\" nearby.\n\nThis area's names are not on the\ncard: Gear > Place names for search.", pinFilter);
+            snprintf(msg, sizeof(msg),
+                     "Nothing called \"%s\" nearby.\n\nThis area's names are not on the\ncard: Gear > Place names for search.",
+                     pinFilter);
         else
-            snprintf(msg, sizeof(msg), "Nothing called \"%s\" near here.\nSearches look around the map's\ncentre - pan there first.", pinFilter);
+            snprintf(msg, sizeof(msg),
+                     "Nothing called \"%s\" near here.\nSearches look around the map's\ncentre - pan there first.", pinFilter);
         lv_obj_t *none = lv_label_create(list);
         lv_label_set_text(none, msg);
         lv_obj_set_style_text_color(none, lv_color_hex(0x8e8e93), LV_PART_MAIN);
@@ -8970,7 +9086,7 @@ void TFTView_320x240::openSharePicker(uint32_t id)
     share_overlay = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(share_overlay);
     lv_obj_set_size(share_overlay, 320, 240);
-    lv_obj_set_style_bg_color(share_overlay, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(share_overlay, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(share_overlay, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(share_overlay, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -9011,12 +9127,12 @@ void TFTView_320x240::openSharePicker(uint32_t id)
     auto addChoice = [&](const char *text, const char *sub, uint32_t packed, uint32_t accent) {
         lv_obj_t *row = lv_btn_create(list);
         lv_obj_set_size(row, 302, sub ? 42 : 34);
-        lv_obj_set_style_bg_color(row, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(row, lv_color_hex(0x1b283c), LV_PART_MAIN);
         lv_obj_set_style_radius(row, 8, LV_PART_MAIN);
         lv_obj_add_event_cb(
             row,
             [](lv_event_t *e) {
-                // Picking a destination no longer sends anything on its own — it asks first.
+                // Picking a destination no longer sends anything on its own - it asks first.
                 uint32_t packed = (uint32_t)(uintptr_t)lv_event_get_user_data(e);
                 uint32_t pinId = THIS->sharing_pin_id;
                 if (packed & 0x80000000u)
@@ -9075,7 +9191,7 @@ void TFTView_320x240::openSharePicker(uint32_t id)
 // ---- "Are you sure?" ------------------------------------------------------------------------
 // Jake, 2026-08-26: "maybe a prompt after clicking a channel to share to... same when clicking the
 // unshare button." Both directions get one. Sharing puts a place he cares about in front of other
-// people, and unsharing is a *request* the mesh cannot be forced to honour — anybody out of range
+// people, and unsharing is a *request* the mesh cannot be forced to honour - anybody out of range
 // when it goes out keeps their copy. Neither belongs to a stray brush of the screen.
 void TFTView_320x240::closePinConfirm(void)
 {
@@ -9097,13 +9213,14 @@ void TFTView_320x240::openPinConfirm(uint32_t id, uint8_t kind, uint32_t dest)
 
     // Unsharing reads who it is going out to off the pin; sharing reads it off the tapped row.
     bool unshare = (kind == ePinNotShared);
-    const char *who = unshare ? (p->shareKind == ePinSharedToChannel ? pinChannelName((uint8_t)p->shareDest)
-                                                                    : pinNodeName(p->shareDest))
-                              : (kind == ePinSharedToChannel ? pinChannelName((uint8_t)dest) : pinNodeName(dest));
+    const char *who =
+        unshare ? (p->shareKind == ePinSharedToChannel ? pinChannelName((uint8_t)p->shareDest) : pinNodeName(p->shareDest))
+                : (kind == ePinSharedToChannel ? pinChannelName((uint8_t)dest) : pinNodeName(dest));
 
     char body[144];
     if (unshare)
-        snprintf(body, sizeof(body), "Asks %s to drop it. Keeps asking for a week - if they never come back in range, they keep it.", who);
+        snprintf(body, sizeof(body),
+                 "Asks %s to drop it. Keeps asking for a week - if they never come back in range, they keep it.", who);
     else if (kind == ePinSharedToChannel)
         snprintf(body, sizeof(body), "\"%s\" goes out to everyone on %s.", p->label, who);
     else
@@ -9113,7 +9230,7 @@ void TFTView_320x240::openPinConfirm(uint32_t id, uint8_t kind, uint32_t dest)
     confirm_overlay = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(confirm_overlay);
     lv_obj_set_size(confirm_overlay, 320, 240);
-    lv_obj_set_style_bg_color(confirm_overlay, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(confirm_overlay, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(confirm_overlay, LV_OPA_70, LV_PART_MAIN);
     lv_obj_clear_flag(confirm_overlay, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(confirm_overlay, LV_OBJ_FLAG_CLICKABLE);
@@ -9122,7 +9239,7 @@ void TFTView_320x240::openPinConfirm(uint32_t id, uint8_t kind, uint32_t dest)
     lv_obj_remove_style_all(card);
     lv_obj_set_size(card, 280, 140);
     lv_obj_center(card);
-    lv_obj_set_style_bg_color(card, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(card, lv_color_hex(0x1b283c), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(card, 10, LV_PART_MAIN);
     lv_obj_set_style_border_color(card, lv_color_hex(0x3a3a3c), LV_PART_MAIN);
@@ -9147,7 +9264,8 @@ void TFTView_320x240::openPinConfirm(uint32_t id, uint8_t kind, uint32_t dest)
     lv_obj_set_size(cancel, 120, 34);
     lv_obj_align(cancel, LV_ALIGN_BOTTOM_LEFT, 12, -12);
     lv_obj_set_style_bg_color(cancel, lv_color_hex(0x3a3a3c), LV_PART_MAIN);
-    lv_obj_add_event_cb(cancel, [](lv_event_t *) { THIS->closePinConfirm(); }, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(
+        cancel, [](lv_event_t *) { THIS->closePinConfirm(); }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *cl = lv_label_create(cancel);
     lv_label_set_text(cl, "Cancel");
     lv_obj_center(cl);
@@ -9176,14 +9294,14 @@ void TFTView_320x240::openPinConfirm(uint32_t id, uint8_t kind, uint32_t dest)
     lv_obj_center(okl);
 }
 
-// Full-screen, readable memory/crash readout — the "hard to see the numbers" fix.
+// Full-screen, readable memory/crash readout - the "hard to see the numbers" fix.
 // Opened by tapping the top-bar readout. Tap anywhere to close.
 void TFTView_320x240::showDiagnostics(void)
 {
     lv_obj_t *ov = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(ov);
     lv_obj_set_size(ov, 320, 240);
-    lv_obj_set_style_bg_color(ov, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ov, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(ov, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(ov, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(ov, LV_OBJ_FLAG_CLICKABLE);
@@ -9242,8 +9360,7 @@ void TFTView_320x240::logDiagBoot(void)
     char when[80];
     tdeck_prev_when(when, sizeof(when)); // uptime, last-seen time and firmware of the run that died
     if (tdeck_prev_stall_ms())
-        snprintf(line, sizeof(line),
-                 "restart=%s  stalled_in=%s  stalled_for=%lus  spilock=[%s]  psram_low=%luk  ram_low=%luk %s",
+        snprintf(line, sizeof(line), "restart=%s  stalled_in=%s  stalled_for=%lus  spilock=[%s]  psram_low=%luk  ram_low=%luk %s",
                  tdeck_prev_reason_str(), tdeck_prev_stall_thread(), (unsigned long)(tdeck_prev_stall_ms() / 1000),
                  tdeck_prev_stall_lock(), (unsigned long)(tdeck_prev_psram_low() / 1024),
                  (unsigned long)(tdeck_prev_heap_low() / 1024), when);
@@ -9281,7 +9398,7 @@ void TFTView_320x240::closeRenamePin(void)
 
 // Focus a textarea for the T-Deck's PHYSICAL keyboard and keep it focused. The trackball's
 // encoder can wander the LVGL focus, so a light guard timer re-grabs it. This is the same
-// proven pattern the WiFi entry + Notes editor use — no on-screen (virtual) keyboard.
+// proven pattern the WiFi entry + Notes editor use - no on-screen (virtual) keyboard.
 void TFTView_320x240::beginTextEntry(lv_obj_t *ta)
 {
     // ⚠️ endTextEntry() FIRST. It clears text_entry_ta as well as deleting the timer, so
@@ -9327,7 +9444,7 @@ void TFTView_320x240::openRenamePin(uint32_t id)
     rename_overlay = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(rename_overlay);
     lv_obj_set_size(rename_overlay, 320, 240);
-    lv_obj_set_style_bg_color(rename_overlay, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(rename_overlay, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(rename_overlay, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(rename_overlay, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -9527,7 +9644,7 @@ bool volRename(bool onSd, const char *from, const char *to)
 // against ever operating on the volume root, so a stray call can't wipe the card.
 bool volRemoveTree(bool onSd, const char *path, int depth)
 {
-    if (depth > 6)                                 // real folders here are 1-2 deep; cap runaway
+    if (depth > 6) // real folders here are 1-2 deep; cap runaway
         return false;
     if (!path || !path[0] || strcmp(path, "/") == 0)
         return false;
@@ -9623,7 +9740,7 @@ void readTrashNote(bool onSd, const char *trashName, char *out, size_t cap)
 } // namespace
 
 // Free space, measured at most ONCE per volume and then cached. SdFat's freeBytes()
-// walks the card's entire allocation table — several seconds on a large card — and it
+// walks the card's entire allocation table - several seconds on a large card - and it
 // was being called on every navigation, which made the whole browser feel broken.
 // The cache is invalidated only by operations that change usage (paste, delete forever).
 uint64_t TFTView_320x240::filesFreeBytes(bool onSd)
@@ -9631,8 +9748,7 @@ uint64_t TFTView_320x240::filesFreeBytes(bool onSd)
 #if defined(HAS_SDCARD) && !defined(HAS_SD_MMC) && !defined(ARCH_PORTDUINO)
     int i = onSd ? 0 : 1;
     if (!filesFreeKnown[i]) {
-        filesFreeCache[i] = onSd ? (sdCard ? sdCard->freeBytes() : 0)
-                                 : (uint64_t)(LittleFS.totalBytes() - LittleFS.usedBytes());
+        filesFreeCache[i] = onSd ? (sdCard ? sdCard->freeBytes() : 0) : (uint64_t)(LittleFS.totalBytes() - LittleFS.usedBytes());
         filesFreeKnown[i] = true;
     }
     return filesFreeCache[i];
@@ -9646,7 +9762,7 @@ void TFTView_320x240::openFiles(void)
     if (!files_screen) {
         files_screen = lv_obj_create(NULL);
         tui_statusbar_reserve(files_screen); // 20px of top padding moves every child down
-        lv_obj_set_style_bg_color(files_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(files_screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
         lv_obj_clear_flag(files_screen, LV_OBJ_FLAG_SCROLLABLE);
 
         lv_obj_t *title = lv_label_create(files_screen);
@@ -9743,11 +9859,11 @@ void TFTView_320x240::openFiles(void)
             [](lv_event_t *e) {
                 if (!THIS->filesSelName[0])
                     return;
-                if (THIS->filesVol != VOL_TRASH) { // recoverable — no confirmation needed
+                if (THIS->filesVol != VOL_TRASH) { // recoverable - no confirmation needed
                     THIS->filesTrashSelected();
                     return;
                 }
-                if (!THIS->filesDelConfirm) { // permanent — ask once
+                if (!THIS->filesDelConfirm) { // permanent - ask once
                     THIS->filesDelConfirm = true;
                     lv_label_set_text(THIS->files_del_lbl, "Sure?");
                     lv_obj_set_style_bg_color(THIS->files_del_btn, lv_color_hex(0x8b1a12), LV_PART_MAIN);
@@ -9760,7 +9876,7 @@ void TFTView_320x240::openFiles(void)
         lv_label_set_text(files_del_lbl, "Trash");
         lv_obj_center(files_del_lbl);
 
-        // X — cancel a pending copy
+        // X - cancel a pending copy
         files_cancel_btn = lv_btn_create(files_screen);
         lv_obj_set_size(files_cancel_btn, 30, 30);
         lv_obj_align(files_cancel_btn, LV_ALIGN_BOTTOM_RIGHT, -2, -4);
@@ -9778,7 +9894,7 @@ void TFTView_320x240::openFiles(void)
         lv_label_set_text(xLbl, "X");
         lv_obj_center(xLbl);
 
-        // + Folder — make a new folder here (only shown when nothing is selected)
+        // + Folder - make a new folder here (only shown when nothing is selected)
         files_newfolder_btn = lv_btn_create(files_screen);
         lv_obj_set_size(files_newfolder_btn, 100, 30);
         lv_obj_align(files_newfolder_btn, LV_ALIGN_BOTTOM_RIGHT, -2, -4);
@@ -9831,7 +9947,7 @@ void TFTView_320x240::filesUpdateActionBar(void)
         lv_obj_add_flag(files_del_btn, LV_OBJ_FLAG_HIDDEN);
     } else if (filesSelName[0]) { // a file or folder is selected
         if (filesSelIsDir) {
-            // no single-file Copy for a folder — just offer Trash
+            // no single-file Copy for a folder - just offer Trash
             lv_obj_add_flag(files_copy_btn, LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_obj_clear_flag(files_copy_btn, LV_OBJ_FLAG_HIDDEN);
@@ -9846,7 +9962,7 @@ void TFTView_320x240::filesUpdateActionBar(void)
         lv_obj_add_flag(files_copy_btn, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(files_cancel_btn, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(files_del_btn, LV_OBJ_FLAG_HIDDEN);
-        // idle inside a real volume — offer to make a new folder here
+        // idle inside a real volume - offer to make a new folder here
         if (filesVol == VOL_SD || filesVol == VOL_FLASH)
             lv_obj_clear_flag(files_newfolder_btn, LV_OBJ_FLAG_HIDDEN);
     }
@@ -9863,7 +9979,7 @@ void TFTView_320x240::filesCopyNow(void)
     // for the duration of the copy instead, and handed straight back.
     uint8_t *copyBuf = (uint8_t *)heap_caps_malloc(4096, MALLOC_CAP_SPIRAM);
     if (!copyBuf)
-        return; // stays armed, same as the other early exits below
+        return;           // stays armed, same as the other early exits below
     struct CopyBufGuard { // freed however this function leaves, including the early returns below
         uint8_t *p;
         ~CopyBufGuard() { heap_caps_free(p); }
@@ -9883,7 +9999,7 @@ void TFTView_320x240::filesCopyNow(void)
     }
     if (volExists(dstSd, dst)) {
         messageAlert(_("A file with this name is already here"), true);
-        return; // stays armed — paste somewhere else or cancel
+        return; // stays armed - paste somewhere else or cancel
     }
 
     VolFile src;
@@ -9897,7 +10013,7 @@ void TFTView_320x240::filesCopyNow(void)
         messageAlert(_("File too big to copy on-device"), true);
         return;
     }
-    // destination must have room (flash especially — it holds device data)
+    // destination must have room (flash especially - it holds device data)
     uint64_t freeBytes = filesFreeBytes(dstSd);
     if (total + 4096 > freeBytes) {
         src.close();
@@ -9930,14 +10046,14 @@ void TFTView_320x240::filesCopyNow(void)
     }
     filesCopyArmed = false;
     copySrcPath[0] = 0;
-    filesFreeKnown[dstSd ? 0 : 1] = false; // usage changed — re-measure lazily
+    filesFreeKnown[dstSd ? 0 : 1] = false; // usage changed - re-measure lazily
     filesRefresh();                        // the new file appears in the listing
 #else
     messageAlert(_("No storage support in this build"), true);
 #endif
 }
 
-// Move the selected file into its volume's /.trash (a rename — instant, no data copied),
+// Move the selected file into its volume's /.trash (a rename - instant, no data copied),
 // leaving a note with its original path so Restore can undo it.
 void TFTView_320x240::filesTrashSelected(void)
 {
@@ -9970,7 +10086,7 @@ void TFTView_320x240::filesTrashSelected(void)
     }
     writeTrashNote(onSd, trashName, src);
 
-    // if this file was armed as a copy source, the source is gone — disarm
+    // if this file was armed as a copy source, the source is gone - disarm
     if (filesCopyArmed && copySrcVol == filesVol && strcmp(copySrcPath, src) == 0) {
         filesCopyArmed = false;
         copySrcPath[0] = 0;
@@ -9991,7 +10107,7 @@ void TFTView_320x240::filesRestoreSelected(void)
     char src[280], dest[256];
     snprintf(src, sizeof(src), "/.trash/%s", name);
     readTrashNote(onSd, name, dest, sizeof(dest));
-    if (!dest[0]) // note missing — restore to the volume root, minus any ~N suffix
+    if (!dest[0]) // note missing - restore to the volume root, minus any ~N suffix
         snprintf(dest, sizeof(dest), "/%s", name);
 
     if (volExists(onSd, dest)) {
@@ -10026,7 +10142,7 @@ void TFTView_320x240::filesDeleteForever(void)
         volRemove(onSd, path);
     trashNotePath(path, sizeof(path), name);
     volRemove(onSd, path);
-    filesFreeKnown[onSd ? 0 : 1] = false; // usage changed — re-measure lazily
+    filesFreeKnown[onSd ? 0 : 1] = false; // usage changed - re-measure lazily
     filesRefresh();
 #endif
 }
@@ -10038,7 +10154,7 @@ void TFTView_320x240::filesNewFolderCreate(const char *name)
     if (!name || (filesVol != VOL_SD && filesVol != VOL_FLASH))
         return;
 
-    // keep it to a single, clean folder name — no path separators or line breaks
+    // keep it to a single, clean folder name - no path separators or line breaks
     char clean[40];
     int j = 0;
     for (const char *c = name; *c && j < (int)sizeof(clean) - 1; c++)
@@ -10085,7 +10201,7 @@ void TFTView_320x240::filesNewFolderPrompt(void)
     files_newfolder_ovl = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(files_newfolder_ovl);
     lv_obj_set_size(files_newfolder_ovl, 320, 240);
-    lv_obj_set_style_bg_color(files_newfolder_ovl, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(files_newfolder_ovl, lv_color_hex(0x0b1220), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(files_newfolder_ovl, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_clear_flag(files_newfolder_ovl, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -10186,7 +10302,7 @@ void TFTView_320x240::filesRefresh(void)
 
         if (sdCard) {
             fmtBytes(filesFreeBytes(true), freeBuf, sizeof(freeBuf));
-            snprintf(line, sizeof(line), "SD card  —  %s free", freeBuf);
+            snprintf(line, sizeof(line), "SD card  -  %s free", freeBuf);
             lv_obj_t *btn = lv_list_add_button(files_list, LV_SYMBOL_SD_CARD, line);
             filesStyleRow(btn, 0x0a84ff);
             lv_obj_add_event_cb(btn, pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)VOL_SD);
@@ -10195,7 +10311,7 @@ void TFTView_320x240::filesRefresh(void)
         }
 
         fmtBytes(filesFreeBytes(false), freeBuf, sizeof(freeBuf));
-        snprintf(line, sizeof(line), "T-Deck memory  —  %s free", freeBuf);
+        snprintf(line, sizeof(line), "T-Deck memory  -  %s free", freeBuf);
         lv_obj_t *btn = lv_list_add_button(files_list, LV_SYMBOL_SAVE, line);
         filesStyleRow(btn, 0x30d158);
         lv_obj_add_event_cb(btn, pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)VOL_FLASH);
@@ -10309,7 +10425,7 @@ void TFTView_320x240::filesRefresh(void)
     lv_label_set_text(files_free_label, line);
 
     // entry tap: folders descend; a file becomes the highlighted selection.
-    // (a long-press selected the row instead — swallow the release-click that follows)
+    // (a long-press selected the row instead - swallow the release-click that follows)
     auto entry_cb = [](lv_event_t *e) {
         if (THIS->filesSuppressClick) {
             THIS->filesSuppressClick = false;
@@ -10319,7 +10435,7 @@ void TFTView_320x240::filesRefresh(void)
         const char *name = THIS->filesNames[idx];
         if (name[0] == '/') { // '/' prefix marks a folder
             if (strlen(THIS->filesPath) + strlen(name) >= sizeof(THIS->filesPath) - 1)
-                return; // path would overflow — stay put
+                return; // path would overflow - stay put
             if (strcmp(THIS->filesPath, "/") != 0)
                 strcat(THIS->filesPath, name);
             else
@@ -10347,7 +10463,7 @@ void TFTView_320x240::filesRefresh(void)
         THIS->filesUpdateActionBar();
     };
 
-    // long-press any row to select it (needed for folders — a plain tap just opens them).
+    // long-press any row to select it (needed for folders - a plain tap just opens them).
     // Files can be long-pressed too; it selects them just like a tap.
     auto entry_long_cb = [](lv_event_t *e) {
         intptr_t idx = (intptr_t)lv_event_get_user_data(e);
@@ -10473,11 +10589,13 @@ void TFTView_320x240::filesRefresh(void)
 // -----------------------------------------------------------------------------
 void TFTView_320x240::handleHomeGesture(void)
 {
+    if (ControlCenter::close())
+        return;
     // A pins overlay (from the Maps app) must never linger over the launcher.
     if (pins_overlay)
         closePinsList();
 
-    // FIRST, handle the screen being dark/gated — no matter WHY it went dark (manual lock,
+    // FIRST, handle the screen being dark/gated - no matter WHY it went dark (manual lock,
     // idle timeout, and in any app). This is the single, deterministic wake path: relight,
     // and if a real PIN is set, always show the pad. Previously the "idle timeout" case was
     // decided separately from the "manual lock" case, which let some apps wake straight to
@@ -10500,7 +10618,7 @@ void TFTView_320x240::handleHomeGesture(void)
         // restarts its search, so it would stay dark until the Settings switch was toggled.
         tdeck_gps_kick();
         // A code is always in effect (built-in default 1234 until the user sets their own), so
-        // any wake — a deliberate lock OR an idle timeout, in any app — stops here. This is
+        // any wake - a deliberate lock OR an idle timeout, in any app - stops here. This is
         // the single, deterministic wake path.
         // Waking shows the GLANCE - time, battery, who has messaged, slide to unlock.
         // The keypad comes after the slide and only in PIN mode (see lockGlanceUnlocked).
@@ -10517,7 +10635,7 @@ void TFTView_320x240::handleHomeGesture(void)
     }
 
     // Screen is already lit and the PIN pad is up. A double-click here must NOT re-lock the
-    // screen — doing that turned an impatient double-tap into an on/off toggle that felt like
+    // screen - doing that turned an impatient double-tap into an on/off toggle that felt like
     // "it took 6 taps to unlock". Instead just clear any half-typed digits so it's a fresh
     // start. The pad is left up; Jake unlocks by entering the PIN.
     if (lockState == LOCK_ENTRY) {
@@ -10535,7 +10653,7 @@ void TFTView_320x240::handleHomeGesture(void)
         return;
     }
 
-    // Lit but flagged locked-dark (shouldn't normally happen once the gate is cleared) —
+    // Lit but flagged locked-dark (shouldn't normally happen once the gate is cleared) -
     // show the pad rather than getting stuck.
     if (lockState == LOCK_DARK) {
         lv_display_trigger_activity(NULL);
@@ -10547,7 +10665,7 @@ void TFTView_320x240::handleHomeGesture(void)
     lv_display_trigger_activity(NULL);
     if (launcher_screen && lv_screen_active() == launcher_screen) {
         // Double-click on Home always sleeps the screen. Whether waking then asks for the PIN
-        // is decided on the wake path by effectiveLockPin() — so with the lock off this still
+        // is decided on the wake path by effectiveLockPin() - so with the lock off this still
         // sleeps, it just wakes straight to Home instead of to the pad.
         lockDevice();
     } else if (launcher_screen) {
@@ -10556,14 +10674,16 @@ void TFTView_320x240::handleHomeGesture(void)
 }
 
 // -----------------------------------------------------------------------------
-// The "erase" key as Back. Steps OUT of whatever is in front of you — the overlay if
-// there is one, otherwise the app/screen you're in — and stops at Home. On Home a single
-// Back does nothing (nothing to go back to), but a DOUBLE Back sleeps the device — the same
+// The "erase" key as Back. Steps OUT of whatever is in front of you - the overlay if
+// there is one, otherwise the app/screen you're in - and stops at Home. On Home a single
+// Back does nothing (nothing to go back to), but a DOUBLE Back sleeps the device - the same
 // as a trackball double-click, for stiff trackballs. The double requirement keeps a stray
 // backspace from making the T-Deck look like it died.
 // -----------------------------------------------------------------------------
 void TFTView_320x240::handleBackGesture(void)
 {
+    if (ControlCenter::close())
+        return;
     // The lock is not something Back gets to dismiss. While the screen is dark a keypress
     // is already a wake request (see the keyboard driver), handled on the gesture path.
     if (lockState != LOCK_NONE || tdeck_input_gated || tdeck_hold_dark)
@@ -10588,7 +10708,7 @@ void TFTView_320x240::handleBackGesture(void)
     }
     // On Home: a DOUBLE Back within 700ms sleeps the device (same as the trackball
     // double-click). Jake asked for a 1.5s hold, but the T-Deck keyboard reports each key just
-    // once with no auto-repeat, so a timed hold can't be detected — a double-tap is the
+    // once with no auto-repeat, so a timed hold can't be detected - a double-tap is the
     // reliable equivalent, and needing two presses stops a stray erase from sleeping it.
     if (launcher_screen && lv_screen_active() == launcher_screen) {
         static uint32_t lastBackHome = 0;
@@ -10629,8 +10749,8 @@ void TFTView_320x240::serviceBattLog(void)
     const int state = tdeck_hold_dark ? 0 : (stayOnSinceMs ? 1 : (tdeck_input_gated ? 0 : 2));
 
     char line[96];
-    snprintf(line, sizeof(line), "%lu,%d,%d,%d,%d,%d,%d,%lu", (unsigned long)(now / 1000), mv, pct, usb, chg,
-             state, (int)tdeck_dim_floor, (unsigned long)db.uiConfig.screen_brightness);
+    snprintf(line, sizeof(line), "%lu,%d,%d,%d,%d,%d,%d,%lu", (unsigned long)(now / 1000), mv, pct, usb, chg, state,
+             (int)tdeck_dim_floor, (unsigned long)db.uiConfig.screen_brightness);
 
     tdeck_tft_where = "sd-battlog";
     FsFile f = SDFs.open("/battlog.csv", O_WRONLY | O_CREAT | O_APPEND);
@@ -10799,8 +10919,8 @@ void TFTView_320x240::rememberScreenBeforeLock(void)
     // ⚠️ And I could not reproduce it because my testing always opened an app first, which
     // overwrote the capture before I looked. It needed a FRESH BOOT then an unlock - the one
     // sequence a person does every morning and a test script never did.
-    const bool notWorthIt = !cur || cur == lockpad_screen || cur == lockglance_screen ||
-                            cur == objects.boot_screen || cur == objects.blank_screen;
+    const bool notWorthIt =
+        !cur || cur == lockpad_screen || cur == lockglance_screen || cur == objects.boot_screen || cur == objects.blank_screen;
     if (!notWorthIt) {
         preLockScreen = cur;
         ILOG_INFO("lock: remembered screen %p (launcher=%p)", (void *)cur, (void *)launcher_screen);
@@ -10846,6 +10966,7 @@ void TFTView_320x240::restoreAfterUnlock(void)
 
 void TFTView_320x240::lockDevice(void)
 {
+    ControlCenter::close();
     // Remember where we were, BEFORE any lock screen replaces it. Guarded on "not already a lock
     // screen" because this is also called from the PIN pad's own idle timeout to drop back to
     // black - and letting that overwrite the answer with "the lock screen" is how the feature
@@ -10916,7 +11037,7 @@ uint32_t TFTView_320x240::effectiveLockPin(void)
     // disables the whole lock cleanly. Default is ON, so untouched devices are unchanged.
     if (!tdeck_lock_enabled())
         return 0;
-    // The PIN is stored as a NUMBER, and 0 doubles as "no PIN set" — so 0000 can never act as a
+    // The PIN is stored as a NUMBER, and 0 doubles as "no PIN set" - so 0000 can never act as a
     // real lock (indistinguishable from unset, and unset used to mean "open"). We therefore use
     // 1234 as the built-in default: an unset device locks with 1234, which the user can change
     // to their own code in Settings. (Someone who explicitly picks 0000 just gets 1234 too.)
@@ -11062,8 +11183,7 @@ void TFTView_320x240::startScreenshotCountdown(void)
                             return;
                         const char *p = tdeck_shot_last_path();
                         if (tdeck_shot_failed() || !p || !p[0])
-                            lv_label_set_text(THIS->shot_hint_label,
-                                              "Could not save the screenshot. Is the card in?");
+                            lv_label_set_text(THIS->shot_hint_label, "Could not save the screenshot. Is the card in?");
                         else {
                             static char msg[80];
                             snprintf(msg, sizeof(msg), "Saved %s", p);
@@ -11220,19 +11340,29 @@ void TFTView_320x240::remoteService(void)
     case 5: { // info
         lv_obj_t *scr = lv_screen_active();
         const char *name = "?";
-        if (scr == THIS->launcher_screen) name = "launcher";
-        else if (scr == objects.main_screen) name = "mesh";
-        else if (scr == THIS->lockglance_screen) name = "lock-glance";
-        else if (scr == THIS->lockpad_screen) name = "lock-pad";
-        else if (scr == THIS->settings_screen) name = "settings";
-        else if (scr == THIS->maps_screen) name = "maps";
-        else if (scr == THIS->lockpage_screen) name = "lock-settings";
+        if (scr == THIS->launcher_screen)
+            name = "launcher";
+        else if (scr == objects.main_screen)
+            name = "mesh";
+        else if (scr == THIS->lockglance_screen)
+            name = "lock-glance";
+        else if (scr == THIS->lockpad_screen)
+            name = "lock-pad";
+        else if (scr == THIS->settings_screen)
+            name = "settings";
+        else if (scr == THIS->maps_screen)
+            name = "maps";
+        else if (scr == THIS->lockpage_screen)
+            name = "lock-settings";
         // Overlays live on the top LAYER rather than being screens of their own, so the
         // active screen is still whatever is behind them. The sweep needs to know which one
         // it is actually looking at, so say so.
-        else if (THIS->pins_overlay) name = "pins";
-        else if (THIS->rename_overlay) name = "rename";
-        else if (THIS->share_overlay) name = "share-picker";
+        else if (THIS->pins_overlay)
+            name = "pins";
+        else if (THIS->rename_overlay)
+            name = "rename";
+        else if (THIS->share_overlay)
+            name = "share-picker";
         // Free INTERNAL heap rides along: it is the number that predicts a crash on this
         // device, and I want to see it before asking for a screenshot, not after.
         // ⭐ WHY IT LAST RESTARTED, on every @@info. Jake's colour deck reboots when he types his
@@ -11248,15 +11378,14 @@ void TFTView_320x240::remoteService(void)
         // safe to walk while LVGL is allocating from it on another.
         lv_mem_monitor_t lvm;
         lv_mem_monitor(&lvm);
-        snprintf(buf, sizeof(buf),
-                 "info screen=%s uptime=%lus lock=%d heap=%uk lastreset=%s lvfree=%uk lvbig=%uk lvfrag=%u%%", name,
-                 (unsigned long)(lv_tick_get() / 1000), (int)THIS->lockState,
+        snprintf(buf, sizeof(buf), "info screen=%s uptime=%lus lock=%d heap=%uk lastreset=%s lvfree=%uk lvbig=%uk lvfrag=%u%%",
+                 name, (unsigned long)(lv_tick_get() / 1000), (int)THIS->lockState,
                  (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024), tdeck_prev_reason_str(),
                  (unsigned)(lvm.free_size / 1024), (unsigned)(lvm.free_biggest_size / 1024), (unsigned)lvm.frag_pct);
         tdeck_remote_reply(buf);
         break;
     }
-    case 4: { // shot
+    case 4: {                                  // shot
         const bool armed = tdeck_shot_begin(); // may refuse - see the note on that function
         if (armed) {
             if (lv_screen_active())
@@ -11282,21 +11411,51 @@ void TFTView_320x240::remoteService(void)
         lv_async_call(
             [](void *) {
                 switch (want) {
-                case 1: THIS->openLockSettings(); break;
-                case 2: THIS->openSettings(); break;
-                case 3: channels_open(); break;
-                case 4: nodes_open(); break;
-                case 5: notif_open(); break;
-                case 6: notes_open(); break;
-                case 7: THIS->showLockGlance(); break;
-                case 8: favorites_open(); break;
-                case 9: THIS->openMaps(); break;
-                case 10: THIS->openMaps(); lv_async_call([](void *) { THIS->openPinsList(); }, nullptr); break;
-                case 11: THIS->openGetApps(); break;
-                case 12: THIS->showLockPad(false); break;
-                case 13: chess_open(); break;
-                case 14: mail_open(); break;
-                default: break;
+                case 1:
+                    THIS->openLockSettings();
+                    break;
+                case 2:
+                    THIS->openSettings();
+                    break;
+                case 3:
+                    channels_open();
+                    break;
+                case 4:
+                    nodes_open();
+                    break;
+                case 5:
+                    notif_open();
+                    break;
+                case 6:
+                    notes_open();
+                    break;
+                case 7:
+                    THIS->showLockGlance();
+                    break;
+                case 8:
+                    favorites_open();
+                    break;
+                case 9:
+                    THIS->openMaps();
+                    break;
+                case 10:
+                    THIS->openMaps();
+                    lv_async_call([](void *) { THIS->openPinsList(); }, nullptr);
+                    break;
+                case 11:
+                    THIS->openGetApps();
+                    break;
+                case 12:
+                    THIS->showLockPad(false);
+                    break;
+                case 13:
+                    chess_open();
+                    break;
+                case 14:
+                    mail_open();
+                    break;
+                default:
+                    break;
                 }
             },
             nullptr);
@@ -11381,19 +11540,18 @@ void TFTView_320x240::remoteService(void)
         }
         const int n = placenames_search(tdeck_remote_arg(), lat, lon, hits, 4, 1500, &inf);
         // Names and distances only - never a coordinate (the map centre is often home).
-        int w = snprintf(buf, sizeof(buf), "place n=%d files=%u reads=%u ms=%lu%s here=%d cities=%d:", n,
-                         (unsigned)inf.files, (unsigned)inf.reads, (unsigned long)inf.ms, inf.truncated ? " TRUNC" : "",
-                         (int)inf.haveHere, (int)inf.haveCities);
+        int w = snprintf(buf, sizeof(buf), "place n=%d files=%u reads=%u ms=%lu%s here=%d cities=%d:", n, (unsigned)inf.files,
+                         (unsigned)inf.reads, (unsigned long)inf.ms, inf.truncated ? " TRUNC" : "", (int)inf.haveHere,
+                         (int)inf.haveCities);
         for (int i = 0; i < n && w > 0 && w < (int)sizeof(buf) - 8; i++)
             w += snprintf(buf + w, sizeof(buf) - w, " %.18s/%s/%.0fkm", hits[i].name, placenames_kind_name(hits[i].kind),
                           hits[i].km);
         tdeck_remote_reply(buf);
         break;
     }
-    case 15: // ⛔ synthetic coverage cells. Queued rather than run on the serial task because it
+    case 15:                      // ⛔ synthetic coverage cells. Queued rather than run on the serial task because it
         THIS->coverageTestFill(); // touches LVGL, which belongs to the "tft" task and nothing else.
-        snprintf(buf, sizeof(buf), "cov test %d cells (SYNTHETIC - nothing saves until @@cov clear)",
-                 tdeck_coverage_count());
+        snprintf(buf, sizeof(buf), "cov test %d cells (SYNTHETIC - nothing saves until @@cov clear)", tdeck_coverage_count());
         tdeck_remote_reply(buf);
         break;
     case 8: // key
@@ -11441,50 +11599,70 @@ void TFTView_320x240::remoteService(void)
 static const char *lockModeName(int m)
 {
     switch (m) {
-    case 0:  return "Off";
-    case 1:  return "Swipe";
-    default: return "PIN";
+    case 0:
+        return "Off";
+    case 1:
+        return "Swipe";
+    default:
+        return "PIN";
     }
 }
 
 static const char *lockWidgetName(int w)
 {
     switch (w) {
-    case 0:  return "None";
-    case 1:  return "Weather";
-    case 2:  return "Satellites";
-    default: return "Sun";
+    case 0:
+        return "None";
+    case 1:
+        return "Weather";
+    case 2:
+        return "Satellites";
+    default:
+        return "Sun";
     }
 }
 
 static const char *stayOnName(int m)
 {
     switch (m) {
-    case 0:   return "Off";
-    case 5:   return "5 min";
-    case 10:  return "10 min";
-    case 30:  return "30 min";
-    default:  return "Always";
+    case 0:
+        return "Off";
+    case 5:
+        return "5 min";
+    case 10:
+        return "10 min";
+    case 30:
+        return "30 min";
+    default:
+        return "Always";
     }
 }
 
 static const char *unlockKeyName(int k)
 {
     switch (k) {
-    case 1:  return "Spacebar";
-    case 2:  return "Alt + W";
-    default: return "Slide only";
+    case 1:
+        return "Spacebar";
+    case 2:
+        return "Alt + W";
+    default:
+        return "Slide only";
     }
 }
 
 static const char *wxPeriodName(uint32_t m)
 {
     switch (m) {
-    case 0:   return "Never";
-    case 30:  return "30 min";
-    case 180: return "3 hours";
-    case 360: return "6 hours";
-    default:  return "1 hour";
+    case 0:
+        return "Never";
+    case 30:
+        return "30 min";
+    case 180:
+        return "3 hours";
+    case 360:
+        return "6 hours";
+    default:
+        return "1 hour";
     }
 }
 
@@ -11500,11 +11678,21 @@ void TFTView_320x240::updateLockPageLabels(void)
         lv_label_set_text(lockpage_wx_label, wxPeriodName(tdeck_lock_wx_minutes()));
     if (lockpage_grace_label) {
         switch (tdeck_lock_grace_secs()) {
-        case 60:   lv_label_set_text(lockpage_grace_label, "After 1 min"); break;
-        case 300:  lv_label_set_text(lockpage_grace_label, "After 5 min"); break;
-        case 900:  lv_label_set_text(lockpage_grace_label, "After 15 min"); break;
-        case 3600: lv_label_set_text(lockpage_grace_label, "After 1 hour"); break;
-        default:   lv_label_set_text(lockpage_grace_label, "Always"); break;
+        case 60:
+            lv_label_set_text(lockpage_grace_label, "After 1 min");
+            break;
+        case 300:
+            lv_label_set_text(lockpage_grace_label, "After 5 min");
+            break;
+        case 900:
+            lv_label_set_text(lockpage_grace_label, "After 15 min");
+            break;
+        case 3600:
+            lv_label_set_text(lockpage_grace_label, "After 1 hour");
+            break;
+        default:
+            lv_label_set_text(lockpage_grace_label, "Always");
+            break;
         }
     }
     // Rows that only make sense for the mode you are in. A greyed-out PIN row on a
@@ -11528,12 +11716,11 @@ void TFTView_320x240::updateLockPageLabels(void)
     }
     if (lockpage_unlock_label)
         lv_label_set_text(lockpage_unlock_label, unlockKeyName(tdeck_lock_unlock_key()));
-    for (auto &pair : std::initializer_list<std::pair<lv_obj_t *, bool>>{
-             {lockpage_pin_row, pinMode},
-             {lockpage_grace_row, pinMode},
-             {lockpage_wx_row, weather},
-             {lockpage_dim_row, staying},
-             {lockpage_unlock_row, staying}}) {
+    for (auto &pair : std::initializer_list<std::pair<lv_obj_t *, bool>>{{lockpage_pin_row, pinMode},
+                                                                         {lockpage_grace_row, pinMode},
+                                                                         {lockpage_wx_row, weather},
+                                                                         {lockpage_dim_row, staying},
+                                                                         {lockpage_unlock_row, staying}}) {
         if (!pair.first)
             continue;
         if (pair.second)
@@ -11545,8 +11732,8 @@ void TFTView_320x240::updateLockPageLabels(void)
 
 // One row: a title on the left and a control on the right, in a container so the whole
 // row can be hidden as a unit when it does not apply.
-lv_obj_t *TFTView_320x240::lockPageRow(lv_obj_t *parent, const char *title, int y, const char *btnText,
-                                       lv_obj_t **outLabel, lv_event_cb_t cb)
+lv_obj_t *TFTView_320x240::lockPageRow(lv_obj_t *parent, const char *title, int y, const char *btnText, lv_obj_t **outLabel,
+                                       lv_event_cb_t cb)
 {
     lv_obj_t *row = lv_obj_create(parent);
     lv_obj_remove_style_all(row);
@@ -11563,7 +11750,7 @@ lv_obj_t *TFTView_320x240::lockPageRow(lv_obj_t *parent, const char *title, int 
     lv_obj_set_size(b, 124, 30);
     lv_obj_align(b, LV_ALIGN_RIGHT_MID, -16, 0);
     lv_obj_set_style_radius(b, 8, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(b, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(b, lv_color_hex(0x30415a), LV_PART_MAIN);
     lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *l = lv_label_create(b);
     lv_label_set_text(l, btnText);
@@ -11579,7 +11766,7 @@ void TFTView_320x240::openLockSettings(void)
     if (!lockpage_screen) {
         lockpage_screen = lv_obj_create(NULL);
         tui_statusbar_reserve(lockpage_screen); // an ordinary settings page: you are already unlocked here
-        lv_obj_set_style_bg_color(lockpage_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(lockpage_screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
         lv_obj_set_scroll_dir(lockpage_screen, LV_DIR_VER);
         lv_obj_set_scrollbar_mode(lockpage_screen, LV_SCROLLBAR_MODE_AUTO);
 
@@ -11587,10 +11774,9 @@ void TFTView_320x240::openLockSettings(void)
         lv_obj_set_size(back, 54, 26);
         lv_obj_align(back, LV_ALIGN_TOP_LEFT, 8, 5);
         lv_obj_set_style_radius(back, 8, LV_PART_MAIN);
-        lv_obj_set_style_bg_color(back, lv_color_hex(0x2c2c2e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(back, lv_color_hex(0x30415a), LV_PART_MAIN);
         lv_obj_add_event_cb(
-            back, [](lv_event_t *) { lv_async_call([](void *) { THIS->openSettings(); }, nullptr); },
-            LV_EVENT_CLICKED, NULL);
+            back, [](lv_event_t *) { lv_async_call([](void *) { THIS->openSettings(); }, nullptr); }, LV_EVENT_CLICKED, NULL);
         lv_obj_t *bl = lv_label_create(back);
         lv_label_set_text(bl, "Back");
         lv_obj_set_style_text_font(bl, &ui_font_montserrat_12, LV_PART_MAIN);
@@ -11607,37 +11793,35 @@ void TFTView_320x240::openLockSettings(void)
             THIS->updateLockPageLabels();
         });
         y += 42;
-        lockpage_pin_row = lockPageRow(lockpage_screen, "Change PIN", y, "Change", nullptr,
-                                       [](lv_event_t *) { THIS->showLockPad(true); });
+        lockpage_pin_row =
+            lockPageRow(lockpage_screen, "Change PIN", y, "Change", nullptr, [](lv_event_t *) { THIS->showLockPad(true); });
         y += 42;
-        lockpage_grace_row = lockPageRow(lockpage_screen, "Ask for PIN", y, "Always", &lockpage_grace_label,
-                                         [](lv_event_t *) {
-                                             static const uint32_t kSteps[] = {0, 60, 300, 900, 3600};
-                                             const uint32_t cur = tdeck_lock_grace_secs();
-                                             int at = 0;
-                                             for (int i = 0; i < 5; i++)
-                                                 if (kSteps[i] == cur)
-                                                     at = i;
-                                             tdeck_lock_set_grace_secs(kSteps[(at + 1) % 5]);
-                                             THIS->updateLockPageLabels();
-                                         });
+        lockpage_grace_row = lockPageRow(lockpage_screen, "Ask for PIN", y, "Always", &lockpage_grace_label, [](lv_event_t *) {
+            static const uint32_t kSteps[] = {0, 60, 300, 900, 3600};
+            const uint32_t cur = tdeck_lock_grace_secs();
+            int at = 0;
+            for (int i = 0; i < 5; i++)
+                if (kSteps[i] == cur)
+                    at = i;
+            tdeck_lock_set_grace_secs(kSteps[(at + 1) % 5]);
+            THIS->updateLockPageLabels();
+        });
         y += 48;
         lockPageRow(lockpage_screen, "Widget", y, "Sun", &lockpage_widget_label, [](lv_event_t *) {
             tdeck_lock_set_widget((tdeck_lock_widget() + 1) % 4);
             THIS->updateLockPageLabels();
         });
         y += 42;
-        lockpage_wx_row = lockPageRow(lockpage_screen, "Weather update", y, "1 hour", &lockpage_wx_label,
-                                      [](lv_event_t *) {
-                                          static const uint32_t kMins[] = {0, 30, 60, 180, 360};
-                                          const uint32_t cur = tdeck_lock_wx_minutes();
-                                          int at = 2;
-                                          for (int i = 0; i < 5; i++)
-                                              if (kMins[i] == cur)
-                                                  at = i;
-                                          tdeck_lock_set_wx_minutes(kMins[(at + 1) % 5]);
-                                          THIS->updateLockPageLabels();
-                                      });
+        lockpage_wx_row = lockPageRow(lockpage_screen, "Weather update", y, "1 hour", &lockpage_wx_label, [](lv_event_t *) {
+            static const uint32_t kMins[] = {0, 30, 60, 180, 360};
+            const uint32_t cur = tdeck_lock_wx_minutes();
+            int at = 2;
+            for (int i = 0; i < 5; i++)
+                if (kMins[i] == cur)
+                    at = i;
+            tdeck_lock_set_wx_minutes(kMins[(at + 1) % 5]);
+            THIS->updateLockPageLabels();
+        });
         y += 42;
         // Jake: "can we have an option of F or C on the weather widget." Sits with the weather
         // rows because that is where he went looking, and hides with them when the widget is
@@ -11647,18 +11831,15 @@ void TFTView_320x240::openLockSettings(void)
         // the units were never the problem, the missing switch was. A widget-local setting
         // would have been easier and worse: the widget saying 18C while the node list said 64F,
         // with no answer to which one the device is actually on.
-        lockpage_units_row = lockPageRow(lockpage_screen, "Temperature", y, "F", &lockpage_units_label,
-                                         [](lv_event_t *) {
-                                             tdeck_units_set_metric(!tdeck_units_metric());
-                                             // Update the copy the widget reads now, so it flips
-                                             // immediately instead of after the next config sync -
-                                             // the same reason the 12h switch does it.
-                                             THIS->db.config.display.units =
-                                                 tdeck_units_metric()
-                                                     ? meshtastic_Config_DisplayConfig_DisplayUnits_IMPERIAL
-                                                     : meshtastic_Config_DisplayConfig_DisplayUnits_METRIC;
-                                             THIS->updateLockPageLabels();
-                                         });
+        lockpage_units_row = lockPageRow(lockpage_screen, "Temperature", y, "F", &lockpage_units_label, [](lv_event_t *) {
+            tdeck_units_set_metric(!tdeck_units_metric());
+            // Update the copy the widget reads now, so it flips
+            // immediately instead of after the next config sync -
+            // the same reason the 12h switch does it.
+            THIS->db.config.display.units = tdeck_units_metric() ? meshtastic_Config_DisplayConfig_DisplayUnits_IMPERIAL
+                                                                 : meshtastic_Config_DisplayConfig_DisplayUnits_METRIC;
+            THIS->updateLockPageLabels();
+        });
         y += 48;
 
         // ---- keeping the lock screen lit (jeeab/t-ui#8, reshaped) --------------------------
@@ -11675,31 +11856,30 @@ void TFTView_320x240::openLockSettings(void)
         });
         y += 42;
         lockpage_dim_row = // "Dim level: 60%" reads like "dimmed BY 60%", i.e. darker - Jake asked "so a higher
-        // percent means brighter?", which is the question a bad label produces. Higher IS
-        // brighter (the value becomes a brightness floor), so name it that way.
-        lockPageRow(lockpage_screen, "Lock brightness", y, "15%", &lockpage_dim_label,
-                                       [](lv_event_t *) {
-                                           // Jake asked for brighter options. 80 and 100 matter outdoors: at 60% the glance is still
-                                           // hard to read in daylight, and "keep the screen on" is
-                                           // worth little if you cannot see it.
-                                           static const int kPct[] = {5, 10, 15, 25, 40, 60, 80, 100};
-                                           const int cur = tdeck_lock_dim_pct();
-                                           int at = 2;
-                                           // ⚠️ Bound by the ARRAY, not a literal. Adding 80 and
-                                           // 100 while this still said 6 meant those two were
-                                           // never matched, so the cycle jumped back to 25%.
-                                           for (int i = 0; i < (int)(sizeof(kPct) / sizeof(kPct[0])); i++)
-                                               if (kPct[i] == cur)
-                                                   at = i;
-                                           tdeck_lock_set_dim_pct(kPct[(at + 1) % (int)(sizeof(kPct) / sizeof(kPct[0]))]);
-                                           THIS->updateLockPageLabels();
-                                       });
+                           // percent means brighter?", which is the question a bad label produces. Higher IS
+                           // brighter (the value becomes a brightness floor), so name it that way.
+            lockPageRow(lockpage_screen, "Lock brightness", y, "15%", &lockpage_dim_label, [](lv_event_t *) {
+                // Jake asked for brighter options. 80 and 100 matter outdoors: at 60% the glance is still
+                // hard to read in daylight, and "keep the screen on" is
+                // worth little if you cannot see it.
+                static const int kPct[] = {5, 10, 15, 25, 40, 60, 80, 100};
+                const int cur = tdeck_lock_dim_pct();
+                int at = 2;
+                // ⚠️ Bound by the ARRAY, not a literal. Adding 80 and
+                // 100 while this still said 6 meant those two were
+                // never matched, so the cycle jumped back to 25%.
+                for (int i = 0; i < (int)(sizeof(kPct) / sizeof(kPct[0])); i++)
+                    if (kPct[i] == cur)
+                        at = i;
+                tdeck_lock_set_dim_pct(kPct[(at + 1) % (int)(sizeof(kPct) / sizeof(kPct[0]))]);
+                THIS->updateLockPageLabels();
+            });
         y += 42;
-        lockpage_unlock_row = lockPageRow(lockpage_screen, "Unlock with", y, "Slide only",
-                                          &lockpage_unlock_label, [](lv_event_t *) {
-                                              tdeck_lock_set_unlock_key((tdeck_lock_unlock_key() + 1) % 3);
-                                              THIS->updateLockPageLabels();
-                                          });
+        lockpage_unlock_row =
+            lockPageRow(lockpage_screen, "Unlock with", y, "Slide only", &lockpage_unlock_label, [](lv_event_t *) {
+                tdeck_lock_set_unlock_key((tdeck_lock_unlock_key() + 1) % 3);
+                THIS->updateLockPageLabels();
+            });
         y += 48;
 
         lv_obj_t *hint = lv_label_create(lockpage_screen);
@@ -11707,16 +11887,15 @@ void TFTView_320x240::openLockSettings(void)
         lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_font(hint, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_obj_set_style_text_color(hint, lv_color_hex(0x8e8e93), LV_PART_MAIN);
-        lv_label_set_text(hint,
-                          "Off: wakes straight to Home.  Swipe: slide to unlock, no code.  "
-                          "PIN: slide, then the keypad.\n\n"
-                          "The widget fills the lock screen when nothing needs your attention. "
-                          "Notifications take that space until you clear them.\n\n"
-                          "Weather keeps its last reading when it cannot reach the internet.\n\n"
-                          "Keep screen on leaves this screen showing the time, dimmed, instead of "
-                          "going black. Any key or the trackball brightens it for 3 seconds "
-                          "without unlocking. Only the unlock key gets you in - Alt + W is much "
-                          "harder to press by accident in a pocket than the spacebar.");
+        lv_label_set_text(hint, "Off: wakes straight to Home.  Swipe: slide to unlock, no code.  "
+                                "PIN: slide, then the keypad.\n\n"
+                                "The widget fills the lock screen when nothing needs your attention. "
+                                "Notifications take that space until you clear them.\n\n"
+                                "Weather keeps its last reading when it cannot reach the internet.\n\n"
+                                "Keep screen on leaves this screen showing the time, dimmed, instead of "
+                                "going black. Any key or the trackball brightens it for 3 seconds "
+                                "without unlocking. Only the unlock key gets you in - Alt + W is much "
+                                "harder to press by accident in a pocket than the spacebar.");
         lv_obj_align(hint, LV_ALIGN_TOP_LEFT, 16, y);
     }
     updateLockPageLabels();
@@ -11753,7 +11932,7 @@ void TFTView_320x240::showLockGlance(void)
 
     if (!lockglance_screen) {
         lockglance_screen = lv_obj_create(NULL);
-        lv_obj_set_style_bg_color(lockglance_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(lockglance_screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
         lv_obj_clear_flag(lockglance_screen, LV_OBJ_FLAG_SCROLLABLE);
 
         // ---- top left: Notifications, which is a button ----
@@ -11767,8 +11946,7 @@ void TFTView_320x240::showLockGlance(void)
             // Deferred: this handler belongs to a button on the screen that is about to be
             // replaced. The page it opens is READ-ONLY while the device is locked - tapping a
             // row there does not walk into the conversation, or the lock would be decorative.
-            [](lv_event_t *) { lv_async_call([](void *) { notif_open(); }, nullptr); },
-            LV_EVENT_CLICKED, NULL);
+            [](lv_event_t *) { lv_async_call([](void *) { notif_open(); }, nullptr); }, LV_EVENT_CLICKED, NULL);
         glance_notif_label = lv_label_create(glance_notif_btn);
         lv_obj_set_style_text_font(glance_notif_label, &ui_font_montserrat_12, LV_PART_MAIN);
         lv_label_set_text(glance_notif_label, "Notifications");
@@ -11822,7 +12000,7 @@ void TFTView_320x240::showLockGlance(void)
         lv_obj_align(glance_slider, LV_ALIGN_BOTTOM_MID, 0, -7);
         lv_slider_set_range(glance_slider, 0, 100);
         lv_slider_set_value(glance_slider, 0, LV_ANIM_OFF);
-        lv_obj_set_style_bg_color(glance_slider, lv_color_hex(0x1c1c1e), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(glance_slider, lv_color_hex(0x1b283c), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(glance_slider, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_set_style_border_color(glance_slider, lv_color_hex(0x3a3a3c), LV_PART_MAIN);
         lv_obj_set_style_border_width(glance_slider, 1, LV_PART_MAIN);
@@ -11906,7 +12084,7 @@ void TFTView_320x240::glanceNotifRow(lv_obj_t *parent, const char *who, const ch
     lv_obj_set_style_text_color(w, lv_color_hex(0xffffff), LV_PART_MAIN);
     lv_obj_set_style_text_font(w, &ui_font_montserrat_12, LV_PART_MAIN);
     lv_obj_set_width(w, 210);
-    lv_obj_set_height(w, 16); // see glanceWidgetCard: LONG_DOT clips to the HEIGHT, and the
+    lv_obj_set_height(w, 16);                     // see glanceWidgetCard: LONG_DOT clips to the HEIGHT, and the
     lv_label_set_long_mode(w, LV_LABEL_LONG_DOT); // default height grows instead of clipping
     lv_obj_align(w, LV_ALIGN_TOP_LEFT, 24, 4);
 
@@ -12182,7 +12360,7 @@ void TFTView_320x240::showLockPad(bool setMode)
 
     if (!lockpad_screen) {
         lockpad_screen = lv_obj_create(NULL);
-        lv_obj_set_style_bg_color(lockpad_screen, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(lockpad_screen, lv_color_hex(0x0b1220), LV_PART_MAIN);
         lv_obj_clear_flag(lockpad_screen, LV_OBJ_FLAG_SCROLLABLE);
 
         lock_title_label = lv_label_create(lockpad_screen);
@@ -12190,7 +12368,7 @@ void TFTView_320x240::showLockPad(bool setMode)
         lv_obj_align(lock_title_label, LV_ALIGN_TOP_MID, 0, 6);
 
         // Unread-message count in the pad's top-left corner (same green "N msgs" as the launcher
-        // top bar) — so a glance at the locked device tells you if anything came in.
+        // top bar) - so a glance at the locked device tells you if anything came in.
         lockpad_unread_label = lv_label_create(lockpad_screen);
         lv_obj_set_style_text_color(lockpad_unread_label, lv_color_hex(0x30d158), LV_PART_MAIN);
         lv_obj_set_style_text_font(lockpad_unread_label, &ui_font_montserrat_12, LV_PART_MAIN);
@@ -12203,16 +12381,15 @@ void TFTView_320x240::showLockPad(bool setMode)
         lv_obj_set_style_text_letter_space(lock_digits_label, 4, LV_PART_MAIN);
         lv_obj_align(lock_digits_label, LV_ALIGN_TOP_MID, 0, 24);
 
-        // plain "<" / "OK" instead of symbol glyphs — the custom 20pt font's symbol
+        // plain "<" / "OK" instead of symbol glyphs - the custom 20pt font's symbol
         // coverage is unverified, and a blank Enter key on a lock screen is a disaster
-        static const char *const pinmap[] = {"1", "2", "3", "\n", "4", "5", "6", "\n", "7", "8", "9", "\n",
-                                             "<", "0", "OK", ""};
+        static const char *const pinmap[] = {"1", "2", "3", "\n", "4", "5", "6", "\n", "7", "8", "9", "\n", "<", "0", "OK", ""};
         lv_obj_t *pad = lv_buttonmatrix_create(lockpad_screen);
         lv_buttonmatrix_set_map(pad, pinmap);
         // dark theme + big touch targets (fills the width, ~2/3 of the height)
         lv_obj_set_size(pad, 312, 178);
         lv_obj_align(pad, LV_ALIGN_BOTTOM_MID, 0, -4);
-        lv_obj_set_style_bg_color(pad, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(pad, lv_color_hex(0x0b1220), LV_PART_MAIN);
         lv_obj_set_style_border_width(pad, 0, LV_PART_MAIN);
         lv_obj_set_style_pad_all(pad, 4, LV_PART_MAIN);
         lv_obj_set_style_pad_row(pad, 6, LV_PART_MAIN);
@@ -12228,23 +12405,23 @@ void TFTView_320x240::showLockPad(bool setMode)
 
     lv_label_set_text(lock_title_label, setMode ? "Set a new PIN, then OK" : "Enter PIN");
     updateLockDisplay();
-    updateUnreadMessages(); // pad may have just been created — pull in any count that already accrued
+    updateUnreadMessages(); // pad may have just been created - pull in any count that already accrued
     lv_screen_load_anim(lockpad_screen, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
 }
 
 // Alt+C shortcut from the lock pad: run the touch-screen calibration (same routine as the Settings
-// button), then re-show the lock pad. This only bypasses the PIN to *reach* calibration — it does
+// button), then re-show the lock pad. This only bypasses the PIN to *reach* calibration - it does
 // NOT unlock the device; the user still enters their PIN afterwards (now with a working touch).
 void TFTView_320x240::startCalibrationFromLock(void)
 {
     uint16_t *parameters = (uint16_t *)db.uiConfig.calibration_data.bytes;
-    memset(parameters, 0, 16);                       // clear existing data so calibrate() runs the
-    displaydriver->calibrate(parameters);            // interactive "tap the marker" routine (blocking)
+    memset(parameters, 0, 16);            // clear existing data so calibrate() runs the
+    displaydriver->calibrate(parameters); // interactive "tap the marker" routine (blocking)
     db.uiConfig.calibration_data.size = 16;
-    controller->storeUIConfig(db.uiConfig);          // persist the fresh calibration across reboots
+    controller->storeUIConfig(db.uiConfig); // persist the fresh calibration across reboots
 
     // Back to the PIN pad (still locked). calibrate() drew straight to the panel BEHIND LVGL's
-    // back — and since lockpad_screen is already the active screen, showLockPad()'s screen-load is
+    // back - and since lockpad_screen is already the active screen, showLockPad()'s screen-load is
     // a no-op and LVGL sees nothing to repaint (the pad only reappeared on the next touch). So
     // explicitly invalidate everything and repaint NOW for a clean, instant handoff.
     lockState = LOCK_ENTRY;
@@ -12308,12 +12485,12 @@ void TFTView_320x240::submitLockPad(void)
 
     // Unlocking (require at least one digit so a blank OK can't slip through)
     if (lockLen > 0 && entered == effectiveLockPin()) {
-    // Put the general Screen Timeout back: the lock screen borrowed it while it was being kept
-    // lit (see lockDevice), and it governs the unlocked device again from here.
-    if (stayOnSavedTimeout) {
-        displaydriver->setScreenTimeout((uint16_t)(stayOnSavedTimeout - 1));
-        stayOnSavedTimeout = 0;
-    }
+        // Put the general Screen Timeout back: the lock screen borrowed it while it was being kept
+        // lit (see lockDevice), and it governs the unlocked device again from here.
+        if (stayOnSavedTimeout) {
+            displaydriver->setScreenTimeout((uint16_t)(stayOnSavedTimeout - 1));
+            stayOnSavedTimeout = 0;
+        }
         lockState = LOCK_NONE;
         lockedAtMs = 0; // unlocked for real: the next lock starts a fresh grace window
         tdeck_hold_dark = false;
@@ -12327,7 +12504,7 @@ void TFTView_320x240::submitLockPad(void)
     } else {
         lockLen = 0;
         lockDigits[0] = 0;
-        lv_label_set_text(lock_title_label, "Wrong PIN — try again");
+        lv_label_set_text(lock_title_label, "Wrong PIN - try again");
         updateLockDisplay();
     }
 }
@@ -12530,7 +12707,7 @@ void TFTView_320x240::enterProgrammingMode(void)
     } else {
         state = MeshtasticView::eProgrammingMode;
 
-        // keep this screen lit and touchable: no idle-dim, no gate, no lock — otherwise the
+        // keep this screen lit and touchable: no idle-dim, no gate, no lock - otherwise the
         // screen goes dark, touch is swallowed, and the exit button becomes unreachable.
         tdeck_prog_mode = true;
         tdeck_input_gated = false;
@@ -13056,7 +13233,7 @@ void TFTView_320x240::ui_event_LogoButton(lv_event_t *e)
 }
 
 // Leave programming mode: turn Bluetooth off (which drops the PIN screen) and let the
-// device reboot to the launcher. Reachable two independent ways — a touchscreen tap on the
+// device reboot to the launcher. Reachable two independent ways - a touchscreen tap on the
 // Bluetooth icon, OR a trackball double-click (different hardware, so it still works even if
 // touch isn't reaching this screen). Idempotent-ish: guarded by tdeck_prog_mode.
 void TFTView_320x240::exitProgrammingMode(void)
@@ -13287,7 +13464,7 @@ void TFTView_320x240::ui_event_SettingsButton(lv_event_t *e)
         }
     } else if (event_code == LV_EVENT_LONG_PRESSED && !advancedMode && THIS->activeSettings == eNone) {
         // Long-press = turn the screen off. Upstream did this by raising screenLocked, whose only
-        // way back is a CLICK on objects.blank_screen_button — but that button lives on
+        // way back is a CLICK on objects.blank_screen_button - but that button lives on
         // objects.blank_screen, and on a device WITH a backlight LGFXDriver dims the backlight
         // instead of ever loading that screen. So the button was unreachable, isScreenLocked()
         // stayed true forever, and every wake was immediately re-dimmed: a dead screen until
@@ -14491,7 +14668,7 @@ void TFTView_320x240::ui_event_chatNodeButton(lv_event_t *e)
 
 // --- shims for the Nodes/Favorites apps (NodesApp.cpp) -------------------------------------------
 // Those apps are deliberately independent of MUI, so they reach these two actions through extern "C"
-// rather than through this class — the same boundary the firmware bridges use. Both reuse the exact
+// rather than through this class - the same boundary the firmware bridges use. Both reuse the exact
 // navigation MUI already performs for its own buttons, so behaviour cannot drift from the built-in
 // paths.
 
@@ -14519,7 +14696,7 @@ void TFTView_320x240::tuiOpenChannelChat(uint8_t ch)
 }
 
 // Pin button: centre OUR Maps app on the node and open it. Deliberately userMap, not MUI's own
-// `map` — Jake asked for "our map app".
+// `map` - Jake asked for "our map app".
 extern "C" void tui_show_node_on_map(uint32_t nodeNum, int32_t latI, int32_t lonI)
 {
     TFTView_320x240::tuiShowOnUserMap(nodeNum, latI, lonI);
@@ -14534,7 +14711,7 @@ void TFTView_320x240::tuiShowOnUserMap(uint32_t nodeNum, int32_t latI, int32_t l
 // Jake: "the message button ... brings you to the node list in the meshtastic app looking at it,
 // but could it make a new message conversation with that node instead?"
 //
-// Yes — and MUI already does exactly this for its own chat rows: showMessages(nodeNum) opens the
+// Yes - and MUI already does exactly this for its own chat rows: showMessages(nodeNum) opens the
 // conversation and CREATES the container when there is not one yet (newMessageContainer), so a node
 // never messaged before works the same as one you talk to daily. The first version of this only
 // scrolled the node list to them, which is a different thing entirely.
@@ -14854,7 +15031,7 @@ void TFTView_320x240::loadMap(void)
 {
     if (!map) {
         // the tile service must exist only ONCE (its ctor registers an LVGL fs driver),
-        // and is shared with the Maps app's own MapPanel — see sharedTileService()
+        // and is shared with the Maps app's own MapPanel - see sharedTileService()
 #if LV_USE_FS_ARDUINO_SD
         map = new MapPanel(objects.raw_map_panel);
 #elif defined(HAS_SD_MMC) || defined(HAS_SDCARD)
@@ -15084,7 +15261,7 @@ void TFTView_320x240::addOrUpdateMap(uint32_t nodeNum, int32_t lat, int32_t lon)
             map->update(it->first, lat * 1e-7, lon * 1e-7);
         }
     }
-    // Same position, also onto OUR map. This is the one line that was missing — every node
+    // Same position, also onto OUR map. This is the one line that was missing - every node
     // position already funnels through here, it just never reached the Maps app.
     addOrUpdateUserMapNode(nodeNum, lat * 1e-7, lon * 1e-7);
 }
@@ -18109,6 +18286,8 @@ bool TFTView_320x240::applyNodesFilter(uint32_t nodeNum, bool reset)
 
 void TFTView_320x240::messageAlert(const char *alert, bool show)
 {
+    if (show)
+        ControlCenter::close();
     lv_label_set_text(objects.alert_label, alert);
     if (show)
         lv_obj_clear_flag(objects.alert_panel, LV_OBJ_FLAG_HIDDEN);
@@ -18261,8 +18440,7 @@ void TFTView_320x240::screenSaving(bool enabled)
             lv_screen_load_anim(objects.lock_screen, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
         } else if (launcher_screen || objects.main_screen) {
             ILOG_DEBUG("showing launcher screen");
-            lv_screen_load_anim(launcher_screen ? launcher_screen : objects.main_screen, LV_SCR_LOAD_ANIM_NONE, 0, 0,
-                                false);
+            lv_screen_load_anim(launcher_screen ? launcher_screen : objects.main_screen, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
             if (THIS->activeSettings != eNone) {
                 lv_event_t e = {.code = LV_EVENT_CLICKED};
                 ui_event_cancel(&e);
@@ -18881,8 +19059,7 @@ void TFTView_320x240::newMessage(uint32_t from, uint32_t to, uint8_t ch, const c
         // Mesh app, so without these checks messages arriving for that chat were treated as
         // already read (unread counter + popup went dead after the first visit).
         bool onMeshScreen = lv_screen_active() == objects.main_screen && !tdeck_input_gated && !tdeck_hold_dark;
-        bool viewingThisChat =
-            onMeshScreen && activePanel == objects.messages_panel && container == activeMsgContainer;
+        bool viewingThisChat = onMeshScreen && activePanel == objects.messages_panel && container == activeMsgContainer;
         if (!viewingThisChat) {
             // Count it against the conversation it belongs to, not just against the device.
             // A broadcast belongs to its channel; anything else is a direct message from
@@ -18898,15 +19075,14 @@ void TFTView_320x240::newMessage(uint32_t from, uint32_t to, uint8_t ch, const c
             const char *senderName = fromPanel ? lv_label_get_text(fromPanel->LV_OBJ_IDX(node_lbl_idx)) : nullptr;
             const bool muted = db.channel[ch].settings.module_settings.is_muted;
 
-            if ((!onMeshScreen || activePanel != objects.messages_panel) && db.uiConfig.alert_enabled && !muted &&
-                senderName) {
+            if ((!onMeshScreen || activePanel != objects.messages_panel) && db.uiConfig.alert_enabled && !muted && senderName) {
                 showMessagePopup(from, to, ch, senderName);
             }
 
             // Jake, 2026-09-18: a message arriving while you are in ANY other app was
             // invisible, because MUI's pop-up is a child of main_screen. The notification
             // centre keeps who it was from and floats its own card over whatever is on
-            // screen. Muting a channel silences this too — a mute that only half works is
+            // screen. Muting a channel silences this too - a mute that only half works is
             // worse than none.
             if (db.uiConfig.alert_enabled && !muted) {
                 char body[56];
@@ -19231,7 +19407,7 @@ void TFTView_320x240::showMessages(uint32_t nodeNum)
     // the destination's channel and key straight off nodes[num], so a chat opened for a node MUI
     // has no panel for would take the device down the moment a message was typed into it. That is
     // reachable: MAX_NUM_NODES_VIEW caps the panels at 250 and purges the oldest, while the Nodes
-    // app lists everything NodeDB holds — so the two CAN disagree.
+    // app lists everything NodeDB holds - so the two CAN disagree.
     auto nodeIt = nodes.find(nodeNum);
     if (nodeIt == nodes.end() || !nodeIt->second) {
         ILOG_WARN("showMessages: no node panel for 0x%08x, refusing to open a chat", (unsigned)nodeNum);
@@ -19698,14 +19874,13 @@ void TFTView_320x240::updateUnreadMessages(void)
         // "Notifications" rather than blank when there is nothing, matching the shared top bar
         // on every other screen. Blank gave no hint that the corner was tappable at all.
         lv_label_set_text(launcher_unread_label, top[0] ? top : "Notifications");
-        lv_obj_set_style_text_color(launcher_unread_label,
-                                    lv_color_hex(unreadMessages > 0 ? 0x30d158 : 0x8e8e93), LV_PART_MAIN);
+        lv_obj_set_style_text_color(launcher_unread_label, lv_color_hex(unreadMessages > 0 ? 0x30d158 : 0x8e8e93), LV_PART_MAIN);
         // The "mesh off" warning sits immediately right of this count, so it has to move when the
         // count's width changes ("" -> "3 msgs"). align_to is one-shot, so redo it here.
         if (launcher_mesh_off_label) {
             lv_obj_update_layout(launcher_unread_label);
-            lv_obj_align_to(launcher_mesh_off_label, launcher_unread_label, LV_ALIGN_OUT_RIGHT_MID,
-                            unreadMessages > 0 ? 6 : 0, 0);
+            lv_obj_align_to(launcher_mesh_off_label, launcher_unread_label, LV_ALIGN_OUT_RIGHT_MID, unreadMessages > 0 ? 6 : 0,
+                            0);
         }
     }
     // The PIN pad still wants the COUNT only - blank when there is nothing. A permanent
@@ -19938,7 +20113,15 @@ void TFTView_320x240::task_handler(void)
             // the cause is named without anything having to break. Two millis() calls and a
             // compare per step, once a second - nothing on the hot path.
             uint32_t stepT0 = millis();
-#define TFT_STEP(name, call)                                                                                               do {                                                                                                                       tdeck_tft_where = name;                                                                                                call;                                                                                                                  const uint32_t took = millis() - stepT0;                                                                               if (took > 300)                                                                                                            ILOG_WARN("SLOWSTEP %s took %lums", name, (unsigned long)took);                                                    stepT0 = millis();                                                                                                 } while (0)
+#define TFT_STEP(name, call)                                                                                                     \
+    do {                                                                                                                         \
+        tdeck_tft_where = name;                                                                                                  \
+        call;                                                                                                                    \
+        const uint32_t took = millis() - stepT0;                                                                                 \
+        if (took > 300)                                                                                                          \
+            ILOG_WARN("SLOWSTEP %s took %lums", name, (unsigned long)took);                                                      \
+        stepT0 = millis();                                                                                                       \
+    } while (0)
 
             TFT_STEP("1s-time", updateTime());
 

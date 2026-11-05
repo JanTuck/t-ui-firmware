@@ -95,86 +95,86 @@ enum ThemeColor {
 
 uint32_t themeColor[][2] = {
     // dark,       light
-    {0xff303030, 0xfff4f4f4}, // eMainScreenStyle
-    {0xff436C70, 0xff67ea94}, // eTopPanelBg
+    {0xff0b1220, 0xfff1f4fa}, // eMainScreenStyle
+    {0xff18263b, 0xff64a8ff}, // eTopPanelBg
     {0xffE0E0E0, 0xff212121}, // eTopPanelText
-    {0xff436C70, 0xff67ea94}, // eTopImageBg
+    {0xff18263b, 0xff64a8ff}, // eTopImageBg
     {0xffffffff, 0xff212121}, // eTopImageRecolor
     {255, 255},               // eTopImageRecolorOpa
     {0xffffffff, 0xff212121}, // ePositiveImageRecolor,
-    {0xff303030, 0xfff4f4f0}, // ePanelBg
-    {0xff303030, 0xfffafafa}, // ePanelPressedBg
+    {0xff0b1220, 0xfff1f4fa}, // ePanelBg
+    {0xff0b1220, 0xfffafafa}, // ePanelPressedBg
     {0xfff0f0f0, 0xff212121}, // ePanelText
-    {0xff67ea94, 0xff67ea94}, // ePanelBorder
-    {0xff404040, 0xffffffff}, // eNodePanelBg
-    {0xff808080, 0xff979797}, // eNodePanelBorder
+    {0xff64a8ff, 0xff64a8ff}, // ePanelBorder
+    {0xff1b283c, 0xffffffff}, // eNodePanelBg
+    {0xff435570, 0xff979797}, // eNodePanelBorder
     {0xfff0f0f0, 0xff212121}, // eNodePanelText
-    {0xff404040, 0xffffffff}, // eNodeButtonBg
+    {0xff1b283c, 0xffffffff}, // eNodeButtonBg
     {0, 0},                   // eNodeButtonBgOpa
-    {0xff585858, 0xffffffff}, // eButtonPanelBg
-    {0xff585858, 0xffeaeae0}, // eMainButtonBg
-    {0xffaafbff, 0xff101010}, // eMainButtonText
-    {0xff67ea94, 0xff67ea94}, // eMainButtonBorder
+    {0xff25364e, 0xffffffff}, // eButtonPanelBg
+    {0xff25364e, 0xffe4ecf6}, // eMainButtonBg
+    {0xfff2f6ff, 0xff101010}, // eMainButtonText
+    {0xff64a8ff, 0xff64a8ff}, // eMainButtonBorder
     {0xff9e9e9e, 0xffc0c0c0}, // eMainButtonShadow
-    {0xff67ea94, 0xff757575}, // eMainButtonImageRecolor
+    {0xff64a8ff, 0xff757575}, // eMainButtonImageRecolor
     {0, 255},                 // eMainButtonImageRecolorOpa
-    {0xff303030, 0xfffafaf4}, // eHomeContainerBg
-    {0xff67EA94, 0xffaaaaaa}, // eHomeContainerBorder
+    {0xff0b1220, 0xfff8faff}, // eHomeContainerBg
+    {0xff64a8ff, 0xffaaaaaa}, // eHomeContainerBorder
     {0xff2B824A, 0xff999999}, // eHomeContainerShadow
-    {0xffaafbff, 0xff294337}, // eHomeContainerText
-    {0xff303030, 0xffffffff}, // eHomeButtonBg
+    {0xfff2f6ff, 0xff1c3555}, // eHomeContainerText
+    {0xff0b1220, 0xffffffff}, // eHomeButtonBg
     {0xffffffff, 0xff101010}, // eHomeButtonText
-    {0xff303030, 0xffd0d0d0}, // eHomeButtonBorder
+    {0xff0b1220, 0xffd0d0d0}, // eHomeButtonBorder
     {0xff606060, 0xff57a6b3}, // eHomeButtonImageRecolor
     {0, 255},                 // eHomeButtonImageRecolorOpa
-    {0xff404040, 0xfffafaf4}, // eChannelButtonBg
+    {0xff1b283c, 0xfff8faff}, // eChannelButtonBg
     {0xffA0A0A0, 0xffD0D0D0}, // eChannelButtonBorder
     {0xffffffff, 0xff101010}, // eChannelButtonText
-    {0xff303030, 0xfff0f0f0}, // eSettingsPanelBg
-    {0xffaafbff, 0xff003c9f}, // eSettingsPanelText
+    {0xff0b1220, 0xfff0f0f0}, // eSettingsPanelBg
+    {0xfff2f6ff, 0xff245faa}, // eSettingsPanelText
     {0, 0xff979797},          // eSettingsPanelBorder
     {0, 0xff7e7e7e},          // eSettingsPanelShadow
     {250, 250},               // eSettingsPanelBgOpa
-    {0xff505050, 0xffeaeae0}, // eSettingsButtonBg
-    {0xffaafbff, 0xff294337}, // eSettingsButtonText
-    {0xff303030, 0xffd0d0d0}, // eSettingsButtonBorder
-    {0, 0xff67ea94},          // eSettingsButtonImageRecolor
+    {0xff25364e, 0xffe4ecf6}, // eSettingsButtonBg
+    {0xfff2f6ff, 0xff1c3555}, // eSettingsButtonText
+    {0xff0b1220, 0xffd0d0d0}, // eSettingsButtonBorder
+    {0, 0xff64a8ff},          // eSettingsButtonImageRecolor
     {0, 255},                 // eSettingsButtonImageRecolorOpa
-    {0xff404040, 0xffffffff}, // eSettingsLabelBg
-    {0xff404040, 0xff808080}, // eSettingsLabelBorder
-    {0xff303030, 0xfff4f4f4}, // eTabViewBg
-    {0xffaafbff, 0xff003c9f}, // eTabViewText
-    {0xff303030, 0xffe0e0e0}, // eTabButtonDefaultBg
-    {0xff303030, 0xffffffff}, // eTabButtonActiveBg
-    {0xff67ea94, 0xffaafbff}, // eTabButtonPressedBg
+    {0xff1b283c, 0xffffffff}, // eSettingsLabelBg
+    {0xff1b283c, 0xff435570}, // eSettingsLabelBorder
+    {0xff0b1220, 0xfff1f4fa}, // eTabViewBg
+    {0xfff2f6ff, 0xff245faa}, // eTabViewText
+    {0xff0b1220, 0xffe0e0e0}, // eTabButtonDefaultBg
+    {0xff0b1220, 0xffffffff}, // eTabButtonActiveBg
+    {0xff64a8ff, 0xfff2f6ff}, // eTabButtonPressedBg
     {0xffA0A0A0, 0xff606060}, // eTabButtonDefaultText
     {0xffffffff, 0xff101010}, // eTabButtonActiveText
     {0xffffffff, 0xffffffff}, // eTabButtonPressedText
-    {0xff505050, 0xffb0b0b0}, // eTabButtonDefaultBorder
-    {0xff303030, 0xfffbfce9}, // eChatMessageBg
+    {0xff25364e, 0xffb0b0b0}, // eTabButtonDefaultBorder
+    {0xff0b1220, 0xfff8faff}, // eChatMessageBg
     {255, 255},               // eChatMessageBgOpa
-    {0xffffffff, 0xff294337}, // eChatMessageText
-    {0xff707070, 0xff888888}, // eChatMessageBorder
-    {0xff404040, 0xffffffff}, // eNewMessageBg
+    {0xffffffff, 0xff1c3555}, // eChatMessageText
+    {0xff435570, 0xff888888}, // eChatMessageBorder
+    {0xff1b283c, 0xffffffff}, // eNewMessageBg
     {255, 255},               // eNewMessageBgOpa
-    {0xffd0d0d0, 0xff294337}, // eNewMessageText
-    {0xff808080, 0xff888888}, // eNewMessageBorder
-    {0xff303030, 0xfffbfbfb}, // eAlertPanelBg
-    {0xff303030, 0xfff4f4f4}, // eBtnMatrixBorderMain
-    {0xff67ea94, 0xff67ea94}, // eBtnMatrixBorderItems
+    {0xffd0d0d0, 0xff1c3555}, // eNewMessageText
+    {0xff435570, 0xff888888}, // eNewMessageBorder
+    {0xff0b1220, 0xfffbfbfb}, // eAlertPanelBg
+    {0xff0b1220, 0xfff1f4fa}, // eBtnMatrixBorderMain
+    {0xff64a8ff, 0xff64a8ff}, // eBtnMatrixBorderItems
     {0xff606060, 0xfffffff8}, // eBtnMatrixBgItems
-    {0xffaafbff, 0xff212121}, // eBtnMatrixTextItems
-    {0xffaafbff, 0xff212121}, // eBatteryPercentageText
-    {0xffaafbff, 0xff003c9f}, // eColorTextLabel
-    {0xff404040, 0xffe0e0e0}, // eSpinnerMainArc
-    {0xff67ea94, 0xff67ea94}, // eSpinnerIndicatorArc
-    {0xffaafbff, 0xff212121}, // eTableHeadingText,
-    {0xff303030, 0xfff4f4f0}, // eTableHeadingBg
-    {0xffaafbff, 0xff212121}, // eTableItemText,
-    {0xff505050, 0xfff4f4f0}, // eTableItemBg
-    {0xff303030, 0xffd4d4d0}, // eTableItemDarkBg
-    {0xff404040, 0xffe0e0e0}, // eTableBorder
-    {0xff404040, 0xffe0e0e0}  // eTableCellBorder
+    {0xfff2f6ff, 0xff212121}, // eBtnMatrixTextItems
+    {0xfff2f6ff, 0xff212121}, // eBatteryPercentageText
+    {0xfff2f6ff, 0xff245faa}, // eColorTextLabel
+    {0xff1b283c, 0xffe0e0e0}, // eSpinnerMainArc
+    {0xff64a8ff, 0xff64a8ff}, // eSpinnerIndicatorArc
+    {0xfff2f6ff, 0xff212121}, // eTableHeadingText,
+    {0xff0b1220, 0xfff1f4fa}, // eTableHeadingBg
+    {0xfff2f6ff, 0xff212121}, // eTableItemText,
+    {0xff25364e, 0xfff1f4fa}, // eTableItemBg
+    {0xff0b1220, 0xffd4d4d0}, // eTableItemDarkBg
+    {0xff1b283c, 0xffe0e0e0}, // eTableBorder
+    {0xff1b283c, 0xffe0e0e0}  // eTableCellBorder
 };
 
 #include "fonts.h"
@@ -195,6 +195,9 @@ void apply_style_top_panel_style(void)
 void apply_style_panel_style_MAIN_DEFAULT(void)
 {
     lv_style_t *style = get_style_panel_style_MAIN_DEFAULT();
+    lv_style_set_radius(style, 14);
+    lv_style_set_shadow_width(style, 0);
+    lv_style_set_border_width(style, 1);
     lv_style_set_bg_color(style, lv_color_hex(THEME(ePanelBg)));
     lv_style_set_text_color(style, lv_color_hex(THEME(ePanelText)));
     lv_style_set_border_color(style, lv_color_hex(THEME(ePanelBorder)));
@@ -208,18 +211,24 @@ void apply_style_panel_style_MAIN_PRESSED(void)
 void apply_style_home_container_style(void)
 {
     lv_style_t *style = get_style_home_container_style_MAIN_DEFAULT();
+    lv_style_set_radius(style, 14);
+    lv_style_set_shadow_width(style, 0);
+    lv_style_set_border_width(style, 1);
     lv_style_set_border_color(style, lv_color_hex(THEME(eHomeContainerBorder)));
-    lv_style_set_border_width(style, 3);
+    lv_style_set_border_width(style, 1);
     lv_style_set_border_side(style, LV_BORDER_SIDE_FULL);
     lv_style_set_bg_color(style, lv_color_hex(THEME(eHomeContainerBg)));
     lv_style_set_shadow_color(style, lv_color_hex(THEME(eHomeContainerShadow)));
     lv_style_set_text_font(style, &ui_font_montserrat_16);
-    lv_style_set_radius(style, 10);
+    lv_style_set_radius(style, 14);
     lv_style_set_text_color(style, lv_color_hex(THEME(eHomeContainerText)));
 };
 void apply_style_settings_panel_style(void)
 {
     lv_style_t *style = get_style_settings_panel_style_MAIN_DEFAULT();
+    lv_style_set_radius(style, 14);
+    lv_style_set_shadow_width(style, 0);
+    lv_style_set_border_width(style, 1);
     lv_style_set_bg_color(style, lv_color_hex(THEME(eSettingsPanelBg)));
     lv_style_set_text_color(style, lv_color_hex(THEME(eSettingsPanelText)));
     lv_style_set_shadow_color(style, lv_color_hex(THEME(eSettingsPanelShadow)));
@@ -229,6 +238,9 @@ void apply_style_settings_panel_style(void)
 void apply_style_node_panel_style(void)
 {
     lv_style_t *style = get_style_node_panel_style_MAIN_DEFAULT();
+    lv_style_set_radius(style, 14);
+    lv_style_set_shadow_width(style, 0);
+    lv_style_set_border_width(style, 1);
     lv_style_set_bg_color(style, lv_color_hex(THEME(eNodePanelBg)));
     lv_style_set_border_color(style, lv_color_hex(THEME(eNodePanelBorder)));
     lv_style_set_text_font(style, &ui_font_montserrat_12);
@@ -248,6 +260,9 @@ void apply_style_button_panel_style(void)
 void apply_style_home_button_style(void)
 {
     lv_style_t *style = get_style_home_button_style_MAIN_DEFAULT();
+    lv_style_set_radius(style, 14);
+    lv_style_set_shadow_width(style, 0);
+    lv_style_set_border_width(style, 1);
     lv_style_set_bg_color(style, lv_color_hex(THEME(eHomeButtonBg)));
     lv_style_set_bg_image_recolor_opa(style, THEME(eHomeButtonImageRecolorOpa));
     lv_style_set_bg_image_recolor(style, lv_color_hex(THEME(eHomeButtonImageRecolor)));
@@ -257,6 +272,9 @@ void apply_style_home_button_style(void)
 void apply_style_settings_button_style(void)
 {
     lv_style_t *style = get_style_settings_button_style_MAIN_DEFAULT();
+    lv_style_set_radius(style, 14);
+    lv_style_set_shadow_width(style, 0);
+    lv_style_set_border_width(style, 1);
     lv_style_set_bg_color(style, lv_color_hex(THEME(eSettingsButtonBg)));
     lv_style_set_bg_image_recolor_opa(style, THEME(eSettingsButtonImageRecolorOpa));
     lv_style_set_bg_image_recolor(style, lv_color_hex(THEME(eSettingsButtonImageRecolor)));
@@ -266,6 +284,9 @@ void apply_style_settings_button_style(void)
 void apply_style_main_button_style(void)
 {
     lv_style_t *style = get_style_main_button_style_MAIN_DEFAULT();
+    lv_style_set_radius(style, 14);
+    lv_style_set_shadow_width(style, 0);
+    lv_style_set_border_width(style, 1);
     lv_style_set_bg_image_recolor_opa(style, THEME(eMainButtonImageRecolorOpa));
     lv_style_set_bg_image_recolor(style, lv_color_hex(THEME(eMainButtonImageRecolor)));
     lv_style_set_border_color(style, lv_color_hex(THEME(eMainButtonBorder)));
@@ -276,6 +297,9 @@ void apply_style_main_button_style(void)
 void apply_style_new_message_style(void)
 {
     lv_style_t *style = get_style_new_message_style_MAIN_DEFAULT();
+    lv_style_set_radius(style, 14);
+    lv_style_set_shadow_width(style, 0);
+    lv_style_set_border_width(style, 1);
     lv_style_set_border_color(style, lv_color_hex(THEME(eNewMessageBorder)));
     lv_style_set_bg_color(style, lv_color_hex(THEME(eNewMessageBg)));
     lv_style_set_text_color(style, lv_color_hex(THEME(eNewMessageText)));
@@ -284,6 +308,9 @@ void apply_style_new_message_style(void)
 void apply_style_chat_message_style(void)
 {
     lv_style_t *style = get_style_chat_message_style_MAIN_DEFAULT();
+    lv_style_set_radius(style, 14);
+    lv_style_set_shadow_width(style, 0);
+    lv_style_set_border_width(style, 1);
     lv_style_set_border_color(style, lv_color_hex(THEME(eChatMessageBorder)));
     lv_style_set_bg_color(style, lv_color_hex(THEME(eChatMessageBg)));
     lv_style_set_text_color(style, lv_color_hex(THEME(eChatMessageText)));
@@ -318,6 +345,9 @@ void apply_style_top_image_style(void)
 void apply_style_alert_panel_style(void)
 {
     lv_style_t *style = get_style_alert_panel_style_MAIN_DEFAULT();
+    lv_style_set_radius(style, 14);
+    lv_style_set_shadow_width(style, 0);
+    lv_style_set_border_width(style, 1);
     lv_style_set_bg_color(style, lv_color_hex(THEME(eAlertPanelBg)));
     lv_style_set_text_color(style, lv_color_hex(THEME(ePanelText)));
 };
@@ -329,6 +359,9 @@ void apply_style_main_screen_style(void)
 void apply_style_channel_button_style(void)
 {
     lv_style_t *style = get_style_channel_button_style_MAIN_DEFAULT();
+    lv_style_set_radius(style, 14);
+    lv_style_set_shadow_width(style, 0);
+    lv_style_set_border_width(style, 1);
     lv_style_set_bg_color(style, lv_color_hex(THEME(eChannelButtonBg)));
     lv_style_set_border_color(style, lv_color_hex(THEME(eChannelButtonBorder)));
     lv_style_set_text_color(style, lv_color_hex(THEME(eChannelButtonText)));
@@ -433,7 +466,7 @@ void Themes::initStyles(void)
     lv_style_set_text_color(&style_btn_active, lv_color_hex(THEME(eTabButtonActiveText)));
     lv_style_set_bg_color(&style_btn_active, lv_color_hex(THEME(eTabButtonActiveBg)));
     lv_style_set_bg_opa(&style_btn_active, LV_OPA_COVER);
-    lv_style_set_border_color(&style_btn_active, lv_color_hex(0xff67ea94));
+    lv_style_set_border_color(&style_btn_active, lv_color_hex(0xff64a8ff));
     lv_style_set_border_opa(&style_btn_active, LV_OPA_COVER);
     lv_style_set_border_width(&style_btn_active, 3);
     lv_style_set_border_side(&style_btn_active, LV_BORDER_SIDE_BOTTOM);
@@ -442,7 +475,7 @@ void Themes::initStyles(void)
     lv_style_set_text_color(&style_btn_pressed, lv_color_hex(THEME(eTabButtonPressedText)));
     lv_style_set_bg_color(&style_btn_pressed, lv_color_hex(THEME(eTabButtonPressedBg)));
     lv_style_set_bg_opa(&style_btn_pressed, LV_OPA_COVER);
-    lv_style_set_border_color(&style_btn_pressed, lv_color_hex(0xff67ea94));
+    lv_style_set_border_color(&style_btn_pressed, lv_color_hex(0xff64a8ff));
     lv_style_set_border_opa(&style_btn_pressed, LV_OPA_COVER);
     lv_style_set_border_width(&style_btn_pressed, 3);
     lv_style_set_border_side(&style_btn_pressed, LV_BORDER_SIDE_BOTTOM);
