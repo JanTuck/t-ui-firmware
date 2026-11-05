@@ -2,6 +2,7 @@
 #include "graphics/view/TFT/ControlCenterGesture.h"
 #include <cassert>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <vector>
 
@@ -18,6 +19,9 @@ std::vector<Change> changes;
 lv_point_t point;
 bool pressed;
 unsigned flushes;
+bool keyDown;
+uint32_t key;
+int encoderDiff;
 lv_obj_t *findText(lv_obj_t *root, const char *text)
 {
     if (lv_obj_check_type(root, &lv_label_class) && !strcmp(lv_label_get_text(root), text) && lv_obj_is_visible(root))
@@ -102,7 +106,18 @@ int main()
     auto *keyboard = lv_indev_create();
     lv_indev_set_type(keyboard, LV_INDEV_TYPE_KEYPAD);
     lv_indev_set_group(keyboard, group);
-    lv_indev_set_read_cb(keyboard, [](lv_indev_t *, lv_indev_data_t *data) { data->state = LV_INDEV_STATE_RELEASED; });
+    lv_indev_set_read_cb(keyboard, [](lv_indev_t *, lv_indev_data_t *data) {
+        data->key = key;
+        data->state = keyDown ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+    });
+    auto *encoder = lv_indev_create();
+    lv_indev_set_type(encoder, LV_INDEV_TYPE_ENCODER);
+    lv_indev_set_group(encoder, group);
+    lv_indev_set_read_cb(encoder, [](lv_indev_t *, lv_indev_data_t *data) {
+        data->enc_diff = encoderDiff;
+        encoderDiff = 0;
+        data->state = LV_INDEV_STATE_RELEASED;
+    });
     auto *underlying = lv_button_create(lv_screen_active());
     lv_group_add_obj(group, underlying);
     state.allowed = state.wifiAvailable = state.wifiConfigured = state.bluetoothAvailable = state.gpsAvailable = true;
@@ -167,6 +182,137 @@ int main()
         if (changes[i].action == Brightness && changes[i].persist)
             ++keySaved;
     assert(keySaved == 1);
+    // Real pointer hit testing includes the glyph and both clipped fill children.
+    tap(292, 9);
+    brightness = findSlider(lv_layer_top());
+    auto checkWrites = [](size_t start, int saves) {
+        int count = 0;
+        for (size_t i = start; i < changes.size(); ++i) {
+            assert(changes[i].action == Brightness);
+            count += changes[i].persist;
+        }
+        if (count != saves)
+            fprintf(stderr, "write check start=%zu end=%zu count=%d expected=%d\n", start, changes.size(), count, saves);
+        assert(count == saves);
+    };
+    for (int y : {166, 136, 106, 76, 45}) {
+        const auto start = changes.size();
+        tap(272, y);
+        assert(opened());
+        const int expected = 10 + (166 - y) * 245 / 121;
+        assert(abs(lv_slider_get_value(brightness) - expected) <= 3);
+        checkWrites(start, 1);
+    }
+    for (bool up : {true, false}) {
+        const auto start = changes.size();
+        const int from = up ? 166 : 45;
+        const int to = up ? 45 : 166;
+        touch(272, from, true);
+        for (int step = 1; step <= 8; ++step) {
+            const int y = from + (to - from) * step / 8;
+            touch(272, y, true);
+            assert(opened());
+            assert(abs(lv_slider_get_value(brightness) - (10 + (166 - y) * 245 / 121)) <= 1);
+            checkWrites(start, 0);
+        }
+        touch(272, to, false);
+        assert(opened());
+        assert(state.brightness == (up ? 255 : 10));
+        checkWrites(start, 1);
+    }
+    auto start = changes.size();
+    drag(272, 130, 100, 15);
+    assert(opened());
+    checkWrites(start, 1);
+    start = changes.size();
+    touch(272, 120, true);
+    touch(272, 80, true);
+    // Force LVGL's actual press-lost path by removing the object's press lock.
+    lv_obj_remove_flag(brightness, LV_OBJ_FLAG_PRESS_LOCK);
+    touch(100, 80, true);
+    touch(100, 80, false);
+    assert(opened());
+    checkWrites(start, 1);
+    close();
+    advance();
+    checkWrites(start, 1);
+    tap(292, 9);
+    brightness = findSlider(lv_layer_top());
+    lv_group_focus_obj(brightness);
+    start = changes.size();
+    key = LV_KEY_RIGHT;
+    keyDown = true;
+    advance();
+    keyDown = false;
+    advance();
+    checkWrites(start, 1);
+    start = changes.size();
+    lv_group_set_editing(lv_indev_get_group(encoder), true);
+    encoderDiff = -1;
+    advance();
+    checkWrites(start, 1);
+    key = LV_KEY_ESC;
+    keyDown = true;
+    advance();
+    keyDown = false;
+    advance();
+    assert(!opened());
+    assert(lv_indev_get_group(keyboard) == group && lv_indev_get_group(encoder) == group);
+    for (int mode = 0; mode < 3; ++mode) {
+        tap(292, 9);
+        start = changes.size();
+        touch(272, 130, true);
+        touch(272, 70 + mode * 10, true);
+        lv_obj_t *modalDuringDrag = nullptr;
+        if (mode == 0)
+            state.allowed = false;
+        else if (mode == 1)
+            lv_screen_load(lv_obj_create(nullptr));
+        else {
+            modalDuringDrag = lv_obj_create(lv_layer_top());
+            lv_obj_set_size(modalDuringDrag, 320, 240);
+        }
+        advance();
+        assert(!opened());
+        touch(272, 60, false);
+        checkWrites(start, 1);
+        assert(lv_indev_get_group(keyboard) == group && lv_indev_get_group(encoder) == group);
+        state.allowed = true;
+        if (modalDuringDrag)
+            lv_obj_delete(modalDuringDrag);
+        advance();
+    }
+    for (auto end : {lv_point_t{240, 9}, lv_point_t{240, 70}, lv_point_t{319, 36}}) {
+        drag(292, 9, end.x, end.y);
+        assert(!opened());
+    }
+    state.wifiAvailable = state.bluetoothAvailable = state.gpsAvailable = false;
+    tap(292, 9);
+    start = changes.size();
+    for (int x : {47, 117, 187})
+        tap(x, 80);
+    assert(changes.size() == start && opened());
+    close();
+    advance();
+    state.wifiAvailable = state.bluetoothAvailable = state.gpsAvailable = true;
+    lv_mem_monitor_t memBefore, memOpen, memAfter;
+    lv_mem_monitor(&memBefore);
+    tap(292, 9);
+    lv_mem_monitor(&memOpen);
+    printf("Open panel heap delta=%zu bytes\n", memBefore.free_size - memOpen.free_size);
+    close();
+    advance();
+    lv_mem_monitor(&memBefore);
+    for (int i = 0; i < 200; ++i) {
+        tap(292, 9);
+        assert(opened());
+        tap(288, 20);
+        assert(!opened());
+    }
+    lv_mem_monitor(&memAfter);
+    assert(memAfter.free_size == memBefore.free_size);
+    printf("200 cycles: heap before=%zu after=%zu bytes; idle flush delta=0\n", memBefore.total_size - memBefore.free_size,
+           memAfter.total_size - memAfter.free_size);
     drag(292, 9, 240, 70);
     assert(!opened());
     state.allowed = false;

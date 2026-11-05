@@ -144,11 +144,6 @@ void symbol(lv_obj_t *parent, const char *name, int x, int y)
     lv_obj_t *image = lv_image_create(parent);
     lv_image_set_src(image, source);
     lv_obj_set_style_image_recolor(image, lv_color_white(), 0);
-    if (!strcmp(name, "Sun")) {
-        lv_obj_set_style_bg_color(image, lv_color_hex(0x355a8c), 0);
-        lv_obj_set_style_bg_opa(image, LV_OPA_COVER, 0);
-        lv_obj_set_style_radius(image, LV_RADIUS_CIRCLE, 0);
-    }
     lv_obj_set_style_image_recolor_opa(image, LV_OPA_COVER, 0);
     lv_obj_set_pos(image, x, y);
     lv_obj_remove_flag(image, LV_OBJ_FLAG_CLICKABLE);

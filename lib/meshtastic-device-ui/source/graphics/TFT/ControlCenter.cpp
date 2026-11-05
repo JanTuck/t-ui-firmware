@@ -13,6 +13,8 @@ Read readState;
 Write writeState;
 lv_obj_t *handle, *panel, *origin, *slider, *hint, *confirm, *settingsButton;
 lv_obj_t *tiles[3], *labels[3];
+lv_obj_t *brightnessFill, *brightnessSun;
+int drawnBrightness = -1;
 lv_group_t *savedGroup;
 lv_obj_t *savedFocus;
 lv_group_t *panelGroup;
@@ -74,6 +76,18 @@ void dismiss(lv_event_t *)
     close();
 }
 
+void updateBrightnessFill()
+{
+    const int value = lv_slider_get_value(slider);
+    if (value == drawnBrightness)
+        return;
+    drawnBrightness = value;
+    const int height = (value - 10) * 121 / 245;
+    lv_obj_set_height(brightnessFill, height);
+    lv_obj_set_y(brightnessFill, 121 - height);
+    lv_obj_set_y(brightnessSun, 74 - (121 - height));
+}
+
 void refresh()
 {
     State state = readState();
@@ -108,6 +122,7 @@ void refresh()
     }
     if (!dragging && !brightnessDirty && (!haveLast || state.brightness != last.brightness))
         lv_slider_set_value(slider, state.brightness, LV_ANIM_OFF);
+    updateBrightnessFill();
     last = state;
     haveLast = true;
 }
@@ -202,42 +217,54 @@ void open()
         lv_obj_set_style_text_align(labels[i], LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_add_event_cb(tiles[i], choose, LV_EVENT_CLICKED, reinterpret_cast<void *>(static_cast<intptr_t>(i)));
     }
-    lv_obj_t *display = lv_obj_create(panel);
-    surface(display);
-    lv_obj_set_pos(display, 234, 46);
-    lv_obj_set_size(display, 76, 121);
-    lv_obj_remove_flag(display, LV_OBJ_FLAG_CLICKABLE);
     slider = lv_slider_create(panel);
-    lv_obj_set_pos(slider, 246, 55);
-    lv_obj_set_size(slider, 52, 102);
+    lv_obj_remove_style_all(slider);
+    lv_obj_set_pos(slider, 240, 46);
+    lv_obj_set_size(slider, 64, 121);
     lv_obj_set_ext_click_area(slider, 6);
     lv_slider_set_range(slider, 10, 255);
-    lv_obj_set_style_radius(slider, 26, LV_PART_MAIN);
+    lv_obj_set_style_radius(slider, 32, LV_PART_MAIN);
+    lv_obj_set_style_clip_corner(slider, true, LV_PART_MAIN);
     lv_obj_set_style_bg_color(slider, lv_color_hex(0x355a8c), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(slider, 160, LV_PART_MAIN);
-    lv_obj_set_style_radius(slider, 26, LV_PART_INDICATOR);
-    lv_obj_set_style_bg_color(slider, lv_color_hex(0xe9f6ff), LV_PART_INDICATOR);
-    lv_obj_set_style_bg_opa(slider, LV_OPA_COVER, LV_PART_INDICATOR);
-    lv_obj_set_style_bg_opa(slider, LV_OPA_TRANSP, LV_PART_KNOB);
-    lv_obj_set_style_pad_all(slider, 0, LV_PART_KNOB);
-    GlassUI::symbol(slider, "Sun", 12, 64);
+    lv_obj_set_style_outline_color(slider, lv_color_white(), LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_outline_width(slider, 2, LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_outline_pad(slider, 2, LV_STATE_FOCUS_KEY);
+    lv_obj_remove_flag(slider, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    GlassUI::symbol(slider, "Sun", 18, 74);
+    brightnessFill = lv_obj_create(slider);
+    lv_obj_remove_style_all(brightnessFill);
+    lv_obj_remove_flag(brightnessFill, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(brightnessFill, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_width(brightnessFill, 64);
+    lv_obj_set_style_bg_color(brightnessFill, lv_color_hex(0xe9f6ff), 0);
+    lv_obj_set_style_bg_opa(brightnessFill, LV_OPA_COVER, 0);
+    GlassUI::symbol(brightnessFill, "Sun", 18, 0);
+    brightnessSun = lv_obj_get_child(brightnessFill, 0);
+    lv_obj_set_style_image_recolor(brightnessSun, lv_color_hex(0x355a8c), 0);
+    drawnBrightness = -1;
     lv_obj_add_flag(slider, LV_OBJ_FLAG_EVENT_BUBBLE);
     lv_group_add_obj(panelGroup, slider);
     lv_obj_add_event_cb(
         slider,
         [](lv_event_t *e) {
             const auto code = lv_event_get_code(e);
+            if (!panel)
+                return;
             if (code == LV_EVENT_PRESSED)
                 dragging = true;
-            if (code == LV_EVENT_VALUE_CHANGED || code == LV_EVENT_RELEASED) {
+            if (code == LV_EVENT_VALUE_CHANGED ||
+                ((code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) && brightnessDirty)) {
                 if (!allowed()) {
                     close();
                     return;
                 }
+                updateBrightnessFill();
                 previewBrightness = lv_slider_get_value(slider);
                 brightnessDirty = true;
                 lv_indev_t *dev = lv_indev_active();
-                const bool persist = code == LV_EVENT_RELEASED || (dev && lv_indev_get_type(dev) != LV_INDEV_TYPE_POINTER);
+                const bool persist = code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST ||
+                                     (dev && lv_indev_get_type(dev) != LV_INDEV_TYPE_POINTER);
                 writeState(Brightness, previewBrightness, persist);
                 if (persist)
                     brightnessDirty = false;
